@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 学术文献RAG系统{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5 mb-5">
+    <div class="col-md-10 text-center">
+        <h1 class="display-4 mb-4">学术文献智能检索与问答系统</h1>
+        <p class="lead mb-5">基于检索增强生成(RAG)技术的学术文献OCR处理、自动分类、智能检索与AI交互平台</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-cloud-upload display-4 text-primary mb-3"></i>
+                <h3 class="card-title">文档处理</h3>
+                <p class="card-text">上传学术文献，系统自动进行OCR识别、结构分析和内容分类，将扫描文档转换为结构化数据。</p>
+                <a href="/upload" class="btn btn-primary mt-3">上传文档</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-search display-4 text-primary mb-3"></i>
+                <h3 class="card-title">智能检索</h3>
+                <p class="card-text">基于向量数据库的语义检索，通过自然语言查询找到相关文献内容，实现精准高效的信息获取。</p>
+                <a href="/documents" class="btn btn-primary mt-3">浏览文档</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-chat-dots display-4 text-primary mb-3"></i>
+                <h3 class="card-title">知识问答</h3>
+                <p class="card-text">基于文献内容的智能对话，回答专业问题并提供引用来源，辅助学术研究和知识获取。</p>
+                <a href="/chat" class="btn btn-primary mt-3">开始对话</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">系统功能概览</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>文档处理功能</h4>
+                        <ul class="list-group list-group-flush mb-4">
+                            <li class="list-group-item">文档OCR处理：将扫描的学术文献转换为可搜索文本</li>
+                            <li class="list-group-item">文档结构识别：自动识别标题、摘要、章节等结构元素</li>
+                            <li class="list-group-item">内容自动分类：基于内容对文献进行主题分类和标签标注</li>
+                            <li class="list-group-item">格式转换：生成Markdown和PDF输出，保留原文排版</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h4>检索生成功能</h4>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">向量化存储：将文档内容转换为向量表示并存入向量数据库</li>
+                            <li class="list-group-item">智能检索：通过自然语言查询检索相关文献内容</li>
+                            <li class="list-group-item">知识对话：基于文献内容回答用户问题，提供引用来源</li>
+                            <li class="list-group-item">会话管理：支持多轮对话和上下文理解，记录交互历史</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

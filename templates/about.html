@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}关于系统 - 学术文献RAG系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0">关于学术文献RAG系统</h2>
+            </div>
+            <div class="card-body">
+                <h4 class="border-bottom pb-2 mb-4">系统介绍</h4>
+                
+                <p class="lead">学术文献RAG系统是一个基于检索增强生成(RAG)技术的学术文献处理和智能问答平台，旨在提高学术研究过程中的文献管理、分析和知识获取效率。</p>
+                
+                <p>本系统整合了文档OCR处理、结构化提取、语义检索和智能问答等核心功能，能够自动化处理学术文献，并基于其内容提供精准的智能问答服务。</p>
+                
+                <h4 class="border-bottom pb-2 mb-4 mt-5">核心技术</h4>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="bi bi-book text-primary me-2"></i>文档OCR与结构化处理</h5>
+                                <p class="card-text">采用先进的OCR技术，将扫描文档转换为可搜索的文本内容，并自动识别标题、摘要、章节等结构元素，同时保留原文格式。</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="bi bi-database text-primary me-2"></i>向量数据库与语义检索</h5>
+                                <p class="card-text">使用先进的向量化技术，将文献内容转换为向量表示并存储在向量数据库中，支持基于语义的高效相似度检索和内容推荐。</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="bi bi-robot text-primary me-2"></i>检索增强生成(RAG)</h5>
+                                <p class="card-text">结合大型语言模型与检索系统，根据用户查询检索相关文献内容，生成准确、详细且有引用依据的回答，降低幻觉风险。</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="bi bi-chat-dots text-primary me-2"></i>上下文理解与多轮对话</h5>
+                                <p class="card-text">支持多轮对话和上下文理解，用户可以针对回答提出后续问题，系统保持对话连贯性并基于累积的上下文提供准确回答。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 class="border-bottom pb-2 mb-4 mt-4">系统架构</h4>
+                
+                <div class="text-center mb-5">
+                    <img src="{{ url_for('static', filename='img/system_architecture.png') }}" alt="系统架构图" class="img-fluid rounded shadow" style="max-width: 90%;" onerror="this.src='https://via.placeholder.com/800x400?text=系统架构图'; this.onerror=null;">
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <h5 class="mb-3">技术栈</h5>
+                        <ul class="list-group">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Python Flask
+                                <span class="badge bg-primary rounded-pill">Web框架</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Tesseract & OCR Space
+                                <span class="badge bg-primary rounded-pill">OCR引擎</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                FAISS / Milvus
+                                <span class="badge bg-primary rounded-pill">向量数据库</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Haystack
+                                <span class="badge bg-primary rounded-pill">检索框架</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                LangChain
+                                <span class="badge bg-primary rounded-pill">LLM集成框架</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h5 class="mb-3">系统特点</h5>
+                        <div class="accordion" id="systemFeatures">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#featureOne">
+                                        高精度文本提取
+                                    </button>
+                                </h2>
+                                <div id="featureOne" class="accordion-collapse collapse show" data-bs-parent="#systemFeatures">
+                                    <div class="accordion-body">
+                                        综合多种OCR技术，针对学术文献的特殊排版和专业术语进行优化，提高识别准确率。
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#featureTwo">
+                                        可追溯的引用机制
+                                    </button>
+                                </h2>
+                                <div id="featureTwo" class="accordion-collapse collapse" data-bs-parent="#systemFeatures">
+                                    <div class="accordion-body">
+                                        回答问题时自动提供引用来源，用户可以查看原始文献片段，保证信息可靠性和可追溯性。
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#featureThree">
+                                        模块化设计
+                                    </button>
+                                </h2>
+                                <div id="featureThree" class="accordion-collapse collapse" data-bs-parent="#systemFeatures">
+                                    <div class="accordion-body">
+                                        系统采用模块化设计，各组件解耦合，易于扩展和升级，可根据需求调整处理流程和配置参数。
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 class="border-bottom pb-2 mb-4 mt-5">应用场景</h4>
+                
+                <div class="row">
+                    <div class="col-md-4 mb-4">
+                        <div class="card text-center h-100">
+                            <div class="card-body">
+                                <i class="bi bi-mortarboard display-4 text-primary mb-3"></i>
+                                <h5 class="card-title">学术研究辅助</h5>
+                                <p class="card-text">帮助研究人员快速处理和分析大量学术文献，提高文献综述和研究背景调研效率。</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mb-4">
+                        <div class="card text-center h-100">
+                            <div class="card-body">
+                                <i class="bi bi-journal-text display-4 text-primary mb-3"></i>
+                                <h5 class="card-title">文献知识库构建</h5>
+                                <p class="card-text">构建专业领域的文献知识库，实现知识积累、共享和智能检索，促进团队协作。</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mb-4">
+                        <div class="card text-center h-100">
+                            <div class="card-body">
+                                <i class="bi bi-graph-up display-4 text-primary mb-3"></i>
+                                <h5 class="card-title">学术趋势分析</h5>
+                                <p class="card-text">分析大量文献内容和元数据，识别研究热点、发展趋势和知识间的关联，辅助研究方向决策。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h4 class="mb-0">开发计划</h4>
+            </div>
+            <div class="card-body">
+                <div class="timeline">
+                    <div class="row mb-4">
+                        <div class="col-md-3 text-md-end">
+                            <h5 class="text-primary">当前版本</h5>
+                            <p class="text-muted">基础功能</p>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="p-3 border-start border-primary ps-4">
+                                <ul class="list-unstyled">
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>文档OCR处理与基础结构识别</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>文献检索和基本RAG问答</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>Web界面和用户交互</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-3 text-md-end">
+                            <h5 class="text-secondary">下一阶段</h5>
+                            <p class="text-muted">高级功能</p>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="p-3 border-start border-secondary ps-4">
+                                <ul class="list-unstyled">
+                                    <li><i class="bi bi-circle me-2"></i>表格、图形和公式识别</li>
+                                    <li><i class="bi bi-circle me-2"></i>文献关系图谱可视化</li>
+                                    <li><i class="bi bi-circle me-2"></i>高级语义搜索和过滤器</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-3 text-md-end">
+                            <h5 class="text-secondary">未来规划</h5>
+                            <p class="text-muted">扩展功能</p>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="p-3 border-start border-secondary ps-4">
+                                <ul class="list-unstyled">
+                                    <li><i class="bi bi-circle me-2"></i>多语言支持与翻译能力</li>
+                                    <li><i class="bi bi-circle me-2"></i>用户自定义知识库和训练</li>
+                                    <li><i class="bi bi-circle me-2"></i>API接口与第三方集成</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

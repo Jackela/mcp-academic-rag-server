@@ -1,0 +1,102 @@
+{
+  "storage": {
+    "base_path": "./data",
+    "output_path": "./output"
+  },
+  "processors": {
+    "PreProcessor": {
+      "enabled": true,
+      "enhance_image": true,
+      "correct_skew": true
+    },
+    "OCRProcessor": {
+      "enabled": true,
+      "api": "azure",
+      "language": "zh-Hans"
+    },
+    "StructureProcessor": {
+      "enabled": true,
+      "detect_sections": true,
+      "detect_headings": true
+    },
+    "ClassificationProcessor": {
+      "enabled": true,
+      "api": "openai",
+      "min_confidence": 0.7
+    },
+    "FormatConverter": {
+      "enabled": true,
+      "output_formats": ["markdown", "pdf"],
+      "preserve_layout": true
+    },
+    "EmbeddingProcessor": {
+      "enabled": true,
+      "chunk_size": 1000,
+      "chunk_overlap": 200
+    }
+  },
+  "connectors": {
+    "OCRAPIConnector": {
+      "azure": {
+        "endpoint": "YOUR_AZURE_ENDPOINT",
+        "api_key": "YOUR_AZURE_API_KEY",
+        "region": "eastus"
+      },
+      "google": {
+        "api_key": "YOUR_GOOGLE_API_KEY"
+      },
+      "baidu": {
+        "app_id": "YOUR_BAIDU_APP_ID",
+        "api_key": "YOUR_BAIDU_API_KEY",
+        "secret_key": "YOUR_BAIDU_SECRET_KEY"
+      }
+    },
+    "ClassificationAPIConnector": {
+      "openai": {
+        "api_key": "YOUR_OPENAI_API_KEY",
+        "model": "gpt-3.5-turbo"
+      },
+      "baidu": {
+        "app_id": "YOUR_BAIDU_APP_ID",
+        "api_key": "YOUR_BAIDU_API_KEY",
+        "secret_key": "YOUR_BAIDU_SECRET_KEY"
+      },
+      "huggingface": {
+        "api_key": "YOUR_HUGGINGFACE_API_KEY",
+        "model": "distilbert-base-uncased"
+      }
+    },
+    "VectorDBConnector": {
+      "type": "milvus",
+      "url": "localhost:19530",
+      "api_key": "YOUR_VECTOR_DB_API_KEY",
+      "collection": "academic_papers",
+      "settings": {
+        "index_type": "IVF_FLAT",
+        "metric_type": "IP",
+        "params": {"nlist": 1024}
+      }
+    },
+    "LLMConnector": {
+      "type": "openai",
+      "api_url": "https://api.openai.com/v1",
+      "api_key": "YOUR_OPENAI_API_KEY",
+      "model": "gpt-3.5-turbo",
+      "embedding_model": "text-embedding-3-small",
+      "settings": {
+        "temperature": 0.7,
+        "max_tokens": 2000
+      }
+    }
+  },
+  "rag_settings": {
+    "top_k": 5,
+    "threshold": 0.75,
+    "prompt_template": "基于以下文献内容回答问题:\n\n{context}\n\n问题: {question}\n\n回答:"
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file": "./logs/system.log"
+  }
+}

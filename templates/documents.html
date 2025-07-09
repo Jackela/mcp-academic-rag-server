@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}文档管理 - 学术文献RAG系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>文档管理</h2>
+    <div>
+        <a href="/upload" class="btn btn-primary">
+            <i class="bi bi-upload me-1"></i> 上传新文档
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-light">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="searchInput" placeholder="搜索文档...">
+                    <button class="btn btn-outline-secondary" type="button">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-4 text-md-end mt-2 mt-md-0">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="bi bi-funnel me-1"></i> 筛选
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#">全部文档</a></li>
+                        <li><a class="dropdown-item" href="#">已处理</a></li>
+                        <li><a class="dropdown-item" href="#">处理中</a></li>
+                        <li><a class="dropdown-item" href="#">处理失败</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#">按上传时间排序</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col" width="40%">文档名称</th>
+                        <th scope="col" width="15%">大小</th>
+                        <th scope="col" width="20%">上传时间</th>
+                        <th scope="col" width="15%">状态</th>
+                        <th scope="col" width="10%">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if documents %}
+                        {% for doc in documents %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if doc.name.endswith('.pdf') %}
+                                            <i class="bi bi-file-earmark-pdf text-danger fs-4 me-2"></i>
+                                        {% elif doc.name.endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff')) %}
+                                            <i class="bi bi-file-earmark-image text-primary fs-4 me-2"></i>
+                                        {% else %}
+                                            <i class="bi bi-file-earmark text-secondary fs-4 me-2"></i>
+                                        {% endif %}
+                                        <div>
+                                            <div class="fw-medium">{{ doc.name }}</div>
+                                            <small class="text-muted">ID: {{ doc.id }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{ '%0.2f'|format(doc.size / 1024 / 1024) }} MB</td>
+                                <td>{{ doc.date }}</td>
+                                <td>
+                                    {% if doc.status == '已处理' %}
+                                        <span class="badge bg-success">已处理</span>
+                                    {% elif doc.status == '处理中' %}
+                                        <span class="badge bg-warning text-dark">处理中</span>
+                                    {% elif doc.status == '处理失败' %}
+                                        <span class="badge bg-danger">处理失败</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ doc.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                            操作
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li><a class="dropdown-item" href="#"><i class="bi bi-eye me-2"></i>查看详情</a></li>
+                                            <li><a class="dropdown-item" href="#"><i class="bi bi-arrow-repeat me-2"></i>重新处理</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item text-danger" href="#"><i class="bi bi-trash me-2"></i>删除</a></li>
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="bi bi-inbox display-6 d-block mb-3"></i>
+                                    <p>暂无文档</p>
+                                    <a href="/upload" class="btn btn-outline-primary">上传文档</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% if documents and documents|length > 10 %}
+    <div class="card-footer">
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item disabled">
+                    <a class="page-link" href="#" tabindex="-1" aria-disabled="true">上一页</a>
+                </li>
+                <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                <li class="page-item"><a class="page-link" href="#">2</a></li>
+                <li class="page-item"><a class="page-link" href="#">3</a></li>
+                <li class="page-item">
+                    <a class="page-link" href="#">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 文档搜索功能
+    document.getElementById('searchInput').addEventListener('keyup', function() {
+        const searchValue = this.value.toLowerCase();
+        const tableRows = document.querySelectorAll('tbody tr');
+        
+        tableRows.forEach(row => {
+            const nameCell = row.querySelector('td:first-child');
+            if (!nameCell) return;
+            
+            const docName = nameCell.textContent.toLowerCase();
+            if (docName.includes(searchValue)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}

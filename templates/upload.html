@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}上传文档 - 学术文献RAG系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0">上传学术文献</h2>
+            </div>
+            <div class="card-body">
+                <p class="card-text">支持PDF、JPG、PNG、TIFF格式的学术文献，系统将自动进行OCR处理、结构分析和主题分类。</p>
+                
+                <form method="POST" enctype="multipart/form-data" class="mt-4">
+                    <div class="mb-4">
+                        <label class="form-label">选择文件</label>
+                        <div class="input-group">
+                            <input type="file" class="form-control" name="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff">
+                            <label class="input-group-text" for="fileInput">浏览</label>
+                        </div>
+                        <div class="form-text">最大文件大小: 16MB</div>
+                    </div>
+                    
+                    <div class="mb-4" id="previewContainer" style="display: none;">
+                        <label class="form-label">文件预览</label>
+                        <div class="border rounded p-3 text-center">
+                            <div id="filePreview" class="mb-2"></div>
+                            <p id="fileDetails" class="mb-0 text-muted"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label">处理选项</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="extractText" name="options" value="extract_text" checked>
+                            <label class="form-check-label" for="extractText">OCR文本提取</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="extractStructure" name="options" value="extract_structure" checked>
+                            <label class="form-check-label" for="extractStructure">结构识别</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="classify" name="options" value="classify" checked>
+                            <label class="form-check-label" for="classify">主题分类</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="vectorize" name="options" value="vectorize" checked>
+                            <label class="form-check-label" for="vectorize">向量化索引</label>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary">上传并处理</button>
+                        <a href="/documents" class="btn btn-outline-secondary ms-2">返回列表</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">支持的文档格式</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3 mb-3">
+                        <div class="p-3 border rounded">
+                            <i class="bi bi-file-earmark-pdf display-6 text-danger"></i>
+                            <p class="mb-0 mt-2">PDF文档</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="p-3 border rounded">
+                            <i class="bi bi-file-earmark-image display-6 text-success"></i>
+                            <p class="mb-0 mt-2">JPG图像</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="p-3 border rounded">
+                            <i class="bi bi-file-earmark-image display-6 text-primary"></i>
+                            <p class="mb-0 mt-2">PNG图像</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="p-3 border rounded">
+                            <i class="bi bi-file-earmark-image display-6 text-secondary"></i>
+                            <p class="mb-0 mt-2">TIFF图像</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (!file) {
+            document.getElementById('previewContainer').style.display = 'none';
+            return;
+        }
+        
+        document.getElementById('previewContainer').style.display = 'block';
+        
+        // 显示文件信息
+        const fileDetails = document.getElementById('fileDetails');
+        const fileSize = (file.size / 1024 / 1024).toFixed(2);
+        fileDetails.textContent = `${file.name} (${fileSize} MB)`;
+        
+        // 预览区域
+        const previewArea = document.getElementById('filePreview');
+        previewArea.innerHTML = '';
+        
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.classList.add('img-fluid', 'mb-2');
+            img.style.maxHeight = '200px';
+            img.file = file;
+            
+            const reader = new FileReader();
+            reader.onload = (function(aImg) {
+                return function(e) {
+                    aImg.src = e.target.result;
+                };
+            })(img);
+            reader.readAsDataURL(file);
+            
+            previewArea.appendChild(img);
+        } else if (file.type === 'application/pdf') {
+            const icon = document.createElement('i');
+            icon.classList.add('bi', 'bi-file-earmark-pdf', 'display-1', 'text-danger');
+            previewArea.appendChild(icon);
+        } else {
+            const icon = document.createElement('i');
+            icon.classList.add('bi', 'bi-file-earmark', 'display-1', 'text-secondary');
+            previewArea.appendChild(icon);
+        }
+    });
+</script>
+{% endblock %}
