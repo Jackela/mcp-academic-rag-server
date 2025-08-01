@@ -10,6 +10,20 @@
 2. **集成测试**：验证不同组件间的协同工作
 3. **性能测试**：评估系统在各种场景下的性能表现
 
+## 测试环境准备
+
+在运行测试之前，请先安装项目依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+如果需要生成覆盖率报告，还需额外安装：
+
+```bash
+pip install coverage
+```
+
 ## 测试模块
 
 ### 文档处理CLI测试 (`test_document_cli.py`)
