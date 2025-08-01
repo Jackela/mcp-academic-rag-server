@@ -2,6 +2,23 @@
 
 这是一个学术文献检索增强生成(RAG)服务器原型，提供文献OCR处理、自动分类、智能检索与AI交互功能。
 
+## 目录
+
+- [系统架构图](#系统架构图)
+- [核心类图](#核心类图)
+- [处理流水线流程图](#处理流水线流程图)
+- [RAG组件类图](#rag组件类图)
+- [系统功能](#系统功能)
+- [系统架构](#系统架构)
+- [开发路线图](#开发路线图)
+- [快速开始](#快速开始)
+- [MCP服务器快速上手](#mcp服务器快速上手)
+- [运行示例](#运行示例)
+- [测试框架](#测试框架)
+- [API参考](#api参考)
+- [项目结构](#项目结构)
+- [技术选择](#技术选择)
+
 ## 系统架构图
 
 ```mermaid
@@ -339,6 +356,60 @@ python -m cli.document_cli <命令> [选项]
 
 更多详细用法请参考 [CLI文档](./cli/README.md)
 
+## MCP服务器快速上手
+
+本项目可扩展为基于 [Model Context Protocol](https://modelcontextprotocol.io/) 的服务器。以下示例展示如何使用 `mcp` Python SDK 构建一个简单的天气服务器：
+
+```python
+from typing import Any
+import httpx
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("weather")
+
+NWS_API_BASE = "https://api.weather.gov"
+USER_AGENT = "weather-app/1.0"
+
+async def make_nws_request(url: str) -> dict[str, Any] | None:
+    headers = {"User-Agent": USER_AGENT, "Accept": "application/geo+json"}
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(url, headers=headers, timeout=30.0)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception:
+            return None
+
+@mcp.tool()
+async def get_alerts(state: str) -> str:
+    url = f"{NWS_API_BASE}/alerts/active/area/{state}"
+    data = await make_nws_request(url)
+    if not data or not data.get("features"):
+        return "No active alerts for this state."
+    return "\n---\n".join(
+        f"Event: {f['properties']['event']}\nArea: {f['properties']['areaDesc']}" for f in data["features"]
+    )
+
+@mcp.tool()
+async def get_forecast(latitude: float, longitude: float) -> str:
+    points = await make_nws_request(f"{NWS_API_BASE}/points/{latitude},{longitude}")
+    if not points:
+        return "Unable to fetch forecast data."
+    forecast_url = points["properties"]["forecast"]
+    forecast = await make_nws_request(forecast_url)
+    if not forecast:
+        return "Unable to fetch detailed forecast."
+    periods = forecast["properties"]["periods"][:5]
+    return "\n---\n".join(
+        f"{p['name']}: {p['detailedForecast']}" for p in periods
+    )
+
+if __name__ == "__main__":
+    mcp.run(transport="stdio")
+```
+
+将代码保存为 `weather.py`，使用 `uv run weather.py` 启动服务器，并在 `claude_desktop_config.json` 中配置即可在 Claude for Desktop 中调用。
+
 ### 运行示例
 
 为了帮助用户快速上手，系统提供了多个示例脚本：
@@ -416,11 +487,11 @@ pytest tests/unit/test_config_manager.py
 
 ## API参考
 
-```
+API 接口设计正在完善中，未来将提供完整的 OpenAPI 文档。
 
 ## 项目结构
 
-```
+```text
 academic-rag-server
 ├── cli/                    # 命令行界面
 │   ├── document_cli.py     # 文档处理CLI
