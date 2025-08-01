@@ -298,12 +298,11 @@ classDiagram
 
 2. 安装依赖
    ```bash
-   pip install -r requirements.txt
+   pip install -r requirements/base.txt
    ```
 
 3. 配置系统
-   - 复制`config/config.example.json`为`config/config.json`
-   - 编辑`config.json`，设置API密钥和存储路径
+   - 编辑`config/config.json`，设置API密钥和存储路径
 
 ### 运行Web界面
 
@@ -564,7 +563,8 @@ academic-rag-server
 │   └── vector_utils.py     # 向量处理工具
 ├── app.py                  # 主应用入口
 ├── webapp.py               # Web应用入口
-├── requirements.txt        # 项目依赖
+├── requirements/           # 依赖目录
+│   └── base.txt            # 基础依赖
 └── README.md               # 项目文档
 ```
 
