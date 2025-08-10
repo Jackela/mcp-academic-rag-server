@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}服务器错误 - 学术文献RAG服务器{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <div class="error-template">
+                <h1>500</h1>
+                <h2>服务器内部错误</h2>
+                <div class="error-details">
+                    抱歉，服务器遇到了一个错误。请稍后重试。
+                </div>
+                <div class="error-actions mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-home"></i> 返回首页
+                    </a>
+                    <a href="javascript:history.back()" class="btn btn-secondary btn-lg">
+                        <i class="fas fa-arrow-left"></i> 返回上一页
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-template {
+    padding: 40px 15px;
+}
+.error-template h1 {
+    font-size: 8em;
+    color: #dc3545;
+    margin-bottom: 20px;
+}
+.error-template h2 {
+    font-size: 2.5em;
+    color: #333;
+    margin-bottom: 20px;
+}
+.error-details {
+    font-size: 1.2em;
+    color: #666;
+    margin-bottom: 30px;
+}
+</style>
+{% endblock %}

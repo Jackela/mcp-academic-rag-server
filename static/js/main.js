@@ -105,15 +105,33 @@ function initializeDocumentsPage() {
         });
     }
     
-    // 文档列表中的删除确认
+    // 文档列表中的删除功能
     const deleteButtons = document.querySelectorAll('.delete-document');
     deleteButtons.forEach(button => {
         button.addEventListener('click', function(e) {
-            if (!confirm('确定要删除此文档吗？此操作不可撤销。')) {
-                e.preventDefault();
+            e.preventDefault();
+            const docId = this.getAttribute('data-doc-id');
+            if (confirm('确定要删除此文档吗？此操作不可撤销。')) {
+                deleteDocument(docId);
             }
         });
     });
+    
+    // 文档详情查看功能
+    const infoButtons = document.querySelectorAll('.info-document');
+    infoButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const docId = this.getAttribute('data-doc-id');
+            showDocumentInfo(docId);
+        });
+    });
+    
+    // 定期更新文档状态
+    setInterval(updateDocumentStatuses, 5000);
+    
+    // 页面加载时立即更新一次状态
+    updateDocumentStatuses();
 }
 
 /**
@@ -136,8 +154,14 @@ function initializeUploadPage() {
             previewContainer.style.display = 'block';
             
             // 显示文件信息
-            const fileSize = (file.size / 1024 / 1024).toFixed(2);
-            fileDetails.textContent = `${file.name} (${fileSize} MB)`;
+            const fileSize = file.size;
+            const fileSizeFormatted = formatFileSize(fileSize);
+            fileDetails.textContent = `${file.name} (${fileSizeFormatted})`;
+            
+            // 检查文件大小限制 (16MB)
+            if (fileSize > 16 * 1024 * 1024) {
+                fileDetails.innerHTML += '<br><span class="text-danger">⚠️ 文件大小超过16MB限制</span>';
+            }
             
             // 预览区域
             filePreview.innerHTML = '';
@@ -210,6 +234,18 @@ function initializeUploadPage() {
                 fileInput.dispatchEvent(event);
             }
         }
+    }
+    
+    // 上传进度监控
+    const uploadForm = document.querySelector('form[enctype="multipart/form-data"]');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function(e) {
+            const submitButton = this.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 上传中...';
+            }
+        });
     }
 }
 
@@ -292,17 +328,6 @@ function initializeChatPage() {
                     
                     // 更新引用指示器变量
                     typingIndicator = document.getElementById('typingIndicator');
-                    
-                    // 重置会话
-                    fetch('/api/chat/reset', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error resetting chat:', error);
-                    });
                 }
             });
         }
@@ -339,6 +364,14 @@ function initializeChatPage() {
                 textElement.textContent = citation.text;
                 citationElement.appendChild(textElement);
                 
+                // Add structured content if present
+                if (citation.structured_content) {
+                    const structuredElement = createStructuredContent(citation.structured_content);
+                    if (structuredElement) {
+                        citationElement.appendChild(structuredElement);
+                    }
+                }
+                
                 messageElement.appendChild(citationElement);
             });
         }
@@ -362,4 +395,370 @@ function initializeChatPage() {
         // 滚动到底部
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
+}
+
+/**
+ * 删除文档
+ */
+function deleteDocument(docId) {
+    fetch(`/api/document/delete/${docId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 从页面移除该行
+            const row = document.querySelector(`tr[data-doc-id="${docId}"]`);
+            if (row) {
+                row.remove();
+            }
+            showAlert('文档删除成功', 'success');
+        } else {
+            showAlert('删除失败: ' + (data.error || '未知错误'), 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('删除失败: 网络错误', 'danger');
+    });
+}
+
+/**
+ * 显示文档详情
+ */
+function showDocumentInfo(docId) {
+    fetch(`/api/document/info/${docId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showAlert('获取文档信息失败: ' + data.error, 'danger');
+        } else {
+            // 创建模态框显示文档信息
+            const modalHtml = `
+                <div class="modal fade" id="docInfoModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">文档信息</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p><strong>文档ID:</strong> ${data.id}</p>
+                                <p><strong>文件名:</strong> ${data.name}</p>
+                                <p><strong>文件大小:</strong> ${data.size}</p>
+                                <p><strong>上传时间:</strong> ${data.date}</p>
+                                <p><strong>处理状态:</strong> <span class="badge bg-${getStatusBadgeClass(data.status)}">${data.status}</span></p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 移除现有模态框
+            const existingModal = document.getElementById('docInfoModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // 添加新模态框
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('docInfoModal'));
+            modal.show();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('获取文档信息失败: 网络错误', 'danger');
+    });
+}
+
+/**
+ * 更新文档状态
+ */
+function updateDocumentStatuses() {
+    const statusCells = document.querySelectorAll('.document-status');
+    statusCells.forEach(cell => {
+        const docId = cell.getAttribute('data-doc-id');
+        if (docId) {
+            fetch(`/api/document/status/${docId}`)
+            .then(response => response.json())
+            .then(data => {
+                const statusSpan = cell.querySelector('.status-badge');
+                if (statusSpan && data.status) {
+                    statusSpan.textContent = getStatusText(data.status);
+                    statusSpan.className = `badge bg-${getStatusBadgeClass(data.status)} status-badge`;
+                }
+            })
+            .catch(error => {
+                console.error('Error updating status:', error);
+            });
+        }
+    });
+}
+
+/**
+ * 获取状态文本
+ */
+function getStatusText(status) {
+    const statusMap = {
+        'processing': '处理中',
+        'completed': '已完成',
+        'failed': '处理失败',
+        'unknown': '未知状态'
+    };
+    return statusMap[status] || status;
+}
+
+/**
+ * 获取状态徽章样式类
+ */
+function getStatusBadgeClass(status) {
+    const classMap = {
+        'processing': 'warning',
+        'completed': 'success',
+        'failed': 'danger',
+        'unknown': 'secondary'
+    };
+    return classMap[status] || 'secondary';
+}
+
+/**
+ * 显示警告消息
+ */
+function showAlert(message, type = 'info') {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    // 查找或创建警告容器
+    let alertContainer = document.querySelector('.alert-container');
+    if (!alertContainer) {
+        alertContainer = document.createElement('div');
+        alertContainer.className = 'alert-container position-fixed top-0 end-0 p-3';
+        alertContainer.style.zIndex = '9999';
+        document.body.appendChild(alertContainer);
+    }
+    
+    alertContainer.insertAdjacentHTML('beforeend', alertHtml);
+    
+    // 3秒后自动隐藏
+    setTimeout(() => {
+        const alerts = alertContainer.querySelectorAll('.alert');
+        if (alerts.length > 0) {
+            alerts[0].remove();
+        }
+    }, 3000);
+}
+
+/**
+ * 格式化文件大小
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * 创建结构化内容元素
+ */
+function createStructuredContent(content) {
+    if (!content || !content.type) return null;
+    
+    const container = document.createElement('div');
+    container.className = 'structured-content';
+    
+    // 添加头部
+    const header = document.createElement('div');
+    header.className = 'structured-content-header';
+    
+    const title = document.createElement('span');
+    title.textContent = content.title || '结构化内容';
+    header.appendChild(title);
+    
+    const typeLabel = document.createElement('span');
+    typeLabel.className = 'structured-content-type';
+    typeLabel.textContent = getContentTypeLabel(content.type);
+    header.appendChild(typeLabel);
+    
+    container.appendChild(header);
+    
+    // 根据类型创建内容
+    switch (content.type) {
+        case 'table':
+            const tableElement = createTableContent(content.data);
+            if (tableElement) container.appendChild(tableElement);
+            break;
+            
+        case 'code':
+            const codeElement = createCodeContent(content.data, content.language);
+            if (codeElement) container.appendChild(codeElement);
+            break;
+            
+        case 'figure':
+            const figureElement = createFigureContent(content.data);
+            if (figureElement) container.appendChild(figureElement);
+            break;
+            
+        case 'equation':
+            const equationElement = createEquationContent(content.data);
+            if (equationElement) container.appendChild(equationElement);
+            break;
+            
+        default:
+            const defaultElement = document.createElement('div');
+            defaultElement.textContent = JSON.stringify(content.data, null, 2);
+            container.appendChild(defaultElement);
+    }
+    
+    return container;
+}
+
+/**
+ * 获取内容类型标签
+ */
+function getContentTypeLabel(type) {
+    const labels = {
+        'table': '表格',
+        'code': '代码',
+        'figure': '图表',
+        'equation': '公式'
+    };
+    return labels[type] || type;
+}
+
+/**
+ * 创建表格内容
+ */
+function createTableContent(data) {
+    if (!data || !data.headers || !data.rows) return null;
+    
+    const table = document.createElement('table');
+    table.className = 'content-table';
+    
+    // 创建表头
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    data.headers.forEach(header => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    
+    // 创建表体
+    const tbody = document.createElement('tbody');
+    data.rows.forEach(row => {
+        const tr = document.createElement('tr');
+        row.forEach(cell => {
+            const td = document.createElement('td');
+            td.textContent = cell;
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    
+    return table;
+}
+
+/**
+ * 创建代码内容
+ */
+function createCodeContent(code, language = 'text') {
+    if (!code) return null;
+    
+    const container = document.createElement('div');
+    container.className = 'code-snippet';
+    container.style.position = 'relative';
+    
+    // 添加复制按钮
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-code-btn';
+    copyBtn.textContent = '复制';
+    copyBtn.onclick = function() {
+        navigator.clipboard.writeText(code).then(() => {
+            copyBtn.textContent = '已复制!';
+            copyBtn.classList.add('copied');
+            setTimeout(() => {
+                copyBtn.textContent = '复制';
+                copyBtn.classList.remove('copied');
+            }, 2000);
+        }).catch(err => {
+            console.error('复制失败:', err);
+        });
+    };
+    container.appendChild(copyBtn);
+    
+    // 添加代码内容
+    const pre = document.createElement('pre');
+    const codeElement = document.createElement('code');
+    codeElement.textContent = code;
+    if (language && language !== 'text') {
+        codeElement.className = `language-${language}`;
+    }
+    pre.appendChild(codeElement);
+    container.appendChild(pre);
+    
+    return container;
+}
+
+/**
+ * 创建图表内容
+ */
+function createFigureContent(data) {
+    if (!data) return null;
+    
+    const container = document.createElement('div');
+    container.className = 'figure-content';
+    
+    if (data.url) {
+        const img = document.createElement('img');
+        img.src = data.url;
+        img.alt = data.caption || '图表';
+        container.appendChild(img);
+    }
+    
+    if (data.caption) {
+        const caption = document.createElement('div');
+        caption.className = 'figure-caption';
+        caption.textContent = data.caption;
+        container.appendChild(caption);
+    }
+    
+    return container;
+}
+
+/**
+ * 创建公式内容
+ */
+function createEquationContent(equation) {
+    if (!equation) return null;
+    
+    const container = document.createElement('div');
+    container.className = 'equation-content';
+    container.textContent = equation;
+    
+    // 如果页面加载了MathJax，尝试渲染
+    if (window.MathJax) {
+        setTimeout(() => {
+            MathJax.typeset([container]);
+        }, 100);
+    }
+    
+    return container;
 }

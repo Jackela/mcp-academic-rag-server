@@ -56,6 +56,123 @@
         font-weight: bold;
         margin-bottom: 5px;
     }
+    
+    /* Structured content styles */
+    .structured-content {
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+    .structured-content-header {
+        font-weight: bold;
+        color: #495057;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .structured-content-type {
+        font-size: 0.8rem;
+        padding: 2px 8px;
+        background-color: #6c757d;
+        color: white;
+        border-radius: 4px;
+    }
+    
+    /* Table display styles */
+    .content-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+        font-size: 0.9rem;
+    }
+    .content-table th {
+        background-color: #e9ecef;
+        padding: 8px;
+        text-align: left;
+        font-weight: 600;
+        border: 1px solid #dee2e6;
+    }
+    .content-table td {
+        padding: 8px;
+        border: 1px solid #dee2e6;
+        background-color: white;
+    }
+    .content-table tr:hover td {
+        background-color: #f8f9fa;
+    }
+    
+    /* Code snippet styles */
+    .code-snippet {
+        background-color: #282c34;
+        color: #abb2bf;
+        padding: 12px;
+        border-radius: 6px;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.875rem;
+        overflow-x: auto;
+        margin-top: 8px;
+        position: relative;
+    }
+    .code-snippet pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+    .copy-code-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 4px 8px;
+        font-size: 0.75rem;
+        background-color: #3e4451;
+        color: #abb2bf;
+        border: 1px solid #5c6370;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .copy-code-btn:hover {
+        background-color: #4e5461;
+        color: white;
+    }
+    .copy-code-btn.copied {
+        background-color: #28a745;
+        color: white;
+        border-color: #28a745;
+    }
+    
+    /* Figure/Image display styles */
+    .figure-content {
+        text-align: center;
+        margin-top: 10px;
+    }
+    .figure-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .figure-caption {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 8px;
+        font-style: italic;
+    }
+    
+    /* Equation display styles */
+    .equation-content {
+        background-color: #fff;
+        padding: 12px;
+        border-radius: 6px;
+        text-align: center;
+        font-family: 'Times New Roman', Times, serif;
+        font-size: 1.1rem;
+        border: 1px solid #dee2e6;
+        margin-top: 8px;
+    }
     .typing-indicator {
         display: none;
         align-items: center;
@@ -292,6 +409,14 @@
                     textElement.textContent = citation.text;
                     citationElement.appendChild(textElement);
                     
+                    // Add structured content if present
+                    if (citation.structured_content) {
+                        const structuredElement = createStructuredContent(citation.structured_content);
+                        if (structuredElement) {
+                            citationElement.appendChild(structuredElement);
+                        }
+                    }
+                    
                     messageElement.appendChild(citationElement);
                 });
             }
@@ -314,6 +439,185 @@
             
             // 滚动到底部
             chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // 创建结构化内容元素
+        function createStructuredContent(content) {
+            if (!content || !content.type) return null;
+            
+            const container = document.createElement('div');
+            container.className = 'structured-content';
+            
+            // 添加头部
+            const header = document.createElement('div');
+            header.className = 'structured-content-header';
+            
+            const title = document.createElement('span');
+            title.textContent = content.title || '结构化内容';
+            header.appendChild(title);
+            
+            const typeLabel = document.createElement('span');
+            typeLabel.className = 'structured-content-type';
+            typeLabel.textContent = getContentTypeLabel(content.type);
+            header.appendChild(typeLabel);
+            
+            container.appendChild(header);
+            
+            // 根据类型创建内容
+            switch (content.type) {
+                case 'table':
+                    const tableElement = createTableContent(content.data);
+                    if (tableElement) container.appendChild(tableElement);
+                    break;
+                    
+                case 'code':
+                    const codeElement = createCodeContent(content.data, content.language);
+                    if (codeElement) container.appendChild(codeElement);
+                    break;
+                    
+                case 'figure':
+                    const figureElement = createFigureContent(content.data);
+                    if (figureElement) container.appendChild(figureElement);
+                    break;
+                    
+                case 'equation':
+                    const equationElement = createEquationContent(content.data);
+                    if (equationElement) container.appendChild(equationElement);
+                    break;
+                    
+                default:
+                    const defaultElement = document.createElement('div');
+                    defaultElement.textContent = JSON.stringify(content.data, null, 2);
+                    container.appendChild(defaultElement);
+            }
+            
+            return container;
+        }
+        
+        // 获取内容类型标签
+        function getContentTypeLabel(type) {
+            const labels = {
+                'table': '表格',
+                'code': '代码',
+                'figure': '图表',
+                'equation': '公式'
+            };
+            return labels[type] || type;
+        }
+        
+        // 创建表格内容
+        function createTableContent(data) {
+            if (!data || !data.headers || !data.rows) return null;
+            
+            const table = document.createElement('table');
+            table.className = 'content-table';
+            
+            // 创建表头
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            data.headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // 创建表体
+            const tbody = document.createElement('tbody');
+            data.rows.forEach(row => {
+                const tr = document.createElement('tr');
+                row.forEach(cell => {
+                    const td = document.createElement('td');
+                    td.textContent = cell;
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            
+            return table;
+        }
+        
+        // 创建代码内容
+        function createCodeContent(code, language = 'text') {
+            if (!code) return null;
+            
+            const container = document.createElement('div');
+            container.className = 'code-snippet';
+            container.style.position = 'relative';
+            
+            // 添加复制按钮
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-code-btn';
+            copyBtn.textContent = '复制';
+            copyBtn.onclick = function() {
+                navigator.clipboard.writeText(code).then(() => {
+                    copyBtn.textContent = '已复制!';
+                    copyBtn.classList.add('copied');
+                    setTimeout(() => {
+                        copyBtn.textContent = '复制';
+                        copyBtn.classList.remove('copied');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                });
+            };
+            container.appendChild(copyBtn);
+            
+            // 添加代码内容
+            const pre = document.createElement('pre');
+            const codeElement = document.createElement('code');
+            codeElement.textContent = code;
+            if (language && language !== 'text') {
+                codeElement.className = `language-${language}`;
+            }
+            pre.appendChild(codeElement);
+            container.appendChild(pre);
+            
+            return container;
+        }
+        
+        // 创建图表内容
+        function createFigureContent(data) {
+            if (!data) return null;
+            
+            const container = document.createElement('div');
+            container.className = 'figure-content';
+            
+            if (data.url) {
+                const img = document.createElement('img');
+                img.src = data.url;
+                img.alt = data.caption || '图表';
+                container.appendChild(img);
+            }
+            
+            if (data.caption) {
+                const caption = document.createElement('div');
+                caption.className = 'figure-caption';
+                caption.textContent = data.caption;
+                container.appendChild(caption);
+            }
+            
+            return container;
+        }
+        
+        // 创建公式内容
+        function createEquationContent(equation) {
+            if (!equation) return null;
+            
+            const container = document.createElement('div');
+            container.className = 'equation-content';
+            container.textContent = equation;
+            
+            // 如果页面加载了MathJax，尝试渲染
+            if (window.MathJax) {
+                setTimeout(() => {
+                    MathJax.typeset([container]);
+                }, 100);
+            }
+            
+            return container;
         }
     });
 </script>

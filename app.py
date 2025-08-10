@@ -9,7 +9,8 @@ import os
 import sys
 import logging
 import argparse
-from typing import Dict, Any
+import importlib
+from typing import Dict, Any, List
 
 from core.config_manager import ConfigManager
 from core.pipeline import Pipeline
@@ -43,7 +44,7 @@ def setup_logging(config: Dict[str, Any]) -> None:
     )
 
 
-def load_processors(config: Dict[str, Any]) -> Dict[str, IProcessor]:
+def load_processors(config: Dict[str, Any]) -> List[IProcessor]:
     """
     根据配置动态加载处理器。
     
@@ -53,61 +54,98 @@ def load_processors(config: Dict[str, Any]) -> Dict[str, IProcessor]:
         config: 处理器配置字典
         
     Returns:
-        处理器字典，键为处理器名称，值为处理器实例
+        处理器列表，按配置顺序排列
     """
-    processors = {}
+    processors = []
+    logger = logging.getLogger('load_processors')
     
-    # 在实际实现中，这里应该使用反射或导入模块的方式动态创建处理器实例
-    # 由于处理器类尚未实现，此处返回空字典
-    # 
-    # 实际实现示例:
-    # for processor_name, processor_config in config.items():
-    #     if processor_config.get("enabled", True):
-    #         try:
-    #             # 导入处理器类
-    #             module_name = f"processors.{processor_name.lower()}"
-    #             module = importlib.import_module(module_name)
-    #             processor_class = getattr(module, processor_name)
-    #             
-    #             # 创建处理器实例并设置配置
-    #             processor = processor_class()
-    #             processor.set_config(processor_config)
-    #             processors[processor_name] = processor
-    #         except Exception as e:
-    #             logging.error(f"加载处理器 {processor_name} 失败: {str(e)}")
+    # 默认处理器配置和映射
+    default_processor_mapping = {
+        'pre_processor': {
+            'module': 'processors.pre_processor',
+            'class': 'PreProcessor'
+        },
+        'ocr_processor': {
+            'module': 'processors.ocr_processor', 
+            'class': 'OCRProcessor'
+        },
+        'structure_processor': {
+            'module': 'processors.structure_processor',
+            'class': 'StructureProcessor'
+        },
+        'classification_processor': {
+            'module': 'processors.classification_processor',
+            'class': 'ClassificationProcessor'
+        },
+        'format_converter': {
+            'module': 'processors.format_converter',
+            'class': 'FormatConverterProcessor'
+        },
+        'embedding_processor': {
+            'module': 'processors.haystack_embedding_processor',
+            'class': 'HaystackEmbeddingProcessor'
+        }
+    }
     
+    for processor_name, processor_config in config.items():
+        if not processor_config.get("enabled", True):
+            logger.info(f"跳过禁用的处理器: {processor_name}")
+            continue
+            
+        try:
+            # 获取模块和类名
+            if processor_name in default_processor_mapping:
+                # 使用默认映射
+                mapping = default_processor_mapping[processor_name]
+                module_path = mapping['module']
+                class_name = mapping['class']
+            else:
+                # 使用配置中的映射
+                module_path = processor_config.get("module", f"processors.{processor_name}")
+                class_name = processor_config.get("class", f"{processor_name.title()}Processor")
+            
+            # 导入模块
+            logger.info(f"正在加载处理器: {processor_name} 从 {module_path}.{class_name}")
+            module = importlib.import_module(module_path)
+            processor_class = getattr(module, class_name)
+            
+            # 创建处理器实例
+            processor_init_config = processor_config.get("config", {})
+            processor = processor_class(config=processor_init_config)
+            processors.append(processor)
+            
+            logger.info(f"成功加载处理器: {processor_name}")
+            
+        except Exception as e:
+            logger.error(f"加载处理器 {processor_name} 失败: {str(e)}")
+            # 继续加载其他处理器
+    
+    logger.info(f"成功加载 {len(processors)} 个处理器")
     return processors
 
 
-def create_pipeline(processors: Dict[str, IProcessor], name: str = "MainPipeline") -> Pipeline:
+def create_pipeline(processors: List[IProcessor], name: str = "MainPipeline") -> Pipeline:
     """
     创建处理流水线。
     
-    根据预定义的顺序组装处理器，形成完整的处理流水线。
+    将加载的处理器按顺序添加到流水线中。
     
     Args:
-        processors: 处理器字典
+        processors: 处理器列表
         name: 流水线名称
         
     Returns:
         创建的Pipeline实例
     """
     pipeline = Pipeline(name)
+    logger = logging.getLogger('create_pipeline')
     
-    # 按特定顺序添加处理器
-    processor_order = [
-        "PreProcessor",
-        "OCRProcessor",
-        "StructureProcessor",
-        "ClassificationProcessor",
-        "FormatConverter",
-        "EmbeddingProcessor"
-    ]
+    # 按顺序添加处理器
+    for processor in processors:
+        pipeline.add_processor(processor)
+        logger.info(f"添加处理器到流水线: {processor.get_name()}")
     
-    for processor_name in processor_order:
-        if processor_name in processors:
-            pipeline.add_processor(processors[processor_name])
-    
+    logger.info(f"创建流水线 '{name}' 完成，包含 {len(processors)} 个处理器")
     return pipeline
 
 

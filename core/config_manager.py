@@ -2,13 +2,14 @@
 配置管理器类，负责加载、访问和管理系统配置。
 
 该模块提供了ConfigManager类，用于处理系统配置的加载、访问、修改和保存。
-它支持多级嵌套配置项的访问和修改。
+它支持多级嵌套配置项的访问和修改，并集成了配置验证功能。
 """
 
 import json
 import os
 import logging
 from typing import Dict, Any, Optional
+from .config_validator import ConfigValidator, generate_default_config
 
 
 class ConfigManager:
@@ -21,23 +22,25 @@ class ConfigManager:
     例如，可以通过"storage.base_path"访问配置中的嵌套项。
     """
     
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str = "./config/config.json"):
         """
         初始化ConfigManager对象。
         
         Args:
-            config_path: 配置文件路径
+            config_path: 配置文件路径，默认为"./config/config.json"
         """
         self.config_path = config_path
         self.config = {}
         self.logger = logging.getLogger("config_manager")
+        self.validator = ConfigValidator()
+        self._is_validated = False
         
         # 尝试加载配置文件
         self.load_config()
     
     def load_config(self) -> bool:
         """
-        从配置文件加载配置。
+        从配置文件加载配置，包含验证和标准化。
         
         Returns:
             如果成功加载配置则返回True，否则返回False
@@ -45,14 +48,43 @@ class ConfigManager:
         try:
             if os.path.exists(self.config_path):
                 with open(self.config_path, 'r', encoding='utf-8') as f:
-                    self.config = json.load(f)
-                self.logger.info(f"成功从 {self.config_path} 加载配置")
-                return True
+                    raw_config = json.load(f)
+                
+                # 标准化配置（处理器名称等）
+                normalized_config = self.validator.normalize_processor_config(raw_config)
+                
+                # 验证配置
+                if self.validator.validate_config(normalized_config):
+                    self.config = normalized_config
+                    self._is_validated = True
+                    self.logger.info(f"成功从 {self.config_path} 加载并验证配置")
+                    
+                    # 如果配置被标准化了，保存更新后的配置
+                    if raw_config != normalized_config:
+                        self.save_config()
+                        self.logger.info("配置已标准化并保存")
+                    
+                    return True
+                else:
+                    # 验证失败，但仍然加载配置（允许在修复后继续使用）
+                    self.config = normalized_config
+                    self._is_validated = False
+                    report = self.validator.get_validation_report()
+                    self.logger.error(f"配置验证失败，错误: {report['errors']}")
+                    if report['warnings']:
+                        self.logger.warning(f"配置警告: {report['warnings']}")
+                    return False
             else:
-                self.logger.warning(f"配置文件 {self.config_path} 不存在")
-                return False
+                self.logger.warning(f"配置文件 {self.config_path} 不存在，创建默认配置")
+                self.config = generate_default_config()
+                self._is_validated = True
+                self.save_config()
+                return True
         except Exception as e:
             self.logger.error(f"加载配置文件失败: {str(e)}")
+            # 使用默认配置作为后备
+            self.config = generate_default_config()
+            self._is_validated = True
             return False
     
     def save_config(self) -> bool:
@@ -193,3 +225,67 @@ class ConfigManager:
             如果成功重新加载配置则返回True，否则返回False
         """
         return self.load_config()
+    
+    def validate_current_config(self) -> bool:
+        """
+        验证当前配置。
+        
+        Returns:
+            如果配置有效则返回True，否则返回False
+        """
+        return self.validator.validate_config(self.config)
+    
+    def get_validation_report(self) -> Dict[str, Any]:
+        """
+        获取配置验证报告。
+        
+        Returns:
+            包含验证结果的报告字典
+        """
+        if not self._is_validated:
+            self.validate_current_config()
+        return self.validator.get_validation_report()
+    
+    def is_config_valid(self) -> bool:
+        """
+        检查配置是否有效。
+        
+        Returns:
+            如果配置有效则返回True，否则返回False
+        """
+        return self._is_validated and len(self.validator.validation_errors) == 0
+    
+    def fix_config_issues(self) -> bool:
+        """
+        尝试修复配置问题。
+        
+        Returns:
+            如果成功修复则返回True，否则返回False
+        """
+        try:
+            # 获取默认配置作为参考
+            default_config = generate_default_config()
+            
+            # 合并缺失的必需配置项
+            if "storage" not in self.config:
+                self.config["storage"] = default_config["storage"]
+            
+            if "processors" not in self.config:
+                self.config["processors"] = default_config["processors"]
+            
+            # 标准化处理器名称
+            self.config = self.validator.normalize_processor_config(self.config)
+            
+            # 重新验证
+            if self.validator.validate_config(self.config):
+                self._is_validated = True
+                self.save_config()
+                self.logger.info("配置问题已修复")
+                return True
+            else:
+                self.logger.error("无法自动修复配置问题")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"修复配置时发生错误: {str(e)}")
+            return False

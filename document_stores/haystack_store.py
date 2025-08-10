@@ -15,17 +15,19 @@ from haystack.schema import Document as HaystackDocument
 
 from models.document import Document
 from core.config_manager import ConfigManager
+from document_stores.milvus_store import MilvusDocumentStore, MILVUS_AVAILABLE
 
 
 class HaystackDocumentStore:
     """
-    基于Haystack框架的文档存储类，主要使用InMemoryDocumentStore。
+    基于Haystack框架的文档存储类，支持InMemoryDocumentStore和MilvusDocumentStore。
     
-    该类封装了Haystack的InMemoryDocumentStore功能，用于存储文档及其向量表示，
-    并提供统一的接口供系统其他组件使用。它支持文档的添加、检索、更新和删除，
-    并可通过配置文件调整参数。
+    该类提供统一的接口供系统其他组件使用，并根据配置自动选择合适的存储后端。
+    支持文档的添加、检索、更新和删除，可通过配置文件调整参数。
     
-    设计为可扩展接口，支持未来迁移到其他存储引擎（如FAISS、Elasticsearch等）。
+    支持的存储后端：
+    - InMemoryDocumentStore: 内存存储，适用于开发和小规模场景
+    - MilvusDocumentStore: Milvus向量数据库，适用于生产环境和大规模场景
     """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None, config_manager: Optional[ConfigManager] = None):
@@ -43,42 +45,67 @@ class HaystackDocumentStore:
         if config_manager:
             self.config = config_manager.get_value("vector_db.document_store", {})
         
+        # 确定存储类型
+        self.store_type = self.config.get("type", "memory")  # memory 或 milvus
+        
         # 配置参数
-        self.embedding_dim = self.config.get("embedding_dim", 768)  # 默认使用768维向量
+        self.embedding_dim = self.config.get("embedding_dim", 384)  # 默认使用384维向量(all-MiniLM-L6-v2)
         self.similarity = self.config.get("similarity", "dot_product")  # 默认使用点积相似度
         self.return_embedding = self.config.get("return_embedding", True)
         
-        # 初始化Haystack文档存储
-        self.document_store = self._initialize_document_store()
+        # 初始化文档存储
+        self.document_store = None
+        self.milvus_store = None
+        self._initialize_document_store()
         
         # 记录文档ID映射，用于跟踪系统Document对象与Haystack Document的对应关系
         self.id_mapping = {}
         
-        self.logger.info("HaystackDocumentStore初始化完成")
+        self.logger.info(f"HaystackDocumentStore初始化完成，存储类型: {self.store_type}")
     
-    def _initialize_document_store(self) -> InMemoryDocumentStore:
+    def _initialize_document_store(self) -> None:
         """
-        初始化Haystack文档存储引擎。
+        初始化文档存储引擎。
         
-        Returns:
-            初始化好的InMemoryDocumentStore对象
+        根据配置选择InMemoryDocumentStore或MilvusDocumentStore。
         """
         try:
-            store = InMemoryDocumentStore(
-                embedding_dim=self.embedding_dim,
-                similarity=self.similarity,
-                return_embedding=self.return_embedding
-            )
-            self.logger.info(f"成功初始化InMemoryDocumentStore，embedding_dim={self.embedding_dim}, similarity={self.similarity}")
-            return store
+            if self.store_type == "milvus" and MILVUS_AVAILABLE:
+                # 初始化Milvus存储
+                milvus_config = self.config.get("milvus", {})
+                milvus_config["vector_dimension"] = self.embedding_dim  # 确保向量维度一致
+                
+                self.milvus_store = MilvusDocumentStore(milvus_config)
+                self.logger.info(f"成功初始化MilvusDocumentStore，embedding_dim={self.embedding_dim}")
+                
+                # 为了兼容性，仍然创建一个InMemoryDocumentStore作为备用
+                self.document_store = InMemoryDocumentStore(
+                    embedding_dim=self.embedding_dim,
+                    similarity=self.similarity,
+                    return_embedding=self.return_embedding
+                )
+                
+            else:
+                # 初始化内存存储
+                if self.store_type == "milvus" and not MILVUS_AVAILABLE:
+                    self.logger.warning("Milvus不可用，回退到InMemoryDocumentStore")
+                
+                self.document_store = InMemoryDocumentStore(
+                    embedding_dim=self.embedding_dim,
+                    similarity=self.similarity,
+                    return_embedding=self.return_embedding
+                )
+                self.logger.info(f"成功初始化InMemoryDocumentStore，embedding_dim={self.embedding_dim}, similarity={self.similarity}")
+                
         except Exception as e:
-            self.logger.error(f"初始化InMemoryDocumentStore失败: {str(e)}")
+            self.logger.error(f"初始化文档存储失败: {str(e)}")
             # 创建一个基本配置的存储作为备用
-            return InMemoryDocumentStore(embedding_dim=768)
+            self.document_store = InMemoryDocumentStore(embedding_dim=384)
+            self.milvus_store = None
     
     def add_document(self, document: Document, embedding: Optional[List[float]] = None) -> bool:
         """
-        将系统Document对象添加到Haystack文档存储中。
+        将系统Document对象添加到文档存储中。
         
         Args:
             document: 系统Document对象
@@ -87,45 +114,11 @@ class HaystackDocumentStore:
         Returns:
             如果成功添加则返回True，否则返回False
         """
-        try:
-            # 构建Haystack文档内容，优先使用嵌入处理器生成的内容
-            text = document.get_content("EmbeddingProcessor") or document.get_content("OCRProcessor") or ""
-            
-            # 如果没有文本内容，则返回失败
-            if not text:
-                self.logger.warning(f"文档 {document.document_id} 没有可用的文本内容，无法添加到文档存储")
-                return False
-            
-            # 创建Haystack文档对象
-            haystack_doc = HaystackDocument(
-                content=text,
-                meta={
-                    "file_path": document.file_path,
-                    "file_name": document.file_name,
-                    "file_type": document.file_type,
-                    "original_id": document.document_id,
-                    "metadata": document.metadata,
-                    "tags": document.tags
-                },
-                embedding=embedding
-            )
-            
-            # 将Haystack文档添加到存储
-            self.document_store.write_documents([haystack_doc])
-            
-            # 记录ID映射关系
-            self.id_mapping[document.document_id] = haystack_doc.id
-            
-            self.logger.info(f"文档 {document.document_id} 已成功添加到Haystack文档存储")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"添加文档 {document.document_id} 到Haystack文档存储失败: {str(e)}")
-            return False
+        return self.add_documents([document], [embedding] if embedding else None)[0] > 0
     
     def add_documents(self, documents: List[Document], embeddings: Optional[List[List[float]]] = None) -> Tuple[int, int]:
         """
-        批量将系统Document对象添加到Haystack文档存储中。
+        批量将系统Document对象添加到文档存储中。
         
         Args:
             documents: 系统Document对象列表
@@ -181,11 +174,20 @@ class HaystackDocumentStore:
                 self.logger.error(f"处理文档 {document.document_id} 失败: {str(e)}")
                 fail_count += 1
         
-        # 将文档批量写入存储
+        # 将文档写入存储
         if haystack_docs:
             try:
-                self.document_store.write_documents(haystack_docs)
-                self.logger.info(f"成功批量添加 {len(haystack_docs)} 个文档到Haystack文档存储")
+                # 同时写入内存存储和Milvus存储
+                if self.document_store:
+                    self.document_store.write_documents(haystack_docs)
+                
+                if self.milvus_store:
+                    milvus_success = self.milvus_store.add_documents(haystack_docs)
+                    if not milvus_success:
+                        self.logger.warning("向Milvus写入文档失败，仅保存到内存存储")
+                
+                self.logger.info(f"成功批量添加 {len(haystack_docs)} 个文档到文档存储")
+                
             except Exception as e:
                 self.logger.error(f"批量写入文档失败: {str(e)}")
                 return 0, len(documents)
@@ -352,14 +354,43 @@ class HaystackDocumentStore:
             self.logger.error(f"加载文档存储状态失败: {str(e)}")
             return False
     
-    def get_document_store(self) -> InMemoryDocumentStore:
+    def get_document_store(self) -> Union[InMemoryDocumentStore, MilvusDocumentStore]:
         """
-        获取底层Haystack文档存储对象。
+        获取底层文档存储对象。
+        
+        Returns:
+            InMemoryDocumentStore或MilvusDocumentStore对象
+        """
+        if self.milvus_store:
+            return self.milvus_store
+        return self.document_store
+    
+    def get_haystack_store(self) -> InMemoryDocumentStore:
+        """
+        获取Haystack InMemoryDocumentStore对象（用于兼容性）。
         
         Returns:
             Haystack InMemoryDocumentStore对象
         """
         return self.document_store
+    
+    def get_milvus_store(self) -> Optional[MilvusDocumentStore]:
+        """
+        获取MilvusDocumentStore对象。
+        
+        Returns:
+            MilvusDocumentStore对象或None
+        """
+        return self.milvus_store
+    
+    def is_using_milvus(self) -> bool:
+        """
+        检查是否使用Milvus存储。
+        
+        Returns:
+            如果使用Milvus则返回True，否则返回False
+        """
+        return self.milvus_store is not None
     
     def update_config(self, config: Dict[str, Any]) -> bool:
         """
@@ -389,7 +420,7 @@ class HaystackDocumentStore:
                 self.return_embedding = config["return_embedding"]
             
             # 重新初始化文档存储
-            self.document_store = self._initialize_document_store()
+            self._initialize_document_store()
             
             # 恢复文档
             if current_docs:

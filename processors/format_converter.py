@@ -76,8 +76,11 @@ class FormatConverterProcessor(BaseProcessor):
             if not ocr_content:
                 return ProcessResult.error_result("无可用的OCR内容进行转换")
             
-            # 获取文档结构（如果存在）
+            # 获取或提取文档结构
             doc_structure = document.get_content("structure")
+            if not doc_structure:
+                # 如果没有结构信息，尝试提取
+                doc_structure = DocumentStructureExtractor.extract_structure(ocr_content)
             
             # 创建文档基础名称
             base_name = os.path.splitext(document.file_name)[0]
@@ -329,113 +332,3 @@ class MathBlockProcessor(markdown.inlinepatterns.InlineProcessor):
         return elem, span[0], span[1]
 
 
-class StructureExtractor(BaseProcessor):
-    """
-    结构提取处理器，用于从OCR文本中提取文档结构。
-    
-    该处理器分析文档的OCR文本内容，识别标题、章节、段落等结构元素，
-    并生成描述文档结构的元数据。
-    """
-    
-    def __init__(self, config: Dict[str, Any] = None):
-        """
-        初始化StructureExtractor对象。
-        
-        Args:
-            config: 处理器配置，默认为空字典
-        """
-        super().__init__(
-            name="StructureExtractor",
-            description="从OCR文本中提取文档结构",
-            config=config or {}
-        )
-    
-    def process(self, document: Document) -> ProcessResult:
-        """
-        处理文档并返回处理结果。
-        
-        分析文档的OCR内容，提取文档结构，并将结果存储到文档中。
-        
-        Args:
-            document: 要处理的Document对象
-            
-        Returns:
-            表示处理结果的ProcessResult对象
-        """
-        try:
-            # 获取OCR内容
-            ocr_content = self._get_ocr_content(document)
-            if not ocr_content:
-                return ProcessResult.error_result("无可用的OCR内容进行结构提取")
-            
-            # 提取文档结构
-            doc_structure = self._extract_document_structure(ocr_content)
-            
-            # 存储结构到文档
-            document.store_content("structure", doc_structure)
-            
-            # 更新文档元数据
-            if doc_structure.get("title"):
-                document.add_metadata("title", doc_structure["title"])
-            
-            if doc_structure.get("abstract"):
-                document.add_metadata("abstract", doc_structure["abstract"])
-            
-            # 提取章节信息
-            sections = []
-            for section in doc_structure.get("sections", []):
-                if section.get("title"):
-                    sections.append(section["title"])
-            
-            if sections:
-                document.add_metadata("sections", sections)
-            
-            return ProcessResult.success_result(
-                "文档结构提取成功",
-                {
-                    "title": doc_structure.get("title", ""),
-                    "sections_count": len(doc_structure.get("sections", [])),
-                    "has_abstract": bool(doc_structure.get("abstract"))
-                }
-            )
-            
-        except Exception as e:
-            logger.error(f"文档结构提取失败: {str(e)}", exc_info=True)
-            return ProcessResult.error_result(f"文档结构提取失败: {str(e)}", e)
-    
-    def _get_ocr_content(self, document: Document) -> str:
-        """
-        获取文档的OCR内容。
-        
-        Args:
-            document: Document对象
-            
-        Returns:
-            OCR文本内容
-        """
-        # 尝试获取OCR内容
-        ocr_content = document.get_content("ocr")
-        
-        if ocr_content:
-            if isinstance(ocr_content, str):
-                return ocr_content
-            elif isinstance(ocr_content, dict) and ocr_content.get("text"):
-                return ocr_content.get("text")
-        
-        logger.warning(f"未找到可用的OCR内容: {document.document_id}")
-        return ""
-    
-    def _extract_document_structure(self, text: str) -> Dict[str, Any]:
-        """
-        从文本中提取文档结构。
-        
-        分析OCR文本，识别标题、摘要、章节等结构元素，构建文档结构描述。
-        
-        Args:
-            text: OCR文本内容
-            
-        Returns:
-            文档结构描述字典
-        """
-        # 使用文本处理工具的辅助函数提取结构
-        return FormatConverter._detect_structure(text)

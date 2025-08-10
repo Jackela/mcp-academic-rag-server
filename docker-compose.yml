@@ -1,0 +1,230 @@
+version: '3.8'
+
+services:
+  # Milvus vector database services
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.5
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/etcd:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - milvus-network
+
+  minio:
+    container_name: milvus-minio
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - milvus-network
+
+  milvus:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:v2.4.0
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
+      - ./config/milvus.yaml:/milvus/configs/milvus.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - "etcd"
+      - "minio"
+    networks:
+      - milvus-network
+
+  # Academic RAG Server
+  academic-rag-server:
+    container_name: academic-rag-server
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      # Application configuration
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+      
+      # Milvus configuration
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+      - MILVUS_DATABASE=default
+      - MILVUS_COLLECTION=academic_documents
+      
+      # Storage paths
+      - DATA_PATH=/app/data
+      - OUTPUT_PATH=/app/output
+      - LOG_PATH=/app/logs
+      
+      # API Keys (set these in .env file)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your_openai_key_here}
+      - AZURE_API_KEY=${AZURE_API_KEY:-your_azure_key_here}
+      - AZURE_ENDPOINT=${AZURE_ENDPOINT:-your_azure_endpoint_here}
+      
+    ports:
+      - "8000:8000"
+    volumes:
+      # Data persistence
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/app-data:/app/data
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/app-output:/app/output
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/app-logs:/app/logs
+      
+      # Optional: Mount configuration
+      - ./config/config.json:/app/config/config.json:ro
+      
+      # Optional: Mount documents for processing
+      - ${DOCUMENTS_PATH:-./documents}:/app/documents:ro
+    
+    depends_on:
+      milvus:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "python", "-c", "from health_check import check_system_health; exit(0 if check_system_health() else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    restart: unless-stopped
+    networks:
+      - milvus-network
+      - app-network
+
+  # Redis for caching (optional)
+  redis:
+    container_name: academic-rag-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/redis:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - milvus-network
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    container_name: academic-rag-nginx
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/nginx-logs:/var/log/nginx
+      # SSL certificates (if using HTTPS)
+      # - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - academic-rag-server
+    restart: unless-stopped
+    networks:
+      - app-network
+    profiles:
+      - nginx
+
+  # Monitoring with Prometheus (optional)
+  prometheus:
+    container_name: academic-rag-prometheus
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - milvus-network
+    profiles:
+      - monitoring
+
+  # Grafana for visualization (optional)
+  grafana:
+    container_name: academic-rag-grafana
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/grafana:/var/lib/grafana
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - milvus-network
+    profiles:
+      - monitoring
+
+networks:
+  milvus-network:
+    driver: bridge
+  app-network:
+    driver: bridge
+
+volumes:
+  etcd-data:
+    driver: local
+  minio-data:
+    driver: local
+  milvus-data:
+    driver: local
+  app-data:
+    driver: local
+  app-output:
+    driver: local
+  app-logs:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local

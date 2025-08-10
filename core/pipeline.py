@@ -4,6 +4,7 @@
 该模块提供了Pipeline类，用于组合多个处理器，并按顺序执行文档处理流程。
 """
 
+import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 
@@ -108,9 +109,9 @@ class Pipeline:
             self.logger.error(f"重排序失败：{str(e)}")
             return False
     
-    def process_document(self, document: Document, start_from: Optional[str] = None) -> ProcessResult:
+    async def process_document(self, document: Document, start_from: Optional[str] = None) -> ProcessResult:
         """
-        处理文档，按顺序执行流水线中的处理器。
+        异步处理文档，按顺序执行流水线中的处理器。
         
         Args:
             document: 要处理的Document对象
@@ -123,7 +124,7 @@ class Pipeline:
             return ProcessResult.error_result("流水线中没有处理器")
         
         document.update_status("processing")
-        self.logger.info(f"开始处理文档: {document.document_id} - {document.file_name}")
+        self.logger.info(f"开始异步处理文档: {document.document_id} - {document.file_name}")
         
         start_processing = False if start_from else True
         
@@ -141,7 +142,123 @@ class Pipeline:
                 self.logger.warning(f"处理器 '{processor_name}' 不支持文件类型 '{document.file_type}'，已跳过")
                 continue
             
-            self.logger.info(f"使用处理器 '{processor_name}' 处理文档 {document.document_id}")
+            self.logger.info(f"使用处理器 '{processor_name}' 异步处理文档 {document.document_id}")
+            
+            try:
+                # 检查处理器是否支持异步处理
+                if hasattr(processor, 'process_async'):
+                    # 使用异步方法
+                    result = await processor.process_async(document)
+                else:
+                    # 在线程池中运行同步方法以避免阻塞
+                    loop = asyncio.get_event_loop()
+                    result = await loop.run_in_executor(None, processor.process, document)
+                
+                if not result.is_successful():
+                    document.update_status("error")
+                    error_msg = f"处理器 '{processor_name}' 处理失败: {result.get_message()}"
+                    self.logger.error(error_msg)
+                    return ProcessResult.error_result(error_msg, result.get_error())
+                
+                # 记录处理历史
+                document.processing_history.append({
+                    "processor": processor_name,
+                    "stage": processor.get_stage(),
+                    "success": True,
+                    "message": result.get_message()
+                })
+                
+                self.logger.info(f"处理器 '{processor_name}' 成功异步处理文档 {document.document_id}")
+                
+            except Exception as e:
+                document.update_status("error")
+                error_msg = f"处理器 '{processor_name}' 发生异常: {str(e)}"
+                self.logger.exception(error_msg)
+                return ProcessResult.error_result(error_msg, e)
+        
+        document.update_status("completed")
+        self.logger.info(f"文档 {document.document_id} 异步处理完成")
+        return ProcessResult.success_result("文档处理完成")
+    
+    async def process_documents(self, documents: List[Document], max_concurrent: int = 5) -> Dict[str, ProcessResult]:
+        """
+        异步批量处理多个文档，支持并发处理以提高性能。
+        
+        Args:
+            documents: 要处理的Document对象列表
+            max_concurrent: 最大并发处理数量，默认为5
+            
+        Returns:
+            字典，键为文档ID，值为对应的ProcessResult对象
+        """
+        self.logger.info(f"开始异步批量处理 {len(documents)} 个文档，最大并发数: {max_concurrent}")
+        
+        # 创建信号量来限制并发数量
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def process_with_semaphore(document: Document) -> tuple[str, ProcessResult]:
+            """带信号量控制的文档处理"""
+            async with semaphore:
+                result = await self.process_document(document)
+                return document.document_id, result
+        
+        # 创建所有任务
+        tasks = [process_with_semaphore(doc) for doc in documents]
+        
+        # 并发执行所有任务
+        completed_tasks = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 整理结果
+        results = {}
+        for task_result in completed_tasks:
+            if isinstance(task_result, Exception):
+                # 处理异常情况
+                self.logger.error(f"文档处理任务异常: {str(task_result)}")
+                # 为异常创建错误结果（需要文档ID，这里使用通用ID）
+                results[f"error_{len(results)}"] = ProcessResult.error_result(
+                    f"任务执行异常: {str(task_result)}", task_result
+                )
+            else:
+                doc_id, result = task_result
+                results[doc_id] = result
+        
+        self.logger.info(f"异步批量处理完成，成功处理 {len([r for r in results.values() if r.is_successful()])} 个文档")
+        return results
+    
+    def process_document_sync(self, document: Document, start_from: Optional[str] = None) -> ProcessResult:
+        """
+        同步处理文档（保持向后兼容性）。
+        
+        Args:
+            document: 要处理的Document对象
+            start_from: 起始处理器名称，如果指定，则从该处理器开始处理，默认为None
+            
+        Returns:
+            表示处理结果的ProcessResult对象
+        """
+        if not self.processors:
+            return ProcessResult.error_result("流水线中没有处理器")
+        
+        document.update_status("processing")
+        self.logger.info(f"开始同步处理文档: {document.document_id} - {document.file_name}")
+        
+        start_processing = False if start_from else True
+        
+        for processor in self.processors:
+            processor_name = processor.get_name()
+            
+            # 如果指定了起始处理器，则跳过之前的处理器
+            if not start_processing:
+                if processor_name == start_from:
+                    start_processing = True
+                else:
+                    continue
+            
+            if not processor.supports_file_type(document.file_type):
+                self.logger.warning(f"处理器 '{processor_name}' 不支持文件类型 '{document.file_type}'，已跳过")
+                continue
+            
+            self.logger.info(f"使用处理器 '{processor_name}' 同步处理文档 {document.document_id}")
             
             try:
                 result = processor.process(document)
@@ -160,7 +277,7 @@ class Pipeline:
                     "message": result.get_message()
                 })
                 
-                self.logger.info(f"处理器 '{processor_name}' 成功处理文档 {document.document_id}")
+                self.logger.info(f"处理器 '{processor_name}' 成功同步处理文档 {document.document_id}")
                 
             except Exception as e:
                 document.update_status("error")
@@ -169,12 +286,12 @@ class Pipeline:
                 return ProcessResult.error_result(error_msg, e)
         
         document.update_status("completed")
-        self.logger.info(f"文档 {document.document_id} 处理完成")
+        self.logger.info(f"文档 {document.document_id} 同步处理完成")
         return ProcessResult.success_result("文档处理完成")
     
-    def process_documents(self, documents: List[Document]) -> Dict[str, ProcessResult]:
+    def process_documents_sync(self, documents: List[Document]) -> Dict[str, ProcessResult]:
         """
-        批量处理多个文档。
+        同步批量处理多个文档（保持向后兼容性）。
         
         Args:
             documents: 要处理的Document对象列表
@@ -185,6 +302,6 @@ class Pipeline:
         results = {}
         
         for document in documents:
-            results[document.document_id] = self.process_document(document)
+            results[document.document_id] = self.process_document_sync(document)
         
         return results

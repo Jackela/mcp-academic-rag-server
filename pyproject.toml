@@ -1,0 +1,244 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools-scm[toml]>=6.2", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-academic-rag-server"
+version = "1.2.0"
+description = "MCP-based Academic Document RAG Server with OCR and intelligent retrieval"
+authors = [
+    {name = "Academic RAG Team", email = "team@academic-rag.com"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+keywords = ["rag", "ocr", "academic", "mcp", "nlp", "document-processing"]
+
+dependencies = [
+    "Flask>=2.3.3",
+    "Werkzeug>=2.3.7",
+    "haystack-ai>=2.16.1",
+    "sentence-transformers>=2.2.2",
+    "openai>=1.3.0",
+    "mcp>=0.9.0",
+    "requests>=2.31.0",
+    "PyPDF2>=3.0.1",
+    "pdf2image>=1.16.3",
+    "pdfkit>=1.0.0",
+    "Pillow>=10.0.1",
+    "opencv-python>=4.8.1.78",
+    "numpy>=1.24.4",
+    "scikit-learn>=1.3.2",
+    "scipy>=1.11.4",
+    "nltk>=3.8.1",
+    "spacy>=3.6.1",
+    "markdown>=3.5.1",
+    "pandas>=2.1.3",
+    "openpyxl>=3.1.2",
+    "faiss-cpu>=1.7.4",
+    "chromadb>=0.4.15",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.1",
+    "click>=8.1.7",
+    "tqdm>=4.66.1",
+    "jsonschema>=4.20.0",
+    "aiohttp>=3.8.6",
+    "loguru>=0.7.2",
+    "prometheus-client>=0.18.0",
+    "cryptography>=41.0.7",
+    "passlib>=1.7.4",
+    "python-magic>=0.4.27",
+    "chardet>=5.2.0",
+    "sqlalchemy>=2.0.23",
+    "transformers>=4.35.0",
+    "torch>=2.1.0",
+    "tokenizers>=0.14.1",
+    "pymilvus>=2.3.4",
+    "psutil>=5.9.6",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.1",
+    "pytest-asyncio>=0.21.1",
+    "black>=23.9.1",
+    "flake8>=6.1.0",
+    "isort>=5.12.0",
+    "mypy>=1.6.1",
+    "pre-commit>=3.5.0",
+    "bandit>=1.7.5",
+    "safety>=2.3.5",
+    "selenium>=4.15.0",
+    "pytest-benchmark>=4.0.0",
+    "memory-profiler>=0.61.0",
+    "py-spy>=0.3.14",
+]
+
+docs = [
+    "sphinx>=7.2.6",
+    "sphinx-rtd-theme>=1.3.0",
+    "sphinx-autodoc-typehints>=1.24.0",
+    "myst-parser>=2.0.0",
+]
+
+monitoring = [
+    "opentelemetry-api>=1.21.0",
+    "opentelemetry-sdk>=1.21.0",
+    "opentelemetry-instrumentation-flask>=0.42b0",
+    "opentelemetry-exporter-prometheus>=0.42b0",
+    "opentelemetry-exporter-jaeger>=1.21.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/mcp-academic-rag-server"
+Documentation = "https://mcp-academic-rag-server.readthedocs.io"
+Repository = "https://github.com/yourusername/mcp-academic-rag-server.git"
+Issues = "https://github.com/yourusername/mcp-academic-rag-server/issues"
+
+[project.scripts]
+academic-rag = "cli.document_cli:main"
+academic-rag-chat = "cli.chat_cli:main"
+academic-rag-server = "mcp_server:main"
+academic-rag-web = "webapp:main"
+
+[tool.setuptools]
+packages = ["core", "processors", "connectors", "models", "rag", "utils", "cli", "document_stores", "retrievers"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.yaml", "*.yml", "*.html", "*.css", "*.js"]
+
+[tool.black]
+line-length = 120
+target-version = ['py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+(
+    /(
+        \.eggs
+        | \.git
+        | \.hg
+        | \.mypy_cache
+        | \.tox
+        | \.venv
+        | _build
+        | buck-out
+        | build
+        | dist
+    )/
+)
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "haystack.*",
+    "sentence_transformers.*",
+    "mcp.*",
+    "cv2.*",
+    "pymilvus.*",
+    "transformers.*",
+    "torch.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--cov=.",
+    "--cov-branch",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--junitxml=test-results/junit.xml",
+    "--benchmark-only",
+    "--benchmark-autosave",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "e2e: marks tests as end-to-end tests",
+    "performance: marks tests as performance tests",
+]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/env/*",
+    "setup.py",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv", "env"]
+severity = "medium"
+confidence = "medium"
+skips = ["B101", "B601"]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503", "E501"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "docs/source/conf.py",
+    "old",
+    "build",
+    "dist",
+    "venv",
+    "env",
+]
+max-complexity = 10

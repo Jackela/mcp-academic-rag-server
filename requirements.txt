@@ -1,0 +1,96 @@
+# MCP Academic RAG Server Dependencies
+# Updated for refactored architecture with Haystack 2.x integration
+
+# Core Web Framework
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Haystack RAG Framework (Updated to 2.x)
+haystack-ai==2.16.1
+sentence-transformers==2.2.2
+
+# LLM and API Integration
+openai==1.3.0
+
+# MCP Server Dependencies (Required for MCP integration)
+mcp==0.9.0
+requests==2.31.0
+
+# Document Processing
+PyPDF2==3.0.1
+pdf2image==1.16.3
+pdfkit==1.0.0
+
+# Image Processing and OCR
+Pillow==10.0.1
+opencv-python==4.8.1.78
+numpy==1.24.4
+
+# Scientific Computing and ML
+scikit-learn==1.3.2
+scipy==1.11.4
+
+# Text Processing and NLP
+nltk==3.8.1
+spacy==3.6.1
+markdown==3.5.1
+
+# Data Handling
+pandas==2.1.3
+openpyxl==3.1.2
+
+# Vector Operations and Similarity
+faiss-cpu==1.7.4
+chromadb==0.4.15
+
+# Configuration and Utilities
+python-dotenv==1.0.0
+pyyaml==6.0.1
+click==8.1.7
+tqdm==4.66.1
+jsonschema==4.20.0
+
+# Testing Framework
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-mock==3.11.1
+pytest-asyncio==0.21.1
+
+# Development and Code Quality
+black==23.9.1
+flake8==6.1.0
+isort==5.12.0
+mypy==1.6.1
+
+# System Integration
+psutil==5.9.6
+python-multipart==0.0.6
+
+# Async Support (Required for MCP server)
+aiohttp==3.8.6
+
+# Logging and Monitoring
+loguru==0.7.2
+prometheus-client==0.18.0
+
+# Security
+cryptography==41.0.7
+passlib==1.7.4
+
+# File Processing
+python-magic==0.4.27
+chardet==5.2.0
+
+# Database Support
+sqlalchemy==2.0.23
+
+# Additional Haystack Dependencies
+transformers==4.35.0
+torch==2.1.0
+tokenizers==0.14.1
+
+# Document Store Dependencies
+pymilvus==2.3.4
+
+# UUID and utilities (for session management)
+uuid==1.30

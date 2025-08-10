@@ -9,7 +9,7 @@ import logging
 from typing import Dict, List, Any, Optional, Union, Tuple
 import time
 
-from haystack.nodes import SentenceTransformersDocumentEmbedder, EmbeddingRetriever
+from haystack.nodes import SentenceTransformersDocumentEmbedder, EmbeddingRetriever, BM25Retriever
 from haystack.schema import Document as HaystackDocument
 
 from models.document import Document
@@ -52,18 +52,23 @@ class HaystackRetriever:
         self.threshold = self.config.get("threshold", 0.5)
         self.batch_size = self.config.get("batch_size", 16)
         
-        # 初始化检索器
-        self._initialize_retriever()
+        # 混合检索配置
+        self.enable_hybrid = self.config.get("enable_hybrid", True)
+        self.dense_weight = self.config.get("dense_weight", 0.7)
+        self.sparse_weight = self.config.get("sparse_weight", 0.3)
         
-        self.logger.info(f"HaystackRetriever初始化完成，使用模型: {self.model_name_or_path}")
+        # 初始化检索器
+        self._initialize_retrievers()
+        
+        self.logger.info(f"HaystackRetriever初始化完成，使用模型: {self.model_name_or_path}，混合检索: {self.enable_hybrid}")
     
-    def _initialize_retriever(self) -> None:
+    def _initialize_retrievers(self) -> None:
         """
-        初始化Haystack检索器。
+        初始化Haystack检索器（包括密集和稀疏检索器）。
         """
         try:
-            # 初始化检索器
-            self.retriever = EmbeddingRetriever(
+            # 初始化嵌入检索器（密集检索）
+            self.embedding_retriever = EmbeddingRetriever(
                 document_store=self.document_store,
                 embedding_model=self.model_name_or_path,
                 top_k=self.top_k,
@@ -71,7 +76,17 @@ class HaystackRetriever:
                 batch_size=self.batch_size
             )
             
-            self.logger.info("成功初始化Haystack检索器")
+            # 初始化BM25检索器（稀疏检索）
+            if self.enable_hybrid:
+                self.bm25_retriever = BM25Retriever(
+                    document_store=self.document_store,
+                    top_k=self.top_k
+                )
+            
+            # 保持向后兼容性
+            self.retriever = self.embedding_retriever
+            
+            self.logger.info(f"成功初始化Haystack检索器，混合模式: {self.enable_hybrid}")
         except Exception as e:
             self.logger.error(f"初始化Haystack检索器失败: {str(e)}")
             raise
@@ -96,35 +111,12 @@ class HaystackRetriever:
             if top_k is None:
                 top_k = self.top_k
             
-            # 执行检索
-            retriever_results = self.retriever.retrieve(
-                query=query,
-                top_k=top_k,
-                filters=filters
-            )
-            
-            # 转换结果格式
-            results = []
-            for doc in retriever_results:
-                # 只保留分数高于阈值的结果
-                if hasattr(doc, 'score') and doc.score < self.threshold:
-                    continue
-                
-                result = {
-                    "content": doc.content,
-                    "score": doc.score if hasattr(doc, 'score') else None,
-                    "id": doc.id
-                }
-                
-                # 添加元数据
-                if hasattr(doc, 'meta'):
-                    result["meta"] = doc.meta
-                    
-                    # 如果存在原始ID，则添加到顶层
-                    if "original_id" in doc.meta:
-                        result["original_id"] = doc.meta["original_id"]
-                
-                results.append(result)
+            if self.enable_hybrid:
+                # 混合检索：结合密集和稀疏检索结果
+                results = self._hybrid_retrieve(query, top_k, filters)
+            else:
+                # 单一检索：仅使用嵌入检索
+                results = self._single_retrieve(query, top_k, filters)
             
             # 记录处理时间
             processing_time = time.time() - start_time
@@ -157,41 +149,14 @@ class HaystackRetriever:
             if top_k is None:
                 top_k = self.top_k
             
-            # 执行批量检索
-            batch_results = self.retriever.retrieve_batch(
-                queries=queries,
-                top_k=top_k,
-                filters=filters
-            )
-            
-            # 转换结果格式
+            # 批量处理每个查询
             formatted_results = []
-            
-            for query_results in batch_results:
-                query_formatted = []
-                
-                for doc in query_results:
-                    # 只保留分数高于阈值的结果
-                    if hasattr(doc, 'score') and doc.score < self.threshold:
-                        continue
-                    
-                    result = {
-                        "content": doc.content,
-                        "score": doc.score if hasattr(doc, 'score') else None,
-                        "id": doc.id
-                    }
-                    
-                    # 添加元数据
-                    if hasattr(doc, 'meta'):
-                        result["meta"] = doc.meta
-                        
-                        # 如果存在原始ID，则添加到顶层
-                        if "original_id" in doc.meta:
-                            result["original_id"] = doc.meta["original_id"]
-                    
-                    query_formatted.append(result)
-                
-                formatted_results.append(query_formatted)
+            for query in queries:
+                if self.enable_hybrid:
+                    query_results = self._hybrid_retrieve(query, top_k, filters)
+                else:
+                    query_results = self._single_retrieve(query, top_k, filters)
+                formatted_results.append(query_results)
             
             # 记录处理时间
             processing_time = time.time() - start_time
@@ -284,6 +249,10 @@ class HaystackRetriever:
             if "batch_size" in config and config["batch_size"] != self.batch_size:
                 self.batch_size = config["batch_size"]
                 need_reinit = True
+                
+            if "enable_hybrid" in config and config["enable_hybrid"] != self.enable_hybrid:
+                self.enable_hybrid = config["enable_hybrid"]
+                need_reinit = True
             
             # 更新其他配置
             if "top_k" in config:
@@ -291,13 +260,19 @@ class HaystackRetriever:
             
             if "threshold" in config:
                 self.threshold = config["threshold"]
+                
+            if "dense_weight" in config:
+                self.dense_weight = config["dense_weight"]
+                
+            if "sparse_weight" in config:
+                self.sparse_weight = config["sparse_weight"]
             
             # 更新配置字典
             self.config.update(config)
             
             # 如果需要，重新初始化检索器
             if need_reinit:
-                self._initialize_retriever()
+                self._initialize_retrievers()
             
             return True
             
@@ -317,8 +292,164 @@ class HaystackRetriever:
             "top_k": self.top_k,
             "threshold": self.threshold,
             "batch_size": self.batch_size,
+            "enable_hybrid": self.enable_hybrid,
+            "dense_weight": self.dense_weight,
+            "sparse_weight": self.sparse_weight,
             "document_count": self.document_store.get_document_count()
         }
+
+
+    def _single_retrieve(self, query: str, top_k: int, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        单一检索模式（仅使用嵌入检索）。
+        
+        Args:
+            query: 查询文本
+            top_k: 返回结果数量
+            filters: 过滤条件
+            
+        Returns:
+            检索结果列表
+        """
+        retriever_results = self.embedding_retriever.retrieve(
+            query=query,
+            top_k=top_k,
+            filters=filters
+        )
+        
+        return self._format_results(retriever_results)
+    
+    def _hybrid_retrieve(self, query: str, top_k: int, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        混合检索模式（结合密集和稀疏检索）。
+        
+        Args:
+            query: 查询文本
+            top_k: 返回结果数量
+            filters: 过滤条件
+            
+        Returns:
+            检索结果列表
+        """
+        # 获取两倍的top_k结果，为混合提供更多选择
+        retrieve_k = min(top_k * 2, 20)
+        
+        # 密集检索（语义相似度）
+        dense_results = self.embedding_retriever.retrieve(
+            query=query,
+            top_k=retrieve_k,
+            filters=filters
+        )
+        
+        # 稀疏检索（关键词匹配）
+        sparse_results = self.bm25_retriever.retrieve(
+            query=query,
+            top_k=retrieve_k,
+            filters=filters
+        )
+        
+        # 合并和重新排序结果
+        merged_results = self._merge_results(dense_results, sparse_results, top_k)
+        
+        return self._format_results(merged_results)
+    
+    def _merge_results(self, dense_results: List, sparse_results: List, top_k: int) -> List:
+        """
+        合并密集和稀疏检索结果。
+        
+        Args:
+            dense_results: 密集检索结果
+            sparse_results: 稀疏检索结果
+            top_k: 最终返回结果数量
+            
+        Returns:
+            合并后的结果列表
+        """
+        # 创建文档ID到结果的映射
+        doc_scores = {}
+        
+        # 处理密集检索结果
+        for doc in dense_results:
+            doc_id = doc.id
+            dense_score = doc.score if hasattr(doc, 'score') else 0.0
+            doc_scores[doc_id] = {
+                'doc': doc,
+                'dense_score': dense_score,
+                'sparse_score': 0.0,
+                'combined_score': dense_score * self.dense_weight
+            }
+        
+        # 处理稀疏检索结果
+        for doc in sparse_results:
+            doc_id = doc.id
+            sparse_score = doc.score if hasattr(doc, 'score') else 0.0
+            
+            if doc_id in doc_scores:
+                # 文档已存在，更新分数
+                doc_scores[doc_id]['sparse_score'] = sparse_score
+                doc_scores[doc_id]['combined_score'] = (
+                    doc_scores[doc_id]['dense_score'] * self.dense_weight +
+                    sparse_score * self.sparse_weight
+                )
+            else:
+                # 新文档，添加到结果中
+                doc_scores[doc_id] = {
+                    'doc': doc,
+                    'dense_score': 0.0,
+                    'sparse_score': sparse_score,
+                    'combined_score': sparse_score * self.sparse_weight
+                }
+        
+        # 按综合分数排序
+        sorted_results = sorted(
+            doc_scores.values(),
+            key=lambda x: x['combined_score'],
+            reverse=True
+        )
+        
+        # 返回前top_k个结果，并更新分数
+        final_results = []
+        for item in sorted_results[:top_k]:
+            doc = item['doc']
+            # 更新文档的分数为综合分数
+            doc.score = item['combined_score']
+            final_results.append(doc)
+        
+        return final_results
+    
+    def _format_results(self, retriever_results: List) -> List[Dict[str, Any]]:
+        """
+        格式化检索结果。
+        
+        Args:
+            retriever_results: 原始检索结果
+            
+        Returns:
+            格式化后的结果列表
+        """
+        results = []
+        for doc in retriever_results:
+            # 只保留分数高于阈值的结果
+            if hasattr(doc, 'score') and doc.score < self.threshold:
+                continue
+            
+            result = {
+                "content": doc.content,
+                "score": doc.score if hasattr(doc, 'score') else None,
+                "id": doc.id
+            }
+            
+            # 添加元数据
+            if hasattr(doc, 'meta'):
+                result["meta"] = doc.meta
+                
+                # 如果存在原始ID，则添加到顶层
+                if "original_id" in doc.meta:
+                    result["original_id"] = doc.meta["original_id"]
+            
+            results.append(result)
+        
+        return results
 
 
 # 工厂函数，便于创建检索器实例
