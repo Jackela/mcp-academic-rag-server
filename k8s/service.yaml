@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: academic-rag-service
+  namespace: academic-rag
+  labels:
+    app: academic-rag-server
+    tier: backend
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  - name: web
+    port: 5000
+    targetPort: 5000
+    protocol: TCP
+  selector:
+    app: academic-rag-server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: milvus-service
+  namespace: academic-rag
+  labels:
+    app: milvus
+    tier: database
+spec:
+  type: ClusterIP
+  ports:
+  - name: milvus
+    port: 19530
+    targetPort: 19530
+    protocol: TCP
+  - name: metrics
+    port: 9091
+    targetPort: 9091
+    protocol: TCP
+  selector:
+    app: milvus
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: milvus-etcd
+  namespace: academic-rag
+  labels:
+    app: milvus-etcd
+    tier: database
+spec:
+  type: ClusterIP
+  ports:
+  - name: client
+    port: 2379
+    targetPort: 2379
+    protocol: TCP
+  - name: peer
+    port: 2380
+    targetPort: 2380
+    protocol: TCP
+  selector:
+    app: milvus-etcd
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: milvus-minio
+  namespace: academic-rag
+  labels:
+    app: milvus-minio
+    tier: storage
+spec:
+  type: ClusterIP
+  ports:
+  - name: api
+    port: 9000
+    targetPort: 9000
+    protocol: TCP
+  - name: console
+    port: 9001
+    targetPort: 9001
+    protocol: TCP
+  selector:
+    app: milvus-minio
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: academic-rag-public
+  namespace: academic-rag
+  labels:
+    app: academic-rag-server
+    tier: frontend
+spec:
+  type: LoadBalancer
+  ports:
+  - name: web
+    port: 80
+    targetPort: 5000
+    protocol: TCP
+  - name: mcp
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  selector:
+    app: academic-rag-server
