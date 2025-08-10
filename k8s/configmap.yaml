@@ -1,0 +1,236 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: academic-rag-config
+  namespace: academic-rag
+  labels:
+    app: academic-rag-server
+data:
+  config.json: |
+    {
+      "storage": {
+        "base_path": "/app/data",
+        "output_path": "/app/output"
+      },
+      "processors": {
+        "pre_processor": {
+          "enabled": true,
+          "config": {
+            "enhance_image": true,
+            "correct_skew": true,
+            "remove_noise": true,
+            "deskew_threshold": 5.0
+          }
+        },
+        "ocr_processor": {
+          "enabled": true,
+          "config": {
+            "api": "azure",
+            "language": "zh-Hans",
+            "confidence_threshold": 0.6,
+            "max_retries": 3,
+            "timeout": 30
+          }
+        },
+        "structure_processor": {
+          "enabled": true,
+          "config": {
+            "detect_sections": true,
+            "detect_headings": true,
+            "detect_tables": true,
+            "detect_figures": true,
+            "detect_equations": true,
+            "min_heading_confidence": 0.7
+          }
+        },
+        "classification_processor": {
+          "enabled": true,
+          "config": {
+            "api": "openai",
+            "min_confidence": 0.7,
+            "categories": [
+              "computer_science",
+              "mathematics",
+              "physics",
+              "chemistry",
+              "biology",
+              "engineering",
+              "medicine",
+              "economics",
+              "psychology",
+              "other"
+            ]
+          }
+        },
+        "format_converter": {
+          "enabled": true,
+          "config": {
+            "output_formats": ["markdown", "pdf"],
+            "preserve_layout": true,
+            "include_metadata": true
+          }
+        },
+        "embedding_processor": {
+          "enabled": true,
+          "config": {
+            "model_name_or_path": "sentence-transformers/all-MiniLM-L6-v2",
+            "chunk_size": 500,
+            "chunk_overlap": 50,
+            "batch_size": 32,
+            "normalize_embeddings": true
+          }
+        },
+        "knowledge_graph_processor": {
+          "enabled": true,
+          "config": {
+            "extract_entities": true,
+            "extract_relations": true,
+            "extract_concepts": true,
+            "min_entity_freq": 2,
+            "max_entities": 100,
+            "max_relations": 50,
+            "language": "auto"
+          }
+        }
+      },
+      "vector_db": {
+        "document_store": {
+          "type": "milvus",
+          "embedding_dim": 384,
+          "similarity": "cosine",
+          "return_embedding": true,
+          "milvus": {
+            "host": "milvus-service",
+            "port": 19530,
+            "user": "",
+            "password": "",
+            "database": "default",
+            "collection_name": "academic_documents",
+            "vector_dimension": 384,
+            "index_type": "IVF_FLAT",
+            "metric_type": "L2",
+            "nlist": 1024
+          }
+        },
+        "retriever": {
+          "top_k": 5,
+          "embedding_model": "sentence-transformers/all-MiniLM-L6-v2"
+        }
+      },
+      "llm": {
+        "openai": {
+          "model": "gpt-3.5-turbo",
+          "max_tokens": 2000,
+          "temperature": 0.7,
+          "stream": false
+        },
+        "mistral": {
+          "model": "mistral-7b-instruct",
+          "max_tokens": 2000,
+          "temperature": 0.7
+        }
+      },
+      "rag": {
+        "max_source_length": 10000,
+        "max_query_length": 1000,
+        "chunk_size": 1000,
+        "chunk_overlap": 200,
+        "top_k_retrieval": 5,
+        "score_threshold": 0.7
+      },
+      "web": {
+        "host": "0.0.0.0",
+        "port": 8000,
+        "debug": false,
+        "cors": {
+          "enabled": true,
+          "origins": ["*"]
+        }
+      },
+      "mcp": {
+        "server": {
+          "name": "academic-rag-server",
+          "version": "1.2.0",
+          "description": "Academic document processing and RAG server with MCP interface",
+          "transport": "stdio"
+        },
+        "tools": {
+          "process_document": {
+            "enabled": true,
+            "max_file_size": "100MB",
+            "supported_formats": ["pdf", "png", "jpg", "jpeg", "tiff", "docx"]
+          },
+          "query_documents": {
+            "enabled": true,
+            "max_query_length": 1000,
+            "default_top_k": 5,
+            "max_top_k": 20
+          },
+          "get_document_info": {
+            "enabled": true,
+            "include_content": true,
+            "include_metadata": true
+          },
+          "list_sessions": {
+            "enabled": true,
+            "max_sessions": 100,
+            "include_history": false
+          }
+        }
+      }
+    }
+  milvus.yaml: |
+    etcd:
+      endpoints:
+        - milvus-etcd:2379
+    minio:
+      address: milvus-minio
+      port: 9000
+      accessKeyID: minioadmin
+      secretAccessKey: minioadmin
+      useSSL: false
+      bucketName: "milvus-bucket"
+    common:
+      chanNamePrefix:
+        cluster: "by-dev"
+      defaultPartitionName: "_default"
+      defaultIndexName: "_default_idx"
+    log:
+      level: info
+      file:
+        rootPath: "/var/lib/milvus/logs"
+        maxSize: 300
+        maxAge: 10
+        maxBackups: 20
+    rootCoord:
+      address: localhost
+      port: 53100
+      enableActiveStandby: false
+    dataCoord:
+      address: localhost
+      port: 13333
+      enableActiveStandby: false
+    queryCoord:
+      address: localhost
+      port: 19531
+      enableActiveStandby: false
+    indexCoord:
+      address: localhost
+      port: 31000
+      enableActiveStandby: false
+    dataNode:
+      port: 21124
+      grpc:
+        serverMaxRecvSize: 536870912
+    indexNode:
+      port: 21121
+      grpc:
+        serverMaxRecvSize: 536870912
+    queryNode:
+      port: 21123
+      grpc:
+        serverMaxRecvSize: 536870912
+    proxy:
+      port: 19530
+      grpc:
+        serverMaxRecvSize: 536870912
