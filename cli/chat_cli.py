@@ -21,45 +21,28 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.config_manager import ConfigManager
 from rag.chat_session import ChatSession, ChatSessionManager
-from rag.haystack_pipeline import RAGPipeline
+from rag.haystack_pipeline import RAGPipeline, RAGPipelineFactory
 from connectors.haystack_llm_connector import HaystackLLMConnector, HaystackLLMFactory
 
 
 class ChatCLI:
     """聊天对话命令行界面类"""
     
-    def __init__(
-        self, 
-        config_path: str = "./config/config.json",
-        session_id: str = None,
-        verbose: bool = False
-    ):
-        """
-        初始化聊天对话命令行界面
-        
-        Args:
-            config_path (str): 配置文件路径
-            session_id (str, optional): 会话ID，如不指定则自动生成
-            verbose (bool): 是否显示详细日志
-        """
-        self.config_path = config_path
-        self.session_id = session_id or str(uuid.uuid4())
-        self.verbose = verbose
-        
-        # 设置日志级别
-        self.log_level = logging.DEBUG if verbose else logging.INFO
-        
-        # 初始化组件
-        self._init_components()
-    
-    def _init_components(self):
-        """初始化组件：配置管理器、RAG系统、聊天会话等"""
+    def __init__(self):
+        """初始化聊天对话CLI"""
         try:
-            # 初始化配置管理器
-            self.config_manager = ConfigManager(self.config_path)
-            
             # 设置日志
             self._setup_logging()
+            
+            # 生成唯一的会话ID
+            self.session_id = str(uuid.uuid4())
+            
+            # 解析命令行参数
+            self.args = self._parse_args()
+            
+            # 如果提供了会话ID参数，使用它
+            if hasattr(self.args, 'session') and self.args.session:
+                self.session_id = self.args.session
             
             # 创建数据目录
             self._create_data_dirs()
@@ -67,10 +50,17 @@ class ChatCLI:
             # 记录初始化信息
             self.logger.info(f"聊天对话CLI初始化完成，会话ID：{self.session_id}")
             
+            # 初始化组件
+            self.config_manager = ConfigManager()
+            self.session_manager = ChatSessionManager()
+            self.rag_pipeline = None
+            self.session = None
+            
+            # 初始化RAG管道
+            self._initialize_rag_pipeline()
+            
             # 初始化聊天会话
-            # 在实际应用中，应初始化RAG管道和聊天会话
-            # 由于RAG系统需要多个组件，这里暂时使用模拟会话
-            self.session = self._create_mock_session()
+            self.session = self._create_session()
             
         except Exception as e:
             print(f"初始化聊天对话CLI失败: {str(e)}")
@@ -78,68 +68,69 @@ class ChatCLI:
     
     def _setup_logging(self):
         """设置日志系统"""
-        log_config = self.config_manager.get_value("logging", {})
-        log_level_name = log_config.get("level", "INFO")
-        
-        if self.verbose:
-            log_level_name = "DEBUG"
-        
-        log_level = getattr(logging, log_level_name)
-        log_format = log_config.get("format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        log_file = log_config.get("file")
-        
-        # 创建日志目录
-        if log_file:
-            os.makedirs(os.path.dirname(log_file), exist_ok=True)
-        
-        # 配置根日志记录器
         logging.basicConfig(
-            level=log_level,
-            format=log_format,
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(log_file, encoding='utf-8') if log_file else logging.NullHandler(),
-                logging.StreamHandler()
+                logging.FileHandler('chat_cli.log', encoding='utf-8'),
+                logging.StreamHandler(sys.stdout)
             ]
         )
-        
-        # 获取日志记录器
-        self.logger = logging.getLogger("chat_cli")
+        self.logger = logging.getLogger('ChatCLI')
     
     def _create_data_dirs(self):
-        """创建数据目录"""
-        # 会话数据目录
-        sessions_dir = os.path.join(
-            self.config_manager.get_value("storage.base_path", "./data"),
-            "sessions"
-        )
-        os.makedirs(sessions_dir, exist_ok=True)
-        self.sessions_dir = sessions_dir
+        """创建必要的数据目录"""
+        # 创建会话目录
+        base_dir = os.path.join(os.getcwd(), "data", "sessions")
+        self.sessions_dir = base_dir
         
         # 当前会话目录
-        session_dir = os.path.join(sessions_dir, self.session_id)
+        session_dir = os.path.join(base_dir, self.session_id)
         os.makedirs(session_dir, exist_ok=True)
         self.session_dir = session_dir
     
-    def _create_mock_session(self) -> ChatSession:
+    def _initialize_rag_pipeline(self):
         """
-        创建模拟聊天会话
+        初始化RAG管道
+        """
+        try:
+            # 从配置中获取LLM设置
+            llm_config = self.config_manager.get_value("llm", {})
+            
+            # 创建LLM连接器
+            llm_connector = HaystackLLMConnector(config=llm_config)
+            
+            # 创建RAG管道
+            rag_config = self.config_manager.get_value("rag_settings", {})
+            self.rag_pipeline = RAGPipelineFactory.create_pipeline(
+                llm_connector=llm_connector,
+                config=rag_config
+            )
+            
+            self.logger.info("成功初始化RAG管道")
+            
+        except Exception as e:
+            self.logger.error(f"初始化RAG管道失败: {str(e)}")
+            self.rag_pipeline = None
+    
+    def _create_session(self) -> ChatSession:
+        """
+        创建聊天会话（使用真实的RAG管道）
         
-        在实际应用中，应使用真实的RAG管道和LLM
-        但由于这些组件在此原型中尚未完全实现，使用模拟会话
-
         Returns:
-            ChatSession: 模拟的聊天会话
+            ChatSession: 聊天会话
         """
-        # 创建会话
-        session = ChatSession(session_id=self.session_id)
-        
-        # 添加系统消息
-        session.add_message(
-            role="system",
-            content="这是一个基于学术文献内容的智能问答助手。您可以询问有关已上传文献的问题，系统将尝试根据文献内容提供回答。"
+        # 使用会话管理器创建会话
+        session = self.session_manager.create_session(
+            session_id=self.session_id,
+            metadata={"cli_session": True, "created_by": "chat_cli"}
         )
         
-        self.logger.info(f"已创建模拟聊天会话: {self.session_id}")
+        # 设置RAG管道
+        if self.rag_pipeline:
+            session.set_rag_pipeline(self.rag_pipeline)
+        
+        self.logger.info(f"已创建聊天会话: {self.session_id}")
         return session
     
     def _parse_args(self):
@@ -148,61 +139,73 @@ class ChatCLI:
             description="聊天对话命令行界面 - 提供基于文档内容的自然语言对话",
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
-示例用法:
-  # 启动新的聊天会话
-  python chat_cli.py
-  
-  # 继续特定会话
-  python chat_cli.py --session SESSION_ID
-  
-  # 使用特定的配置文件
-  python chat_cli.py --config path/to/config.json
-  
-  # 回放历史聊天记录
-  python chat_cli.py --session SESSION_ID --replay
+使用示例:
+  python chat_cli.py                    # 开始新的聊天会话
+  python chat_cli.py --session abc123   # 继续指定的会话
+  python chat_cli.py --list             # 列出所有会话
+  python chat_cli.py --export abc123    # 导出会话记录
+  python chat_cli.py --replay abc123    # 回放会话记录
+
+注意:
+  - 会话记录会自动保存
+  - 使用 Ctrl+C 或输入 "exit" 退出
+  - 输入 "help" 查看帮助信息
             """
         )
         
-        # 参数定义
-        parser.add_argument("--session", help="会话ID，如不指定则创建新会话")
-        parser.add_argument("--config", default=self.config_path, help="配置文件路径")
-        parser.add_argument("--replay", action="store_true", help="回放历史聊天记录")
-        parser.add_argument("--list", action="store_true", help="列出所有会话")
-        parser.add_argument("--export", help="导出会话记录，需要指定会话ID")
-        parser.add_argument("--verbose", "-v", action="store_true", help="显示详细日志")
+        # 互斥参数组 - 只能选择一个操作
+        action_group = parser.add_mutually_exclusive_group()
+        
+        action_group.add_argument(
+            '--session', '-s',
+            type=str,
+            help='指定要继续的会话ID'
+        )
+        
+        action_group.add_argument(
+            '--list', '-l',
+            action='store_true',
+            help='列出所有会话记录'
+        )
+        
+        action_group.add_argument(
+            '--export', '-e',
+            type=str, 
+            metavar='SESSION_ID',
+            help='导出指定会话的聊天记录'
+        )
+        
+        action_group.add_argument(
+            '--replay', '-r',
+            type=str,
+            metavar='SESSION_ID',
+            help='回放指定会话的聊天记录'
+        )
+        
+        # 其他参数
+        parser.add_argument(
+            '--verbose', '-v',
+            action='store_true',
+            help='启用详细日志输出'
+        )
         
         return parser.parse_args()
     
     def run(self):
-        """运行命令行界面"""
-        args = self._parse_args()
-        
-        # 更新配置文件路径
-        if args.config != self.config_path:
-            self.config_path = args.config
-            self.config_manager = ConfigManager(self.config_path)
-        
-        # 更新日志级别
-        if args.verbose:
-            self.verbose = True
-            logging.getLogger().setLevel(logging.DEBUG)
-            self.logger.setLevel(logging.DEBUG)
-            self.logger.debug("已启用详细日志模式")
-        
-        # 处理命令
-        if args.list:
-            self._list_sessions()
-        elif args.export:
-            self._export_session(args.export)
-        else:
-            # 正常聊天模式
-            if args.session:
-                self.session_id = args.session
+        """运行聊天对话CLI"""
+        try:
+            # 根据参数执行相应操作
+            if self.args.list:
+                self._list_sessions()
+            elif self.args.export:
+                self._export_session(self.args.export)
+            elif self.args.session:
+                self.session_id = self.args.session
                 # 加载现有会话
-                self._load_session(args.session)
+                self._load_session(self.args.session)
             
             # 如果是回放模式
-            if args.replay:
+            if self.args.replay:
                 self._replay_session()
             else:
                 # 开始交互式聊天
@@ -297,255 +300,214 @@ class ChatCLI:
                     f.write(f"{content}\n\n")
                     
                     # 添加引用信息（如果有）
-                    if "citations" in msg:
-                        f.write("引用来源:\n")
-                        for citation in msg.get("citations", []):
-                            doc_id = citation.get("document_id", "未知")
-                            text = citation.get("text", "")
-                            f.write(f"- 文档 {doc_id}: {text}\n")
-                        f.write("\n")
-                    
-                    f.write("-" * 80 + "\n\n")
+                    if msg.get("message_id") in session_data.get("citations", {}):
+                        citations = session_data["citations"][msg["message_id"]]
+                        if citations:
+                            f.write("参考文献:\n")
+                            for citation in citations:
+                                f.write(f"- {citation.get('text', '')}\n")
+                            f.write("\n")
             
-            print(f"会话记录已导出至: {output_file}")
-            self.logger.info(f"已导出会话 {session_id} 的记录到 {output_file}")
+            print(f"会话记录已导出到: {output_file}")
+            self.logger.info(f"会话 {session_id} 已导出到 {output_file}")
             
         except Exception as e:
-            self.logger.error(f"导出会话 {session_id} 时出错: {str(e)}")
-            print(f"错误：导出会话时出错：{str(e)}")
+            self.logger.error(f"导出会话失败: {str(e)}")
+            print(f"错误：导出会话失败：{str(e)}")
     
     def _load_session(self, session_id: str):
         """加载现有会话"""
-        session_dir = os.path.join(self.sessions_dir, session_id)
-        session_file = os.path.join(session_dir, "session.json")
-        
-        if not os.path.exists(session_file):
-            self.logger.warning(f"会话 {session_id} 不存在，将创建新会话")
-            print(f"会话ID {session_id} 不存在，已创建新会话")
-            # 更新会话目录
-            self.session_dir = session_dir
-            os.makedirs(self.session_dir, exist_ok=True)
+        # 使用会话管理器加载会话
+        try:
+            self.session = self.session_manager.get_session(session_id)
+            if self.session:
+                # 设置RAG管道
+                if self.rag_pipeline:
+                    self.session.set_rag_pipeline(self.rag_pipeline)
+                self.logger.info(f"已加载会话: {session_id}")
+            else:
+                print(f"错误：会话ID {session_id} 不存在")
+                return
+        except Exception as e:
+            self.logger.error(f"加载会话失败: {str(e)}")
+            print(f"错误：加载会话失败：{str(e)}")
             return
-        
-        try:
-            # 读取会话数据
-            with open(session_file, 'r', encoding='utf-8') as f:
-                session_data = json.load(f)
-            
-            # 创建会话对象
-            self.session = ChatSession.from_dict(session_data)
-            
-            # 更新会话目录
-            self.session_dir = session_dir
-            
-            self.logger.info(f"已加载会话: {session_id}")
-            print(f"已加载会话ID: {session_id}")
-            
-        except Exception as e:
-            self.logger.error(f"加载会话 {session_id} 时出错: {str(e)}")
-            print(f"错误：加载会话时出错：{str(e)}")
-    
-    def _save_session(self):
-        """保存当前会话"""
-        try:
-            # 保存会话数据
-            session_file = os.path.join(self.session_dir, "session.json")
-            
-            with open(session_file, 'w', encoding='utf-8') as f:
-                json.dump(self.session.to_dict(), f, ensure_ascii=False, indent=2)
-            
-            self.logger.debug(f"已保存会话: {self.session_id}")
-            
-        except Exception as e:
-            self.logger.error(f"保存会话 {self.session_id} 时出错: {str(e)}")
     
     def _replay_session(self):
         """回放会话记录"""
-        messages = self.session.get_messages()
-        
-        if not messages:
-            print("会话中没有消息记录")
+        if not self.session:
+            print("错误：没有可回放的会话")
             return
         
-        print("\n" + "=" * 80)
-        print(f"回放会话 {self.session_id} 的历史记录")
-        print("=" * 80 + "\n")
+        print(f"\n开始回放会话 {self.session_id}")
+        print("=" * 60)
         
-        for msg in messages:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            
-            if role == "system":
+        # 回放所有消息
+        for msg in self.session.messages:
+            if msg.role == "system":
                 continue  # 跳过系统消息
             
-            timestamp = self._format_timestamp(msg.get("timestamp", ""))
+            timestamp = self._format_timestamp(msg.timestamp)
+            print(f"\n[{timestamp}] {msg.role.upper()}:")
+            print(msg.content)
             
-            print(f"[{timestamp}] {role.upper()}:")
-            print(f"{content}")
+            # 如果有引用，显示引用信息
+            citations = self.session.get_citations(msg.message_id)
+            if citations:
+                print("\n参考文献:")
+                for citation in citations:
+                    print(f"- {citation.text}")
             
-            # 添加引用信息（如果有）
-            if "citations" in msg and msg["citations"]:
-                print("\n引用来源:")
-                for citation in msg.get("citations", []):
-                    doc_id = citation.get("document_id", "未知")
-                    text = citation.get("text", "")
-                    print(f"- 文档 {doc_id}: {text}")
-            
-            print("\n" + "-" * 80 + "\n")
-            
-            # 为了模拟对话效果，增加短暂延迟
+            # 延迟一下，模拟真实对话节奏
             time.sleep(0.5)
+        
+        print("\n" + "=" * 60)
+        print("会话回放完成")
     
     def _start_interactive_chat(self):
         """开始交互式聊天"""
-        print("\n" + "=" * 80)
-        print("欢迎使用学术文献智能问答系统")
-        print("输入问题与系统对话，输入'exit'或'quit'退出对话")
-        print("=" * 80 + "\n")
+        print("\n欢迎使用学术文献智能问答系统！")
+        print("=" * 50)
+        print(f"会话ID: {self.session_id}")
+        print("输入您的问题，系统将基于已上传的文献为您回答。")
+        print("命令: 'help' 查看帮助, 'exit' 退出, 'save' 保存会话")
+        print("=" * 50)
         
-        # 显示系统提示
-        system_message = "我是一个基于学术文献内容的智能问答助手。您可以询问有关已上传文献的问题，我将尝试根据文献内容提供回答。"
-        print(f"系统: {system_message}\n")
-        
-        # 聊天循环
-        while True:
-            # 获取用户输入
-            try:
-                user_input = input("您: ")
-            except EOFError:
-                break
-            except KeyboardInterrupt:
-                print("\n再见！")
-                break
-            
-            # 检查退出命令
-            if user_input.lower() in ["exit", "quit", "bye", "再见"]:
-                print("\n再见！")
-                break
-            
-            # 检查帮助命令
-            if user_input.lower() in ["help", "?", "帮助"]:
-                self._print_help()
-                continue
-            
-            # 检查清屏命令
-            if user_input.lower() in ["clear", "cls", "清屏"]:
-                os.system("cls" if os.name == "nt" else "clear")
-                continue
-            
-            # 检查保存命令
-            if user_input.lower() in ["save", "保存"]:
-                self._save_session()
-                print("会话已保存")
-                continue
-            
-            # 忽略空输入
-            if not user_input.strip():
-                continue
-            
-            # 处理用户输入
-            self._process_user_input(user_input)
-    
-    def _process_user_input(self, user_input: str):
-        """处理用户输入"""
         try:
-            # 添加用户消息
-            self.session.add_message(role="user", content=user_input)
-            
-            # 在实际应用中，应调用RAG管道处理查询
-            # 由于RAG管道尚未实现，这里使用模拟回答
-            print("\n助手: ", end="", flush=True)
-            
-            # 生成模拟回答
-            response = self._generate_mock_response(user_input)
-            
-            # 模拟打字效果
-            for char in response:
-                print(char, end="", flush=True)
-                time.sleep(0.01)  # 调整速度
-            print("\n")
-            
-            # 添加助手消息
-            self.session.add_message(role="assistant", content=response)
-            
+            while True:
+                # 获取用户输入
+                try:
+                    user_input = input("\n您: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("\n\n再见！")
+                    break
+                
+                # 处理特殊命令
+                if user_input.lower() in ['exit', 'quit', '退出']:
+                    print("再见！")
+                    break
+                elif user_input.lower() == 'help':
+                    self._show_help()
+                    continue
+                elif user_input.lower() == 'save':
+                    self._save_session()
+                    continue
+                elif not user_input:
+                    continue
+                
+                # 处理用户问题
+                self._process_user_input(user_input)
+                
+        except Exception as e:
+            self.logger.error(f"交互式聊天出错: {str(e)}")
+            print(f"\n发生错误: {str(e)}")
+        finally:
             # 保存会话
             self._save_session()
+    
+    def _process_user_input(self, user_input: str):
+        """处理用户输入并生成回答"""
+        try:
+            # 使用RAG管道生成回答
+            try:
+                if self.rag_pipeline:
+                    response = self.session.query(user_input)
+                    answer = response.get("answer", "无法生成回答")
+                    documents = response.get("documents", [])
+                    
+                    # 显示回答
+                    print(f"\n助手: {answer}")
+                    
+                    # 显示参考文献（如果有）
+                    if documents:
+                        print("\n参考文献:")
+                        for i, doc in enumerate(documents[:3], 1):  # 显示前3个相关文档
+                            print(f"{i}. {doc.get('metadata', {}).get('file_name', '未知文档')}")
+                            print(f"   内容片段: {doc.get('content', '')[:100]}...")
+                else:
+                    response = self._generate_fallback_response(user_input)
+                    print(f"\n助手: {response}")
+            except Exception as e:
+                self.logger.error(f"生成回答失败: {str(e)}")
+                response = f"抱歉，处理您的问题时发生错误: {str(e)}"
+                print(f"\n助手: {response}")
             
         except Exception as e:
             self.logger.error(f"处理用户输入时出错: {str(e)}")
             print(f"\n处理您的问题时出错: {str(e)}")
     
-    def _generate_mock_response(self, query: str) -> str:
+    def _generate_fallback_response(self, query: str) -> str:
         """
-        生成模拟回答
-        
-        在实际应用中，应使用RAG管道生成真实回答
+        生成备用回答（当RAG管道不可用时）
         
         Args:
             query: 用户查询
             
         Returns:
-            str: 模拟的回答
+            str: 备用回答
         """
-        # 简单的模拟回答逻辑
-        responses = {
-            "帮助": "您可以询问关于已上传文献的任何问题，我将根据文献内容回答。例如，您可以问特定论文的主要观点、方法论、结论等。",
-            "文档": "目前系统中已上传了多篇学术文献，包括关于人工智能、机器学习、自然语言处理等领域的研究论文。",
-            "功能": "我可以回答关于文献内容的问题，摘要总结，提取关键观点，解释复杂概念，比较不同文献的观点等。",
-            "检索": "我使用向量数据库技术进行相似度检索，找到与您问题最相关的文档片段，然后基于这些内容生成回答。"
-        }
-        
-        # 检查是否有匹配的关键词
-        for keyword, response in responses.items():
-            if keyword in query:
-                return response
-        
-        # 默认回答
-        default_responses = [
-            "根据文献内容，这个问题涉及到多个研究领域。相关研究表明，该领域仍有许多未解决的挑战和机会。",
-            "基于检索到的文献，该问题的答案是多方面的。一方面，研究显示特定方法的有效性；另一方面，也存在一些局限性需要考虑。",
-            "文献中对这个问题有不同观点。一些研究者认为A方法更有效，而另一些则支持B方法，具体取决于应用场景和条件。",
-            "据分析的文献显示，这是一个活跃的研究方向，近年来有多项创新成果。最新的研究趋势表明技术正朝着更高效、更智能的方向发展。",
-            "这个问题在现有文献中有详细讨论。根据X等人的研究，该方法在特定条件下表现优异；而Y等人的研究则提出了一些改进方案。"
-        ]
-        
-        import random
-        return random.choice(default_responses)
+        return f"抱歉，RAG系统当前不可用。请确保已正确配置并上传了文档。您的问题是: {query}"
     
-    def _print_help(self):
-        """打印帮助信息"""
-        print("\n" + "=" * 80)
-        print("帮助信息")
-        print("=" * 80)
-        print("- 输入问题与系统对话")
-        print("- 输入'exit'或'quit'退出对话")
-        print("- 输入'help'或'?'显示帮助信息")
-        print("- 输入'clear'或'cls'清屏")
-        print("- 输入'save'保存当前会话")
-        print("=" * 80 + "\n")
+    def _show_help(self):
+        """显示帮助信息"""
+        help_text = """
+可用命令:
+  help    - 显示此帮助信息
+  save    - 保存当前会话
+  exit    - 退出程序
+  
+使用说明:
+  1. 直接输入您的问题，系统会基于已上传的文献回答
+  2. 系统会显示相关的文献引用信息
+  3. 会话会自动保存，下次可以通过 --session 参数继续
+  
+示例问题:
+  - "这篇论文的主要贡献是什么？"
+  - "请总结关于机器学习的内容"
+  - "有哪些研究方法被提到？"
+        """
+        print(help_text)
     
-    def _format_timestamp(self, timestamp) -> str:
-        """格式化时间戳"""
-        if not timestamp:
-            return "未知"
-        
+    def _save_session(self):
+        """保存会话"""
         try:
-            dt = datetime.fromtimestamp(float(timestamp))
-            return dt.strftime("%Y-%m-%d %H:%M:%S")
-        except:
+            self.session_manager.save_sessions()
+            print("会话已保存")
+            self.logger.info(f"会话 {self.session_id} 已保存")
+        except Exception as e:
+            self.logger.error(f"保存会话失败: {str(e)}")
+            print(f"保存会话失败: {str(e)}")
+    
+    def _format_timestamp(self, timestamp):
+        """格式化时间戳"""
+        try:
+            if isinstance(timestamp, (int, float)):
+                dt = datetime.fromtimestamp(timestamp)
+                return dt.strftime('%Y-%m-%d %H:%M')
+            elif isinstance(timestamp, str):
+                # 尝试解析字符串时间戳
+                try:
+                    ts = float(timestamp)
+                    dt = datetime.fromtimestamp(ts)
+                    return dt.strftime('%Y-%m-%d %H:%M')
+                except ValueError:
+                    return timestamp[:19] if len(timestamp) >= 19 else timestamp
+            else:
+                return str(timestamp)
+        except Exception:
             return str(timestamp)
 
 
 def main():
-    """主入口函数"""
+    """主函数"""
     try:
+        # 创建并运行CLI
         cli = ChatCLI()
         cli.run()
     except KeyboardInterrupt:
-        print("\n操作已取消")
-        sys.exit(1)
+        print("\n\n程序被用户中断")
     except Exception as e:
-        print(f"错误：{str(e)}")
+        print(f"程序出错: {str(e)}")
         sys.exit(1)
 
 

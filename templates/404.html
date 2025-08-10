@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}页面未找到 - 学术文献RAG服务器{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <div class="error-template">
+                <h1>404</h1>
+                <h2>页面未找到</h2>
+                <div class="error-details">
+                    抱歉，您访问的页面不存在。
+                </div>
+                <div class="error-actions mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-home"></i> 返回首页
+                    </a>
+                    <a href="{{ url_for('documents') }}" class="btn btn-secondary btn-lg">
+                        <i class="fas fa-file-alt"></i> 文档列表
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-template {
+    padding: 40px 15px;
+}
+.error-template h1 {
+    font-size: 8em;
+    color: #dc3545;
+    margin-bottom: 20px;
+}
+.error-template h2 {
+    font-size: 2.5em;
+    color: #333;
+    margin-bottom: 20px;
+}
+.error-details {
+    font-size: 1.2em;
+    color: #666;
+    margin-bottom: 30px;
+}
+</style>
+{% endblock %}

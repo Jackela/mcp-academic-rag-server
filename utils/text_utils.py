@@ -260,6 +260,386 @@ class KeywordExtractor:
         return references
 
 
+class DocumentStructureExtractor:
+    """文档结构提取工具类，提供统一的文档结构识别功能"""
+    
+    @staticmethod
+    def extract_structure(text: str, text_by_page: List[str] = None) -> Dict[str, Any]:
+        """
+        统一的文档结构提取方法
+        
+        Args:
+            text (str): 完整文本
+            text_by_page (List[str], optional): 按页面分组的文本
+            
+        Returns:
+            Dict[str, Any]: 识别的结构元素
+        """
+        structure = {}
+        
+        # 识别标题
+        structure["title"] = DocumentStructureExtractor._extract_title(text, text_by_page or [])
+        
+        # 识别摘要
+        structure["abstract"] = DocumentStructureExtractor._extract_abstract(text)
+        
+        # 识别关键词
+        structure["keywords"] = DocumentStructureExtractor._extract_keywords(text)
+        
+        # 识别作者
+        structure["authors"] = DocumentStructureExtractor._extract_authors(text)
+        
+        # 识别章节
+        structure["sections"] = DocumentStructureExtractor._extract_sections(text)
+        
+        # 识别表格
+        structure["tables"] = DocumentStructureExtractor._extract_tables(text)
+        
+        # 识别图表
+        structure["figures"] = DocumentStructureExtractor._extract_figures(text)
+        
+        # 识别参考文献
+        structure["references"] = DocumentStructureExtractor._extract_references(text)
+        
+        return structure
+    
+    @staticmethod
+    def _extract_title(text: str, text_by_page: List[str]) -> str:
+        """
+        提取文档标题
+        
+        Args:
+            text (str): 文档文本
+            text_by_page (List[str]): 按页面分组的文本
+            
+        Returns:
+            str: 提取的标题
+        """
+        try:
+            # 策略1: 使用第一页的开头内容作为标题的候选
+            first_page = text_by_page[0] if text_by_page else text
+            lines = first_page.split('\n')
+            
+            # 过滤空行
+            non_empty_lines = [line.strip() for line in lines if line.strip()]
+            
+            if not non_empty_lines:
+                return ""
+            
+            # 寻找第一个非空行，通常这是标题
+            candidate = non_empty_lines[0]
+            
+            # 如果候选行太长，可能不是标题
+            if len(candidate) > 150:
+                return ""
+            
+            # 标题通常是全大写或者首字母大写
+            title_pattern = r'^(?!(?:Abstract|Introduction|Conclusion|References|Bibliography|Acknowledgements))[A-Z][\w\s:,\-]+$'
+            for i in range(min(3, len(non_empty_lines))):
+                line = non_empty_lines[i]
+                if re.match(title_pattern, line, re.MULTILINE):
+                    return line
+            
+            # 如果没有匹配的行，使用第一个非空行
+            return candidate
+            
+        except Exception as e:
+            logger.error(f"提取标题失败: {e}")
+            return ""
+    
+    @staticmethod
+    def _extract_abstract(text: str) -> str:
+        """
+        提取文档摘要
+        
+        Args:
+            text (str): 文档文本
+            
+        Returns:
+            str: 提取的摘要
+        """
+        try:
+            # 使用正则表达式查找摘要部分
+            abstract_pattern = r'(?i)abstract[:\.\s]+([\s\S]+?)(?=\n\s*(?:[1I]ntroduction|Keywords:|$))'
+            abstract_match = re.search(abstract_pattern, text)
+            if abstract_match:
+                return abstract_match.group(1).strip()
+            
+            # 另一种模式：查找Abstract后面直到Introduction的内容
+            abstract_start = text.lower().find("abstract")
+            if abstract_start >= 0:
+                intro_start = text.lower().find("introduction", abstract_start)
+                if intro_start > abstract_start:
+                    abstract_text = text[abstract_start+8:intro_start].strip()
+                    return abstract_text
+                    
+            return ""
+            
+        except Exception as e:
+            logger.error(f"提取摘要失败: {e}")
+            return ""
+    
+    @staticmethod
+    def _extract_keywords(text: str) -> List[str]:
+        """
+        提取文档关键词
+        
+        Args:
+            text (str): 文档文本
+            
+        Returns:
+            List[str]: 提取的关键词列表
+        """
+        try:
+            # 查找关键词行
+            keywords_pattern = r'(?i)keywords?[:\s]+(.*?)(?=\n\s*\n|\n\s*\d\.|\n\s*[A-Z][a-z]+\s*\n|$)'
+            keywords_match = re.search(keywords_pattern, text)
+            
+            if keywords_match:
+                keywords_text = keywords_match.group(1).strip()
+                # 分割关键词（通常用逗号或分号分隔）
+                keywords = re.split(r'[,;]', keywords_text)
+                return [kw.strip() for kw in keywords if kw.strip()]
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"提取关键词失败: {e}")
+            return []
+    
+    @staticmethod
+    def _extract_authors(text: str) -> List[str]:
+        """
+        提取文档作者
+        
+        Args:
+            text (str): 文档文本
+            
+        Returns:
+            List[str]: 提取的作者列表
+        """
+        try:
+            # 查找标题下方的作者行
+            # 一般在标题和摘要之间
+            title_end = 0
+            abstract_start = text.lower().find("abstract")
+            
+            if abstract_start > 0:
+                author_text = text[title_end:abstract_start].strip()
+                
+                # 使用启发式方法查找作者
+                # 通常作者行有特定格式，如名字后跟机构标识（上标数字或符号）
+                authors = []
+                
+                # 尝试查找格式为"Name1, Name2, and Name3"的作者行
+                author_line_pattern = r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?:,\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)*(?:\s+and\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)?)'
+                author_matches = re.findall(author_line_pattern, author_text)
+                
+                if author_matches:
+                    author_line = author_matches[0]
+                    # 分割作者
+                    if "and" in author_line:
+                        parts = author_line.split(" and ")
+                        if parts[0].count(",") > 0:
+                            authors = [a.strip() for a in parts[0].split(",")]
+                            authors.append(parts[1].strip())
+                        else:
+                            authors = [parts[0].strip(), parts[1].strip()]
+                    else:
+                        authors = [a.strip() for a in author_line.split(",") if a.strip()]
+                
+                return authors
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"提取作者失败: {e}")
+            return []
+    
+    @staticmethod
+    def _extract_sections(text: str) -> List[Dict[str, Any]]:
+        """
+        提取文档章节结构
+        
+        Args:
+            text (str): 文档文本
+            
+        Returns:
+            List[Dict[str, Any]]: 章节列表
+        """
+        try:
+            sections = []
+            
+            # 使用正则表达式查找章节标题
+            section_pattern = r'^\s*(\d+(?:\.\d+)*)\s+([A-Z][^\n]+)$'
+            section_matches = re.finditer(section_pattern, text, re.MULTILINE)
+            
+            # 根据匹配结果创建章节结构
+            last_end = 0
+            for i, match in enumerate(section_matches):
+                section_num = match.group(1)
+                section_title = match.group(2).strip()
+                section_start = match.start()
+                
+                # 创建章节对象
+                section = {
+                    "number": section_num,
+                    "title": section_title,
+                    "level": section_num.count('.') + 1,
+                    "position": section_start
+                }
+                
+                sections.append(section)
+                last_end = match.end()
+            
+            # 提取章节内容
+            if sections:
+                for i in range(len(sections) - 1):
+                    start_pos = sections[i]["position"] + len(sections[i]["number"]) + len(sections[i]["title"]) + 1
+                    end_pos = sections[i+1]["position"]
+                    sections[i]["content"] = text[start_pos:end_pos].strip()
+                
+                # 处理最后一个章节
+                last_section = sections[-1]
+                start_pos = last_section["position"] + len(last_section["number"]) + len(last_section["title"]) + 1
+                # 查找参考文献部分或文档结尾
+                refs_pos = text.lower().find("references", start_pos)
+                if refs_pos > start_pos:
+                    last_section["content"] = text[start_pos:refs_pos].strip()
+                else:
+                    last_section["content"] = text[start_pos:].strip()
+            
+            return sections
+            
+        except Exception as e:
+            logger.error(f"提取章节失败: {e}")
+            return []
+    
+    @staticmethod
+    def _extract_tables(text: str) -> List[Dict[str, Any]]:
+        """
+        提取文档表格
+        
+        Args:
+            text (str): 文档文本
+            
+        Returns:
+            List[Dict[str, Any]]: 表格列表
+        """
+        try:
+            tables = []
+            
+            # 使用正则表达式查找表格标题
+            table_pattern = r'(?i)(?:table)\s+(\d+)[:\.\s]+([^\n]+)'
+            table_matches = re.finditer(table_pattern, text, re.IGNORECASE)
+            
+            for match in table_matches:
+                table_num = match.group(1)
+                table_caption = match.group(2).strip()
+                
+                # 创建表格对象
+                table = {
+                    "number": table_num,
+                    "caption": table_caption,
+                    "position": match.start()
+                }
+                
+                # 尝试提取表格内容（这需要更复杂的算法）
+                # 这里简单实现，假设表格在标题下方的下一行开始
+                table_start = match.end()
+                next_line_start = text.find('\n', table_start)
+                if next_line_start > 0:
+                    # 查找表格结束位置（通常是空行或下一个图表标题）
+                    table_end = text.find('\n\n', next_line_start)
+                    if table_end > next_line_start:
+                        table_content = text[next_line_start:table_end].strip()
+                        table["content"] = table_content
+                
+                tables.append(table)
+            
+            return tables
+            
+        except Exception as e:
+            logger.error(f"提取表格失败: {e}")
+            return []
+    
+    @staticmethod
+    def _extract_figures(text: str) -> List[Dict[str, Any]]:
+        """
+        提取文档图表
+        
+        Args:
+            text (str): 文档文本
+            
+        Returns:
+            List[Dict[str, Any]]: 图表列表
+        """
+        try:
+            figures = []
+            
+            # 使用正则表达式查找图表标题
+            figure_pattern = r'(?i)(?:figure|fig\.)\s+(\d+)[:\.\s]+([^\n]+)'
+            figure_matches = re.finditer(figure_pattern, text, re.IGNORECASE)
+            
+            for match in figure_matches:
+                figure_num = match.group(1)
+                figure_caption = match.group(2).strip()
+                
+                # 创建图表对象
+                figure = {
+                    "number": figure_num,
+                    "caption": figure_caption,
+                    "position": match.start()
+                }
+                
+                figures.append(figure)
+            
+            return figures
+            
+        except Exception as e:
+            logger.error(f"提取图表失败: {e}")
+            return []    
+    
+    @staticmethod
+    def _extract_references(text: str) -> List[str]:
+        """
+        提取文档参考文献
+        
+        Args:
+            text (str): 文档文本
+            
+        Returns:
+            List[str]: 参考文献列表
+        """
+        try:
+            # 使用正则表达式查找参考文献部分
+            refs_pattern = r'(?i)(?:^|\n)references\s*(?:\n|$)([\s\S]+)'
+            refs_match = re.search(refs_pattern, text)
+            
+            if refs_match:
+                refs_text = refs_match.group(1).strip()
+                
+                # 尝试分割成单独的引用条目
+                # 这里使用一个简单的启发式方法：引用条目通常以数字或方括号中的数字开头
+                refs_items = re.split(r'\n\s*(?:\[\d+\]|\d+\.)\s+', refs_text)
+                
+                # 第一项通常是空的（因为分割点是条目的开头）
+                if refs_items and not refs_items[0].strip():
+                    refs_items = refs_items[1:]
+                
+                # 如果上面的方法找不到条目，尝试按行分割
+                if not refs_items:
+                    refs_items = [line.strip() for line in refs_text.split('\n') if line.strip()]
+                
+                return refs_items
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"提取参考文献失败: {e}")
+            return []
+
+
 class FormatConverter:
     """格式转换工具类，提供文本格式转换功能"""
     
@@ -277,7 +657,7 @@ class FormatConverter:
         """
         if not doc_structure:
             # 如果没有提供文档结构，尝试自动识别
-            doc_structure = FormatConverter._detect_structure(text)
+            doc_structure = DocumentStructureExtractor.extract_structure(text)
         
         # 分离标题、摘要和正文
         title = doc_structure.get('title', '')
@@ -341,7 +721,7 @@ class FormatConverter:
     @staticmethod
     def _detect_structure(text: str) -> Dict[str, Any]:
         """
-        检测文本的结构
+        检测文本的结构（使用统一的结构提取器）
         
         Args:
             text (str): 原始文本
@@ -349,66 +729,7 @@ class FormatConverter:
         Returns:
             Dict[str, Any]: 文档结构信息
         """
-        # 分割文本为段落
-        paragraphs = TextCleaner.extract_paragraphs(text)
-        
-        doc_structure = {
-            'title': '',
-            'abstract': '',
-            'sections': []
-        }
-        
-        # 提取标题（通常是第一个短段落）
-        if paragraphs and len(paragraphs[0]) < 200:
-            doc_structure['title'] = paragraphs[0]
-            paragraphs = paragraphs[1:]
-        
-        # 提取摘要（通常在标题之后，以"Abstract"或"摘要"开头）
-        for i, para in enumerate(paragraphs):
-            if re.match(r'^(?:Abstract|摘要)[\s:]*', para, re.IGNORECASE):
-                abstract_text = para
-                # 可能的摘要继续
-                if i + 1 < len(paragraphs) and len(paragraphs[i+1]) < 1000:
-                    abstract_text += '\n\n' + paragraphs[i+1]
-                
-                doc_structure['abstract'] = re.sub(r'^(?:Abstract|摘要)[\s:]*', '', abstract_text)
-                paragraphs = paragraphs[i+2:] if i + 1 < len(paragraphs) else paragraphs[i+1:]
-                break
-        
-        # 处理剩余段落作为正文
-        current_section = {'title': '', 'content': '', 'level': 2}
-        
-        for para in paragraphs:
-            # 检测章节标题（通常较短，可能有数字前缀）
-            if len(para) < 100 and re.match(r'^(?:\d+[\.\s]+)?[A-Z一-龥]', para):
-                # 保存之前的章节
-                if current_section['content']:
-                    doc_structure['sections'].append(current_section)
-                
-                # 创建新章节
-                level = 2
-                if re.match(r'^\d+\.', para):  # 主章节
-                    level = 2
-                elif re.match(r'^\d+\.\d+', para):  # 子章节
-                    level = 3
-                
-                current_section = {
-                    'title': para,
-                    'content': '',
-                    'level': level
-                }
-            else:
-                # 添加到当前章节内容
-                if current_section['content']:
-                    current_section['content'] += '\n\n' + para
-                else:
-                    current_section['content'] = para
-        
-        # 添加最后一个章节
-        if current_section['content']:
-            doc_structure['sections'].append(current_section)
-        
-        return doc_structure
+        return DocumentStructureExtractor.extract_structure(text)
     
     @staticmethod
     def _convert_math_formulas(text: str) -> str:

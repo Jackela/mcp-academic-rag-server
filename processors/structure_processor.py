@@ -12,6 +12,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from processors.base_processor import BaseProcessor
 from models.document import Document
 from models.process_result import ProcessResult
+from utils.text_utils import DocumentStructureExtractor
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -127,7 +128,7 @@ class StructureProcessor(BaseProcessor):
     
     def _recognize_structure(self, text: str, text_by_page: List[str]) -> Dict[str, Any]:
         """
-        识别文档结构
+        识别文档结构（使用统一的结构提取器）
         
         Args:
             text (str): 完整文本
@@ -136,366 +137,38 @@ class StructureProcessor(BaseProcessor):
         Returns:
             Dict[str, Any]: 识别的结构元素
         """
-        structure = {}
+        # 使用统一的结构提取器
+        structure = DocumentStructureExtractor.extract_structure(text, text_by_page)
         
-        # 识别标题
-        if self.config['recognize_title']:
-            structure["title"] = self._extract_title(text, text_by_page)
+        # 根据配置过滤结果
+        filtered_structure = {}
         
-        # 识别摘要
-        if self.config['recognize_abstract']:
-            structure["abstract"] = self._extract_abstract(text)
+        if self.config['recognize_title'] and structure.get('title'):
+            filtered_structure['title'] = structure['title']
         
-        # 识别关键词
-        structure["keywords"] = self._extract_keywords(text)
+        if self.config['recognize_abstract'] and structure.get('abstract'):
+            filtered_structure['abstract'] = structure['abstract']
         
-        # 识别作者
-        structure["authors"] = self._extract_authors(text)
+        if structure.get('keywords'):
+            filtered_structure['keywords'] = structure['keywords']
         
-        # 识别章节
-        if self.config['recognize_sections']:
-            structure["sections"] = self._extract_sections(text)
+        if structure.get('authors'):
+            filtered_structure['authors'] = structure['authors']
         
-        # 识别表格
-        if self.config['recognize_tables']:
-            structure["tables"] = self._extract_tables(text)
+        if self.config['recognize_sections'] and structure.get('sections'):
+            filtered_structure['sections'] = structure['sections']
         
-        # 识别图表
-        if self.config['recognize_figures']:
-            structure["figures"] = self._extract_figures(text)
+        if self.config['recognize_tables'] and structure.get('tables'):
+            filtered_structure['tables'] = structure['tables']
         
-        # 识别参考文献
-        if self.config['recognize_references']:
-            structure["references"] = self._extract_references(text)
+        if self.config['recognize_figures'] and structure.get('figures'):
+            filtered_structure['figures'] = structure['figures']
         
-        return structure
+        if self.config['recognize_references'] and structure.get('references'):
+            filtered_structure['references'] = structure['references']
+        
+        return filtered_structure
     
-    def _extract_title(self, text: str, text_by_page: List[str]) -> str:
-        """
-        提取文档标题
-        
-        Args:
-            text (str): 文档文本
-            text_by_page (List[str]): 按页面分组的文本
-            
-        Returns:
-            str: 提取的标题
-        """
-        try:
-            # 策略1: 使用第一页的开头内容作为标题的候选
-            first_page = text_by_page[0] if text_by_page else text
-            lines = first_page.split('\n')
-            
-            # 过滤空行
-            non_empty_lines = [line.strip() for line in lines if line.strip()]
-            
-            if not non_empty_lines:
-                return ""
-            
-            # 寻找第一个非空行，通常这是标题
-            candidate = non_empty_lines[0]
-            
-            # 如果候选行太长，可能不是标题
-            if len(candidate) > 150:
-                return ""
-            
-            # 使用正则表达式模式匹配标题
-            for i in range(min(3, len(non_empty_lines))):
-                line = non_empty_lines[i]
-                # 标题通常是全大写或者首字母大写
-                if re.match(self.config['patterns']['title'], line, re.MULTILINE):
-                    return line
-            
-            # 如果没有匹配的行，使用第一个非空行
-            return candidate
-            
-        except Exception as e:
-            logger.error(f"提取标题失败: {e}")
-            return ""
-    
-    def _extract_abstract(self, text: str) -> str:
-        """
-        提取文档摘要
-        
-        Args:
-            text (str): 文档文本
-            
-        Returns:
-            str: 提取的摘要
-        """
-        try:
-            # 使用正则表达式查找摘要部分
-            abstract_match = re.search(self.config['patterns']['abstract'], text)
-            if abstract_match:
-                return abstract_match.group(1).strip()
-            
-            # 另一种模式：查找Abstract后面直到Introduction的内容
-            abstract_start = text.lower().find("abstract")
-            if abstract_start >= 0:
-                intro_start = text.lower().find("introduction", abstract_start)
-                if intro_start > abstract_start:
-                    abstract_text = text[abstract_start+8:intro_start].strip()
-                    return abstract_text
-                    
-            return ""
-            
-        except Exception as e:
-            logger.error(f"提取摘要失败: {e}")
-            return ""
-    
-    def _extract_keywords(self, text: str) -> List[str]:
-        """
-        提取文档关键词
-        
-        Args:
-            text (str): 文档文本
-            
-        Returns:
-            List[str]: 提取的关键词列表
-        """
-        try:
-            # 查找关键词行
-            keywords_pattern = r'(?i)keywords?[:\s]+(.*?)(?=\n\s*\n|\n\s*\d\.|\n\s*[A-Z][a-z]+\s*\n|$)'
-            keywords_match = re.search(keywords_pattern, text)
-            
-            if keywords_match:
-                keywords_text = keywords_match.group(1).strip()
-                # 分割关键词（通常用逗号或分号分隔）
-                keywords = re.split(r'[,;]', keywords_text)
-                return [kw.strip() for kw in keywords if kw.strip()]
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"提取关键词失败: {e}")
-            return []
-    
-    def _extract_authors(self, text: str) -> List[str]:
-        """
-        提取文档作者
-        
-        Args:
-            text (str): 文档文本
-            
-        Returns:
-            List[str]: 提取的作者列表
-        """
-        try:
-            # 查找标题下方的作者行
-            # 一般在标题和摘要之间
-            title_end = 0
-            abstract_start = text.lower().find("abstract")
-            
-            if abstract_start > 0:
-                author_text = text[title_end:abstract_start].strip()
-                
-                # 使用启发式方法查找作者
-                # 通常作者行有特定格式，如名字后跟机构标识（上标数字或符号）
-                authors = []
-                
-                # 尝试查找格式为"Name1, Name2, and Name3"的作者行
-                author_line_pattern = r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?:,\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)*(?:\s+and\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)?)'
-                author_matches = re.findall(author_line_pattern, author_text)
-                
-                if author_matches:
-                    author_line = author_matches[0]
-                    # 分割作者
-                    if "and" in author_line:
-                        parts = author_line.split(" and ")
-                        if parts[0].count(",") > 0:
-                            authors = [a.strip() for a in parts[0].split(",")]
-                            authors.append(parts[1].strip())
-                        else:
-                            authors = [parts[0].strip(), parts[1].strip()]
-                    else:
-                        authors = [a.strip() for a in author_line.split(",") if a.strip()]
-                
-                return authors
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"提取作者失败: {e}")
-            return []
-    
-    def _extract_sections(self, text: str) -> List[Dict[str, Any]]:
-        """
-        提取文档章节结构
-        
-        Args:
-            text (str): 文档文本
-            
-        Returns:
-            List[Dict[str, Any]]: 章节列表
-        """
-        try:
-            sections = []
-            
-            # 使用正则表达式查找章节标题
-            section_pattern = self.config['patterns']['section_heading']
-            section_matches = re.finditer(section_pattern, text, re.MULTILINE)
-            
-            # 根据匹配结果创建章节结构
-            last_end = 0
-            for i, match in enumerate(section_matches):
-                section_num = match.group(1)
-                section_title = match.group(2).strip()
-                section_start = match.start()
-                
-                # 创建章节对象
-                section = {
-                    "number": section_num,
-                    "title": section_title,
-                    "level": section_num.count('.') + 1,
-                    "position": section_start
-                }
-                
-                sections.append(section)
-                last_end = match.end()
-            
-            # 提取章节内容
-            if sections:
-                for i in range(len(sections) - 1):
-                    start_pos = sections[i]["position"] + len(sections[i]["number"]) + len(sections[i]["title"]) + 1
-                    end_pos = sections[i+1]["position"]
-                    sections[i]["content"] = text[start_pos:end_pos].strip()
-                
-                # 处理最后一个章节
-                last_section = sections[-1]
-                start_pos = last_section["position"] + len(last_section["number"]) + len(last_section["title"]) + 1
-                # 查找参考文献部分或文档结尾
-                refs_pos = text.lower().find("references", start_pos)
-                if refs_pos > start_pos:
-                    last_section["content"] = text[start_pos:refs_pos].strip()
-                else:
-                    last_section["content"] = text[start_pos:].strip()
-            
-            return sections
-            
-        except Exception as e:
-            logger.error(f"提取章节失败: {e}")
-            return []
-    
-    def _extract_tables(self, text: str) -> List[Dict[str, Any]]:
-        """
-        提取文档表格
-        
-        Args:
-            text (str): 文档文本
-            
-        Returns:
-            List[Dict[str, Any]]: 表格列表
-        """
-        try:
-            tables = []
-            
-            # 使用正则表达式查找表格标题
-            table_pattern = self.config['patterns']['table_caption']
-            table_matches = re.finditer(table_pattern, text, re.IGNORECASE)
-            
-            for match in table_matches:
-                table_num = match.group(1)
-                table_caption = match.group(2).strip()
-                
-                # 创建表格对象
-                table = {
-                    "number": table_num,
-                    "caption": table_caption,
-                    "position": match.start()
-                }
-                
-                # 尝试提取表格内容（这需要更复杂的算法）
-                # 这里简单实现，假设表格在标题下方的下一行开始
-                table_start = match.end()
-                next_line_start = text.find('\n', table_start)
-                if next_line_start > 0:
-                    # 查找表格结束位置（通常是空行或下一个图表标题）
-                    table_end = text.find('\n\n', next_line_start)
-                    if table_end > next_line_start:
-                        table_content = text[next_line_start:table_end].strip()
-                        table["content"] = table_content
-                
-                tables.append(table)
-            
-            return tables
-            
-        except Exception as e:
-            logger.error(f"提取表格失败: {e}")
-            return []
-    
-    def _extract_figures(self, text: str) -> List[Dict[str, Any]]:
-        """
-        提取文档图表
-        
-        Args:
-            text (str): 文档文本
-            
-        Returns:
-            List[Dict[str, Any]]: 图表列表
-        """
-        try:
-            figures = []
-            
-            # 使用正则表达式查找图表标题
-            figure_pattern = self.config['patterns']['figure_caption']
-            figure_matches = re.finditer(figure_pattern, text, re.IGNORECASE)
-            
-            for match in figure_matches:
-                figure_num = match.group(1)
-                figure_caption = match.group(2).strip()
-                
-                # 创建图表对象
-                figure = {
-                    "number": figure_num,
-                    "caption": figure_caption,
-                    "position": match.start()
-                }
-                
-                figures.append(figure)
-            
-            return figures
-            
-        except Exception as e:
-            logger.error(f"提取图表失败: {e}")
-            return []
-    
-    def _extract_references(self, text: str) -> List[str]:
-        """
-        提取文档参考文献
-        
-        Args:
-            text (str): 文档文本
-            
-        Returns:
-            List[str]: 参考文献列表
-        """
-        try:
-            # 使用正则表达式查找参考文献部分
-            refs_pattern = self.config['patterns']['references']
-            refs_match = re.search(refs_pattern, text)
-            
-            if refs_match:
-                refs_text = refs_match.group(1).strip()
-                
-                # 尝试分割成单独的引用条目
-                # 这里使用一个简单的启发式方法：引用条目通常以数字或方括号中的数字开头
-                refs_items = re.split(r'\n\s*(?:\[\d+\]|\d+\.)\s+', refs_text)
-                
-                # 第一项通常是空的（因为分割点是条目的开头）
-                if refs_items and not refs_items[0].strip():
-                    refs_items = refs_items[1:]
-                
-                # 如果上面的方法找不到条目，尝试按行分割
-                if not refs_items:
-                    refs_items = [line.strip() for line in refs_text.split('\n') if line.strip()]
-                
-                return refs_items
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"提取参考文献失败: {e}")
-            return []
     
     def _detect_language(self, text: str) -> str:
         """
@@ -580,3 +253,194 @@ class StructureProcessor(BaseProcessor):
         except Exception as e:
             logger.error(f"文档类型检测失败: {e}")
             return "document"  # 默认为普通文档
+    
+    def _extract_tables(self, tables: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        增强的表格结构化处理，生成Markdown格式的表格表示
+        
+        Args:
+            tables (List[Dict[str, Any]]): 原始表格数据
+            
+        Returns:
+            List[Dict[str, Any]]: 增强处理后的表格数据
+        """
+        enhanced_tables = []
+        
+        for table in tables:
+            enhanced_table = table.copy()
+            
+            # 如果表格有原始内容，尝试将其转换为结构化的Markdown表格
+            if 'content' in table and table['content']:
+                try:
+                    structured_content = self._convert_table_to_markdown(table['content'])
+                    enhanced_table['structured_content'] = structured_content
+                    enhanced_table['content'] = structured_content  # 更新主要内容
+                except Exception as e:
+                    logger.warning(f"表格结构化处理失败: {e}")
+                    # 保持原始内容
+                    enhanced_table['structured_content'] = f"表格 {table.get('number', 'N/A')}: {table.get('caption', '无标题')}\n\n{table['content']}"
+            else:
+                # 如果没有表格内容，至少提供描述性文本
+                enhanced_table['structured_content'] = f"表格 {table.get('number', 'N/A')}: {table.get('caption', '无标题')}"
+                enhanced_table['content'] = enhanced_table['structured_content']
+            
+            # 添加元数据
+            enhanced_table['type'] = 'table'
+            enhanced_table['multimodal_type'] = 'tabular_data'
+            
+            enhanced_tables.append(enhanced_table)
+        
+        return enhanced_tables
+    
+    def _extract_figures(self, figures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        增强的图表结构化处理，生成描述性文本表示
+        
+        Args:
+            figures (List[Dict[str, Any]]): 原始图表数据
+            
+        Returns:
+            List[Dict[str, Any]]: 增强处理后的图表数据
+        """
+        enhanced_figures = []
+        
+        for figure in figures:
+            enhanced_figure = figure.copy()
+            
+            # 生成描述性文本表示
+            try:
+                structured_content = self._generate_figure_description(figure)
+                enhanced_figure['structured_content'] = structured_content
+                enhanced_figure['content'] = structured_content
+            except Exception as e:
+                logger.warning(f"图表结构化处理失败: {e}")
+                # 提供基本描述
+                enhanced_figure['structured_content'] = f"图 {figure.get('number', 'N/A')}: {figure.get('caption', '无标题')}"
+                enhanced_figure['content'] = enhanced_figure['structured_content']
+            
+            # 添加元数据
+            enhanced_figure['type'] = 'figure'
+            enhanced_figure['multimodal_type'] = 'visual_content'
+            
+            enhanced_figures.append(enhanced_figure)
+        
+        return enhanced_figures
+    
+    def _convert_table_to_markdown(self, table_content: str) -> str:
+        """
+        将表格内容转换为Markdown格式
+        
+        Args:
+            table_content (str): 原始表格内容
+            
+        Returns:
+            str: Markdown格式的表格
+        """
+        lines = table_content.strip().split('\n')
+        
+        # 过滤空行
+        lines = [line.strip() for line in lines if line.strip()]
+        
+        if not lines:
+            return "空表格"
+        
+        # 尝试检测分隔符（制表符、多个空格、|等）
+        separators = ['\t', '|', '  ', '   ', '    ']
+        best_separator = None
+        max_columns = 0
+        
+        for sep in separators:
+            test_columns = len(lines[0].split(sep))
+            if test_columns > max_columns and test_columns > 1:
+                max_columns = test_columns
+                best_separator = sep
+        
+        if not best_separator:
+            # 如果无法检测分隔符，按单词分割第一行
+            words = lines[0].split()
+            if len(words) > 1:
+                best_separator = ' '
+            else:
+                return f"表格内容:\n{table_content}"
+        
+        # 构建Markdown表格
+        markdown_lines = []
+        
+        for i, line in enumerate(lines[:10]):  # 限制最多10行
+            cells = [cell.strip() for cell in line.split(best_separator) if cell.strip()]
+            
+            if not cells:
+                continue
+            
+            # 限制列数（最多8列）
+            cells = cells[:8]
+            
+            # 构建Markdown行
+            if i == 0:
+                # 表头
+                markdown_lines.append('| ' + ' | '.join(cells) + ' |')
+                # 分隔行
+                markdown_lines.append('| ' + ' | '.join(['---'] * len(cells)) + ' |')
+            else:
+                # 数据行，确保列数匹配
+                while len(cells) < len(lines[0].split(best_separator)):
+                    cells.append('')
+                cells = cells[:len(lines[0].split(best_separator))]  # 确保不超过表头列数
+                markdown_lines.append('| ' + ' | '.join(cells) + ' |')
+        
+        if len(lines) > 10:
+            markdown_lines.append('| ... | ... | ... |')
+            markdown_lines.append(f'（表格共 {len(lines)} 行，显示前10行）')
+        
+        return '\n'.join(markdown_lines)
+    
+    def _generate_figure_description(self, figure: Dict[str, Any]) -> str:
+        """
+        生成图表的描述性文本
+        
+        Args:
+            figure (Dict[str, Any]): 图表信息
+            
+        Returns:
+            str: 描述性文本
+        """
+        figure_num = figure.get('number', 'N/A')
+        caption = figure.get('caption', '无标题')
+        
+        # 分析标题中的关键词来推断图表类型和内容
+        caption_lower = caption.lower()
+        
+        # 推断图表类型
+        figure_type = "图表"
+        if any(word in caption_lower for word in ['flow', 'flowchart', 'workflow', '流程']):
+            figure_type = "流程图"
+        elif any(word in caption_lower for word in ['bar', 'histogram', '柱状', '条形']):
+            figure_type = "柱状图"
+        elif any(word in caption_lower for word in ['line', 'trend', '趋势', '折线']):
+            figure_type = "折线图"
+        elif any(word in caption_lower for word in ['pie', '饼图', '圆饼']):
+            figure_type = "饼图"
+        elif any(word in caption_lower for word in ['scatter', '散点']):
+            figure_type = "散点图"
+        elif any(word in caption_lower for word in ['network', '网络', 'graph']):
+            figure_type = "网络图"
+        elif any(word in caption_lower for word in ['architecture', '架构', 'structure', '结构']):
+            figure_type = "架构图"
+        
+        # 构建描述性文本
+        description = f"图 {figure_num}: {caption}\n"
+        description += f"类型: {figure_type}\n"
+        
+        # 尝试从标题中提取更多信息
+        if any(word in caption_lower for word in ['comparison', 'vs', 'versus', '比较', '对比']):
+            description += "内容: 该图表显示了不同项目或条件之间的比较分析。\n"
+        elif any(word in caption_lower for word in ['result', 'outcome', '结果', '效果']):
+            description += "内容: 该图表展示了研究或实验的结果数据。\n"
+        elif any(word in caption_lower for word in ['model', 'framework', '模型', '框架']):
+            description += "内容: 该图表描述了理论模型或分析框架的结构。\n"
+        elif any(word in caption_lower for word in ['process', 'procedure', '过程', '步骤']):
+            description += "内容: 该图表说明了特定过程或操作步骤。\n"
+        else:
+            description += f"内容: {caption}\n"
+        
+        return description

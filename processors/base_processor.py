@@ -5,6 +5,7 @@
 遵循统一的接口规范，提高系统的一致性和可扩展性。
 """
 
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
@@ -23,7 +24,7 @@ class IProcessor(ABC):
     @abstractmethod
     def process(self, document: Document) -> ProcessResult:
         """
-        处理文档并返回处理结果。
+        同步处理文档并返回处理结果。
         
         Args:
             document: 要处理的Document对象
@@ -32,6 +33,21 @@ class IProcessor(ABC):
             表示处理结果的ProcessResult对象
         """
         pass
+    
+    async def process_async(self, document: Document) -> ProcessResult:
+        """
+        异步处理文档并返回处理结果。
+        默认实现在线程池中运行同步方法，子类可以重写以提供真正的异步实现。
+        
+        Args:
+            document: 要处理的Document对象
+            
+        Returns:
+            表示处理结果的ProcessResult对象
+        """
+        # 默认在线程池中运行同步方法
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.process, document)
     
     @abstractmethod
     def get_name(self) -> str:
@@ -137,7 +153,7 @@ class BaseProcessor(IProcessor):
     @abstractmethod
     def process(self, document: Document) -> ProcessResult:
         """
-        处理文档并返回处理结果。
+        同步处理文档并返回处理结果。
         
         Args:
             document: 要处理的Document对象
@@ -146,3 +162,18 @@ class BaseProcessor(IProcessor):
             表示处理结果的ProcessResult对象
         """
         pass
+    
+    async def process_async(self, document: Document) -> ProcessResult:
+        """
+        异步处理文档并返回处理结果。
+        默认实现在线程池中运行同步方法，子类可以重写以提供真正的异步实现。
+        
+        Args:
+            document: 要处理的Document对象
+            
+        Returns:
+            表示处理结果的ProcessResult对象
+        """
+        # 默认在线程池中运行同步方法
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.process, document)

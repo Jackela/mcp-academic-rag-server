@@ -1,5 +1,5 @@
 """
-基于Haystack框架的文档嵌入处理器实现。
+基于Haystack 2.x框架的文档嵌入处理器实现。
 
 该模块提供了HaystackEmbeddingProcessor类，使用SentenceTransformersDocumentEmbedder
 生成文档的向量表示，并实现文档分块和批量处理功能。
@@ -10,8 +10,10 @@ from typing import Dict, List, Any, Optional, Tuple, Union
 import os
 import time
 
-from haystack.nodes import SentenceTransformersDocumentEmbedder, PreProcessor
-from haystack.schema import Document as HaystackDocument
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder
+from haystack.components.preprocessors import DocumentSplitter
+from haystack.dataclasses import Document as HaystackDocument
+from haystack import Pipeline
 
 from models.document import Document
 from models.process_result import ProcessResult
@@ -22,7 +24,7 @@ from utils.vector_utils import chunk_text
 
 class HaystackEmbeddingProcessor(BaseProcessor):
     """
-    基于Haystack框架的文档嵌入处理器类。
+    基于Haystack 2.x框架的文档嵌入处理器类。
     
     该类使用SentenceTransformersDocumentEmbedder生成文档的向量表示，
     实现了文档分块和批量处理功能，以优化嵌入生成性能和质量。
@@ -44,7 +46,7 @@ class HaystackEmbeddingProcessor(BaseProcessor):
             model_name_or_path: 嵌入模型名称或路径，默认为"sentence-transformers/all-MiniLM-L6-v2"
             config: 处理器配置字典，默认为None
         """
-        super().__init__(name="HaystackEmbeddingProcessor", description="使用Haystack生成文档嵌入向量表示", config=config or {})
+        super().__init__(name="HaystackEmbeddingProcessor", description="使用Haystack 2.x生成文档嵌入向量表示", config=config or {})
         
         self.logger = logging.getLogger("haystack_embedding_processor")
         self.document_store = document_store
@@ -56,35 +58,37 @@ class HaystackEmbeddingProcessor(BaseProcessor):
         self.batch_size = self.config.get("batch_size", 32)
         self.progress_bar = self.config.get("progress_bar", True)
         
-        # 初始化预处理器和嵌入生成器
-        self._initialize_embedder()
+        # 初始化组件
+        self._initialize_components()
         
         self.logger.info(f"HaystackEmbeddingProcessor初始化完成，使用模型: {self.model_name_or_path}")
     
-    def _initialize_embedder(self) -> None:
+    def _initialize_components(self) -> None:
         """
-        初始化Haystack预处理器和嵌入生成器。
+        初始化Haystack 2.x组件。
         """
         try:
-            # 初始化文本预处理器
-            self.preprocessor = PreProcessor(
-                clean_empty_lines=True,
-                clean_whitespace=True,
-                clean_header_footer=True,
+            # 初始化文本分割器 (Haystack 2.x)
+            self.splitter = DocumentSplitter(
                 split_by="word",
                 split_length=self.chunk_size,
-                split_overlap=self.chunk_overlap,
-                split_respect_sentence_boundary=True
+                split_overlap=self.chunk_overlap
             )
             
-            # 初始化嵌入生成器
+            # 初始化嵌入生成器 (Haystack 2.x)
             self.embedder = SentenceTransformersDocumentEmbedder(
-                model_name_or_path=self.model_name_or_path,
+                model=self.model_name_or_path,
                 batch_size=self.batch_size,
                 progress_bar=self.progress_bar
             )
             
-            self.logger.info("成功初始化Haystack预处理器和嵌入生成器")
+            # 创建处理管道
+            self.pipeline = Pipeline()
+            self.pipeline.add_component("splitter", self.splitter)
+            self.pipeline.add_component("embedder", self.embedder)
+            self.pipeline.connect("splitter", "embedder")
+            
+            self.logger.info("成功初始化Haystack 2.x组件")
         except Exception as e:
             self.logger.error(f"初始化Haystack组件失败: {str(e)}")
             raise
@@ -116,7 +120,7 @@ class HaystackEmbeddingProcessor(BaseProcessor):
             if not text:
                 return ProcessResult.error_result(f"文档 {document.document_id} 没有可用的文本内容")
             
-            # 准备Haystack文档对象
+            # 准备Haystack文档对象 (Haystack 2.x)
             haystack_doc = HaystackDocument(
                 content=text,
                 meta={
@@ -126,19 +130,18 @@ class HaystackEmbeddingProcessor(BaseProcessor):
                 }
             )
             
-            # 预处理和分块
-            chunked_docs = self.preprocessor.process([haystack_doc])
+            # 使用管道处理文档（分块 + 嵌入）
+            result = self.pipeline.run({"splitter": {"documents": [haystack_doc]}})
             
-            if not chunked_docs:
-                return ProcessResult.error_result(f"文档 {document.document_id} 预处理后没有生成任何块")
+            docs_with_embeddings = result["embedder"]["documents"]
             
-            self.logger.info(f"文档 {document.document_id} 被分成了 {len(chunked_docs)} 个块")
+            if not docs_with_embeddings:
+                return ProcessResult.error_result(f"文档 {document.document_id} 处理后没有生成任何块")
             
-            # 生成嵌入向量
-            docs_with_embeddings = self.embedder.embed(chunked_docs)
+            self.logger.info(f"文档 {document.document_id} 被分成了 {len(docs_with_embeddings)} 个块")
             
             # 提取嵌入向量和处理后的文本
-            embeddings = [doc.embedding for doc in docs_with_embeddings]
+            embeddings = [doc.embedding for doc in docs_with_embeddings if doc.embedding is not None]
             processed_texts = [doc.content for doc in docs_with_embeddings]
             
             # 计算平均嵌入向量（如需要）
@@ -194,9 +197,8 @@ class HaystackEmbeddingProcessor(BaseProcessor):
             # 记录开始时间
             start_time = time.time()
             
-            # 提取所有文档的文本内容并创建Haystack文档对象
+            # 准备所有文档的Haystack文档对象
             haystack_docs = []
-            haystack_to_original = {}  # 映射Haystack文档到原始文档
             
             for doc in documents:
                 text = doc.get_content("OCRProcessor") or doc.get_content("StructureProcessor")
@@ -217,52 +219,39 @@ class HaystackEmbeddingProcessor(BaseProcessor):
                 )
                 
                 haystack_docs.append(haystack_doc)
-                haystack_to_original[haystack_doc.id] = doc
             
             if not haystack_docs:
                 self.logger.warning("批处理中没有可处理的文档")
                 return results
             
-            # 预处理和分块
-            chunked_docs = self.preprocessor.process(haystack_docs)
+            # 使用管道批量处理文档
+            batch_result = self.pipeline.run({"splitter": {"documents": haystack_docs}})
+            docs_with_embeddings = batch_result["embedder"]["documents"]
             
-            if not chunked_docs:
+            if not docs_with_embeddings:
                 for doc in documents:
-                    results[doc.document_id] = ProcessResult.error_result(
-                        f"文档预处理后没有生成任何块"
-                    )
+                    if doc.document_id not in results:
+                        results[doc.document_id] = ProcessResult.error_result(
+                            f"文档处理后没有生成任何块"
+                        )
                 return results
-            
-            # 创建块到原始文档的映射
-            chunk_to_original = {}
-            for chunk in chunked_docs:
-                original_id = chunk.meta.get("original_id")
-                if original_id:
-                    for doc in documents:
-                        if doc.document_id == original_id:
-                            chunk_to_original[chunk.id] = doc
-                            break
-            
-            # 生成嵌入向量
-            docs_with_embeddings = self.embedder.embed(chunked_docs)
             
             # 按原始文档分组结果
             doc_chunks = {}
             doc_embeddings = {}
             
             for doc in docs_with_embeddings:
-                original_doc = chunk_to_original.get(doc.id)
-                if not original_doc:
+                original_id = doc.meta.get("original_id")
+                if not original_id:
                     continue
                 
-                doc_id = original_doc.document_id
+                if original_id not in doc_chunks:
+                    doc_chunks[original_id] = []
+                    doc_embeddings[original_id] = []
                 
-                if doc_id not in doc_chunks:
-                    doc_chunks[doc_id] = []
-                    doc_embeddings[doc_id] = []
-                
-                doc_chunks[doc_id].append(doc.content)
-                doc_embeddings[doc_id].append(doc.embedding)
+                doc_chunks[original_id].append(doc.content)
+                if doc.embedding is not None:
+                    doc_embeddings[original_id].append(doc.embedding)
             
             # 处理每个文档的结果
             for doc in documents:
@@ -277,7 +266,7 @@ class HaystackEmbeddingProcessor(BaseProcessor):
                 
                 # 计算平均嵌入向量
                 import numpy as np
-                avg_embedding = np.mean(doc_embeddings[doc_id], axis=0).tolist()
+                avg_embedding = np.mean(doc_embeddings[doc_id], axis=0).tolist() if doc_embeddings[doc_id] else None
                 
                 # 存储处理结果
                 doc.store_content(self.get_stage(), doc_chunks[doc_id])
@@ -356,7 +345,7 @@ class HaystackEmbeddingProcessor(BaseProcessor):
             
             # 如果需要，重新初始化组件
             if need_reinit:
-                self._initialize_embedder()
+                self._initialize_components()
             
             return True
             

@@ -1,0 +1,887 @@
+openapi: 3.0.3
+info:
+  title: MCP Academic RAG Server API
+  description: |
+    A comprehensive API for academic document processing with OCR, structure recognition,
+    and intelligent retrieval using Retrieval-Augmented Generation (RAG).
+    
+    ## Features
+    - Document upload and OCR processing
+    - Automatic structure and content recognition
+    - Vector-based semantic search
+    - AI-powered question answering
+    - Multi-language support
+    - Real-time processing status
+    
+    ## Authentication
+    Most endpoints require API key authentication via the `X-API-Key` header.
+  version: 1.0.0
+  contact:
+    name: Academic RAG Team
+    email: support@academic-rag.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000/api
+    description: Development server
+  - url: https://api.academic-rag.com/v1
+    description: Production server
+
+tags:
+  - name: Documents
+    description: Document management operations
+  - name: Chat
+    description: AI-powered chat and Q&A
+  - name: Health
+    description: System health and status
+  - name: MCP
+    description: Model Context Protocol endpoints
+
+paths:
+  /upload:
+    post:
+      summary: Upload and process a document
+      description: Upload a document for OCR processing and indexing
+      tags:
+        - Documents
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Document file (PDF, PNG, JPG, TIFF)
+                process_immediately:
+                  type: boolean
+                  default: true
+                  description: Start processing immediately after upload
+                metadata:
+                  type: object
+                  description: Additional metadata for the document
+      responses:
+        '200':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /documents:
+    get:
+      summary: List all documents
+      description: Retrieve a paginated list of processed documents
+      tags:
+        - Documents
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/FilterParam'
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_asc, created_desc, name_asc, name_desc]
+            default: created_desc
+          description: Sort order
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /documents/{document_id}:
+    get:
+      summary: Get document details
+      description: Retrieve detailed information about a specific document
+      tags:
+        - Documents
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DocumentIdParam'
+      responses:
+        '200':
+          description: Document details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      summary: Delete a document
+      description: Delete a document and all associated data
+      tags:
+        - Documents
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DocumentIdParam'
+      responses:
+        '204':
+          description: Document deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{document_id}/status:
+    get:
+      summary: Get document processing status
+      description: Check the current processing status of a document
+      tags:
+        - Documents
+      parameters:
+        - $ref: '#/components/parameters/DocumentIdParam'
+      responses:
+        '200':
+          description: Processing status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{document_id}/export:
+    get:
+      summary: Export processed document
+      description: Export the processed document in various formats
+      tags:
+        - Documents
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DocumentIdParam'
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [markdown, pdf, json, txt]
+          description: Export format
+      responses:
+        '200':
+          description: Exported document
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentExport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /chat:
+    post:
+      summary: Send a chat message
+      description: Send a question or message to the AI assistant
+      tags:
+        - Chat
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: AI response with citations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /chat/sessions:
+    get:
+      summary: List chat sessions
+      description: Retrieve all chat sessions for the authenticated user
+      tags:
+        - Chat
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: List of chat sessions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /chat/sessions/{session_id}:
+    get:
+      summary: Get chat session history
+      description: Retrieve the complete history of a chat session
+      tags:
+        - Chat
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionIdParam'
+      responses:
+        '200':
+          description: Session history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      summary: Delete chat session
+      description: Delete a chat session and its history
+      tags:
+        - Chat
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionIdParam'
+      responses:
+        '204':
+          description: Session deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /chat/reset:
+    post:
+      summary: Reset chat session
+      description: Clear the current chat session history
+      tags:
+        - Chat
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+                  description: Session ID to reset
+      responses:
+        '200':
+          description: Session reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /health:
+    get:
+      summary: Health check
+      description: Check the health status of the API and its dependencies
+      tags:
+        - Health
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: System is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /mcp/tools:
+    get:
+      summary: List MCP tools
+      description: Get available MCP tools and their schemas
+      tags:
+        - MCP
+      responses:
+        '200':
+          description: List of available tools
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPToolsList'
+
+  /mcp/execute:
+    post:
+      summary: Execute MCP tool
+      description: Execute a specific MCP tool with provided arguments
+      tags:
+        - MCP
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPExecuteRequest'
+      responses:
+        '200':
+          description: Tool execution result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPExecuteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+
+  parameters:
+    DocumentIdParam:
+      name: document_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Unique document identifier
+    
+    SessionIdParam:
+      name: session_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Unique session identifier
+    
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Items per page
+    
+    FilterParam:
+      name: filter
+      in: query
+      schema:
+        type: string
+      description: Filter expression
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - error
+        - code
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Additional error details
+
+    SuccessResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    DocumentUploadResponse:
+      type: object
+      required:
+        - document_id
+        - status
+        - message
+      properties:
+        document_id:
+          type: string
+          description: Unique document identifier
+        status:
+          type: string
+          enum: [processing, completed, failed]
+        message:
+          type: string
+        processing_time:
+          type: number
+          description: Processing time in seconds
+
+    DocumentListResponse:
+      type: object
+      required:
+        - documents
+        - pagination
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentSummary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    DocumentSummary:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        size:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        created_at:
+          type: string
+          format: date-time
+        page_count:
+          type: integer
+        language:
+          type: string
+
+    DocumentDetail:
+      allOf:
+        - $ref: '#/components/schemas/DocumentSummary'
+        - type: object
+          properties:
+            content:
+              type: object
+              description: Processed content by stage
+            metadata:
+              type: object
+            processing_history:
+              type: array
+              items:
+                type: object
+                properties:
+                  processor:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+    DocumentExport:
+      type: object
+      properties:
+        format:
+          type: string
+        content:
+          type: string
+        metadata:
+          type: object
+
+    ProcessingStatus:
+      type: object
+      required:
+        - status
+        - progress
+      properties:
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+        current_stage:
+          type: string
+        stages_completed:
+          type: array
+          items:
+            type: string
+        error:
+          type: string
+
+    ChatRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: User's question or message
+        session_id:
+          type: string
+          description: Session ID for context continuity
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+          description: Number of relevant documents to retrieve
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.7
+          description: AI response creativity
+
+    ChatResponse:
+      type: object
+      required:
+        - answer
+        - session_id
+      properties:
+        answer:
+          type: string
+          description: AI-generated response
+        session_id:
+          type: string
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        processing_time:
+          type: number
+
+    Citation:
+      type: object
+      required:
+        - document_id
+        - text
+      properties:
+        document_id:
+          type: string
+        text:
+          type: string
+        page:
+          type: integer
+        confidence:
+          type: number
+        metadata:
+          type: object
+        structured_content:
+          $ref: '#/components/schemas/StructuredContent'
+
+    StructuredContent:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: [table, code, figure, equation]
+        title:
+          type: string
+        data:
+          type: object
+          description: Type-specific structured data
+
+    SessionListResponse:
+      type: object
+      required:
+        - sessions
+        - pagination
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionSummary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    SessionSummary:
+      type: object
+      required:
+        - session_id
+        - created_at
+        - message_count
+      properties:
+        session_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_active_at:
+          type: string
+          format: date-time
+        message_count:
+          type: integer
+        title:
+          type: string
+
+    SessionHistory:
+      type: object
+      required:
+        - session_id
+        - messages
+      properties:
+        session_id:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        metadata:
+          type: object
+
+    Message:
+      type: object
+      required:
+        - role
+        - content
+        - timestamp
+      properties:
+        message_id:
+          type: string
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - timestamp
+        - checks
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy, degraded]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        checks:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [healthy, unhealthy, warning]
+              message:
+                type: string
+              details:
+                type: object
+
+    MCPToolsList:
+      type: object
+      required:
+        - tools
+      properties:
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/MCPTool'
+
+    MCPTool:
+      type: object
+      required:
+        - name
+        - description
+        - inputSchema
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        inputSchema:
+          type: object
+          description: JSON Schema for tool parameters
+
+    MCPExecuteRequest:
+      type: object
+      required:
+        - tool
+        - arguments
+      properties:
+        tool:
+          type: string
+          description: Tool name to execute
+        arguments:
+          type: object
+          description: Tool-specific arguments
+
+    MCPExecuteResponse:
+      type: object
+      required:
+        - status
+        - result
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+        result:
+          type: object
+          description: Tool execution result
+        error:
+          type: string
+        execution_time:
+          type: number
+
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - pages
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        pages:
+          type: integer
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Invalid request parameters
+            code: BAD_REQUEST
+    
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Invalid or missing API key
+            code: UNAUTHORIZED
+    
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Resource not found
+            code: NOT_FOUND
+    
+    PayloadTooLarge:
+      description: Request payload too large
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: File size exceeds maximum allowed
+            code: PAYLOAD_TOO_LARGE
+    
+    UnsupportedMediaType:
+      description: Unsupported media type
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: File type not supported
+            code: UNSUPPORTED_MEDIA_TYPE
+    
+    TooManyRequests:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Rate limit exceeded
+            code: RATE_LIMIT_EXCEEDED
+            details:
+              retry_after: 60
