@@ -1,789 +1,589 @@
-# MCP工具完整参考文档
+# MCP Tools Reference Guide
 
-## 概述
+This document provides comprehensive reference information for the four MCP tools implemented by the Academic RAG Server. Each tool follows the Model Context Protocol specification for standardized interaction with MCP-compatible clients.
 
-MCP Academic RAG Server 提供了一套完整的工具，让AI助手能够直接处理和查询学术文档。本文档详细描述了所有可用工具的参数、使用方法和最佳实践。
+## Tool Overview
 
-## 工具列表
-
-| 工具名称 | 功能描述 | 状态 |
-|---------|----------|------|
-| [`process_document`](#process_document) | 处理学术文档 | ✅ 稳定 |
-| [`query_documents`](#query_documents) | 查询已处理文档 | ✅ 稳定 |
-| [`get_document_info`](#get_document_info) | 获取文档信息 | ✅ 稳定 |
-| [`list_sessions`](#list_sessions) | 列出聊天会话 | ✅ 稳定 |
-
----
+| Tool Name | Purpose | Input Parameters | Response Format |
+|-----------|---------|------------------|-----------------|
+| [`process_document`](#process_document) | Document processing and indexing | File path, optional metadata | Processing status and document ID |
+| [`query_documents`](#query_documents) | Retrieval-augmented generation queries | Query text, session context | Generated response with sources |
+| [`get_document_info`](#get_document_info) | Document metadata retrieval | Document identifier | Comprehensive document details |
+| [`list_sessions`](#list_sessions) | Session management | None | Active session inventory |
 
 ## process_document
 
-处理学术文档，包括OCR、结构识别、分类和向量化。
+Processes academic documents through OCR, text extraction, and vector indexing pipeline.
 
-### 参数
+### Parameters
 
-#### 必需参数
+#### Required Parameters
 
-| 参数名 | 类型 | 描述 | 示例 |
-|-------|------|------|------|
-| `file_path` | string | 文档文件的完整路径 | `/home/user/papers/paper.pdf` |
+| Parameter | Type | Description | Validation |
+|-----------|------|-------------|------------|
+| `file_path` | string | Absolute path to target document | Must exist and be readable |
 
-#### 可选参数
+#### Optional Parameters
 
-| 参数名 | 类型 | 默认值 | 描述 | 示例 |
-|-------|------|--------|------|------|
-| `file_name` | string | 文件名 | 文档的显示名称 | `"机器学习综述.pdf"` |
+| Parameter | Type | Default | Description | Validation |
+|-----------|------|---------|-------------|------------|
+| `file_name` | string | basename(file_path) | Display name for document | Max 255 characters |
 
-### 输入格式
+### Request Schema
 
 ```json
 {
-  "file_path": "/path/to/document.pdf",
-  "file_name": "研究论文.pdf"
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Absolute file system path to document"
+    },
+    "file_name": {
+      "type": "string",
+      "description": "Human-readable document identifier"
+    }
+  },
+  "required": ["file_path"],
+  "additionalProperties": false
 }
 ```
 
-### 输出格式
+### Response Schema
 
-#### 成功响应
+#### Success Response
 
 ```json
 {
   "status": "success",
-  "document_id": "doc_abc123",
-  "file_name": "研究论文.pdf",
-  "processing_stages": [
-    "PreProcessor",
-    "OCRProcessor", 
-    "StructureProcessor",
-    "ClassificationProcessor",
-    "EmbeddingProcessor"
-  ],
+  "document_id": "string",
+  "file_name": "string",
+  "processing_stages": ["string"],
   "metadata": {
-    "page_count": 15,
-    "language": "zh",
-    "document_type": "academic_paper",
-    "title": "深度学习在自然语言处理中的应用",
-    "authors": ["张三", "李四"],
-    "abstract": "本文综述了深度学习在NLP领域的最新进展...",
-    "keywords": ["深度学习", "自然语言处理", "神经网络"],
-    "processing_time": 45.2,
-    "file_size": "2.5MB"
+    "page_count": "integer",
+    "processing_time": "number",
+    "file_size": "string",
+    "language": "string"
   },
-  "message": "Document processed successfully"
+  "message": "string"
 }
 ```
 
-#### 错误响应
+#### Error Response
 
 ```json
 {
   "status": "error",
-  "message": "File not found: /path/to/document.pdf",
-  "error": "FileNotFoundError"
+  "message": "string",
+  "error": "string"
 }
 ```
 
-### 使用示例
+### Supported Formats
 
-#### 基本用法
+| Format | Extensions | Processing Method | Notes |
+|--------|------------|------------------|-------|
+| PDF | .pdf | Direct text extraction + OCR fallback | Primary supported format |
+| Images | .jpg, .jpeg, .png | Tesseract OCR | Requires clear, high-resolution text |
+
+### Error Conditions
+
+| Error Type | Description | Resolution |
+|------------|-------------|------------|
+| `FileNotFoundError` | Specified file path does not exist | Verify file path and permissions |
+| `UnsupportedFormatError` | File format not supported | Use supported formats (PDF, images) |
+| `ProcessingTimeoutError` | Processing exceeded time limit | Reduce file size or retry |
+| `OCRFailureError` | OCR processing failed | Improve image quality or resolution |
+
+### Usage Examples
+
+```python
+# Basic document processing
+result = tools.process_document({
+    "file_path": "/documents/research_paper.pdf"
+})
+
+# With custom display name
+result = tools.process_document({
+    "file_path": "/documents/survey.pdf",
+    "file_name": "Machine Learning Survey 2024"
+})
 ```
-请处理这篇论文：/home/user/research/deep_learning_survey.pdf
-```
-
-#### 指定文件名
-```
-处理文档 /docs/paper.pdf，显示名称为"深度学习综述论文"
-```
-
-#### 批量处理
-```
-请依次处理以下文档：
-1. /papers/paper1.pdf
-2. /papers/paper2.pdf  
-3. /papers/paper3.pdf
-```
-
-### 支持的文件格式
-
-| 格式 | 扩展名 | 处理方式 | 备注 |
-|------|--------|----------|------|
-| PDF | `.pdf` | OCR + 文本提取 | 推荐格式 |
-| 图片 | `.jpg`, `.png`, `.tiff` | OCR识别 | 高分辨率效果更好 |
-| Word | `.docx`, `.doc` | 直接文本提取 | 保留格式信息 |
-| PowerPoint | `.pptx`, `.ppt` | 幻灯片内容提取 | 包含图片文字 |
-
-### 处理阶段说明
-
-1. **PreProcessor**: 图像预处理，提升OCR质量
-2. **OCRProcessor**: 光学字符识别，提取文本内容
-3. **StructureProcessor**: 结构识别，提取标题、段落、表格等
-4. **ClassificationProcessor**: 内容分类，识别文档类型和主题
-5. **EmbeddingProcessor**: 向量化，生成语义向量表示
-
-### 错误码说明
-
-| 错误码 | 描述 | 解决方法 |
-|--------|------|----------|
-| `FileNotFoundError` | 文件不存在 | 检查文件路径是否正确 |
-| `UnsupportedFormat` | 不支持的文件格式 | 使用支持的文件格式 |
-| `FileTooLarge` | 文件过大 | 文件大小应小于16MB |
-| `OCRError` | OCR处理失败 | 检查图像质量，重试处理 |
-| `ProcessingTimeout` | 处理超时 | 大文件可能需要更长时间 |
-
----
 
 ## query_documents
 
-基于已处理文档回答问题，支持上下文对话。
+Executes retrieval-augmented generation queries against processed document corpus.
 
-### 参数
+### Parameters
 
-#### 必需参数
+#### Required Parameters
 
-| 参数名 | 类型 | 描述 | 示例 |
-|-------|------|------|------|
-| `query` | string | 要查询的问题或话题 | `"什么是深度学习？"` |
+| Parameter | Type | Description | Validation |
+|-----------|------|-------------|------------|
+| `query` | string | Natural language query | 1-2000 characters |
 
-#### 可选参数
+#### Optional Parameters
 
-| 参数名 | 类型 | 默认值 | 值域 | 描述 |
-|-------|------|--------|------|------|
-| `session_id` | string | 自动生成 | - | 会话ID，用于保持对话上下文 |
-| `top_k` | integer | 5 | 1-20 | 返回的相关文档数量 |
+| Parameter | Type | Default | Description | Validation |
+|-----------|------|---------|-------------|------------|
+| `session_id` | string | Auto-generated UUID | Session context identifier | Valid UUID format |
+| `top_k` | integer | 5 | Number of retrieved document chunks | 1-20 range |
 
-### 输入格式
+### Request Schema
 
 ```json
 {
-  "query": "深度学习和传统机器学习有什么区别？",
-  "session_id": "session_xyz789",
-  "top_k": 5
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "description": "Natural language query text"
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Session context identifier"
+    },
+    "top_k": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "description": "Number of relevant chunks to retrieve"
+    }
+  },
+  "required": ["query"],
+  "additionalProperties": false
 }
 ```
 
-### 输出格式
+### Response Schema
 
-#### 成功响应
+#### Success Response
 
 ```json
 {
   "status": "success",
-  "session_id": "session_xyz789",
-  "query": "深度学习和传统机器学习有什么区别？",
-  "answer": "根据文献，深度学习与传统机器学习的主要区别包括：\n\n1. **特征工程**：传统机器学习需要手动设计特征，而深度学习能够自动学习特征表示...\n\n2. **模型复杂度**：深度学习使用多层神经网络，能够建模更复杂的非线性关系...\n\n3. **数据需求**：深度学习通常需要大量数据才能达到最佳性能...",
+  "session_id": "string",
+  "query": "string",
+  "answer": "string",
   "sources": [
     {
-      "content": "深度学习是机器学习的一个子领域，使用具有多个隐藏层的神经网络来建模和理解复杂的模式...",
+      "content": "string",
       "metadata": {
-        "title": "深度学习综述",
-        "authors": ["张三", "李四"],
-        "page": 3,
-        "document_id": "doc_abc123",
-        "confidence": 0.95,
-        "relevance_score": 0.89
-      },
-      "structured_content": {
-        "type": "table",
-        "title": "深度学习vs传统机器学习对比",
-        "data": {
-          "headers": ["特征", "传统ML", "深度学习"],
-          "rows": [
-            ["特征工程", "手动", "自动"],
-            ["数据需求", "中等", "大量"],
-            ["解释性", "高", "低"]
-          ]
-        }
+        "document_id": "string",
+        "title": "string",
+        "page": "integer",
+        "relevance_score": "number",
+        "chunk_index": "integer"
       }
     }
   ],
   "query_metadata": {
-    "processing_time": 1.2,
-    "retrieval_method": "hybrid",
-    "llm_model": "gpt-3.5-turbo",
-    "total_documents_searched": 156
+    "processing_time": "number",
+    "llm_model": "string",
+    "total_tokens": "integer"
   }
 }
 ```
 
-### 查询类型和技巧
+### Query Optimization Guidelines
 
-#### 1. 事实性查询
-```
-什么是Transformer架构？
-深度学习有哪些主要应用领域？
-BERT模型是如何工作的？
-```
+#### Effective Query Patterns
 
-#### 2. 比较分析
+**Factual Information Retrieval**
 ```
-比较CNN和RNN的优缺点
-Transformer与RNN在序列建模上有什么区别？
-监督学习和无监督学习的主要差异是什么？
+What is the definition of [concept]?
+How does [method] work?
+What are the key findings of [research area]?
 ```
 
-#### 3. 综述性问题
+**Comparative Analysis**
 ```
-总结一下计算机视觉领域的最新进展
-深度学习在自然语言处理中有哪些突破？
-强化学习的发展历程是怎样的？
-```
-
-#### 4. 技术实现
-```
-如何实现一个简单的神经网络？
-训练深度学习模型需要注意什么？
-如何处理过拟合问题？
+Compare [approach A] and [approach B]
+What are the advantages of [method] over [alternative]?
+How does [concept] differ from [related concept]?
 ```
 
-#### 5. 上下文对话
+**Procedural Queries**
 ```
-# 第一轮
-什么是注意力机制？
-
-# 第二轮（基于上下文）
-它是如何在Transformer中应用的？
-
-# 第三轮（继续上下文）
-相比传统的RNN，它有什么优势？
+How to implement [algorithm]?
+What steps are required for [process]?
+What are the prerequisites for [method]?
 ```
 
-### 高级查询功能
+#### Session Management
 
-#### 过滤和限制
-```json
-{
-  "query": "深度学习应用",
-  "filters": {
-    "document_type": "academic_paper",
-    "language": "en",
-    "year_range": [2020, 2024]
-  },
-  "top_k": 10
-}
+Sessions maintain conversation context across multiple queries:
+
+```python
+# Initialize conversation
+response1 = tools.query_documents({
+    "query": "What is transformer architecture?"
+})
+
+# Continue with context
+response2 = tools.query_documents({
+    "query": "How does attention mechanism work in this context?",
+    "session_id": response1["session_id"]
+})
 ```
 
-#### 指定检索策略
-```json
-{
-  "query": "神经网络优化方法",
-  "retrieval_config": {
-    "method": "hybrid",
-    "dense_weight": 0.7,
-    "sparse_weight": 0.3
-  }
-}
-```
+### Error Conditions
 
----
+| Error Type | Description | Resolution |
+|------------|-------------|------------|
+| `EmptyCorpusError` | No processed documents available | Process documents first |
+| `SessionNotFoundError` | Invalid session identifier | Use valid session ID or omit parameter |
+| `QueryTooLongError` | Query exceeds maximum length | Shorten query text |
+| `LLMAPIError` | Language model API failure | Verify API key and connectivity |
 
 ## get_document_info
 
-获取指定文档的详细处理信息和元数据。
+Retrieves comprehensive metadata and processing information for specified documents.
 
-### 参数
+### Parameters
 
-#### 必需参数
+#### Required Parameters
 
-| 参数名 | 类型 | 描述 | 示例 |
-|-------|------|------|------|
-| `document_id` | string | 文档的唯一标识符 | `"doc_abc123"` |
+| Parameter | Type | Description | Validation |
+|-----------|------|-------------|------------|
+| `document_id` | string | Unique document identifier | Must be valid processed document ID |
 
-### 输入格式
+### Request Schema
 
 ```json
 {
-  "document_id": "doc_abc123"
+  "type": "object",
+  "properties": {
+    "document_id": {
+      "type": "string",
+      "description": "Unique document identifier from process_document response"
+    }
+  },
+  "required": ["document_id"],
+  "additionalProperties": false
 }
 ```
 
-### 输出格式
+### Response Schema
 
 ```json
 {
   "status": "success",
   "document_info": {
-    "id": "doc_abc123",
-    "file_name": "深度学习综述.pdf",
-    "file_path": "/processed/docs/doc_abc123.pdf",
-    "file_size": "2.5MB",
-    "upload_time": "2024-01-15T10:30:00Z",
-    "processing_time": 45.2,
-    "processing_status": "completed",
+    "id": "string",
+    "file_name": "string",
+    "file_path": "string",
+    "file_size": "string",
+    "processing_status": "completed|processing|failed",
+    "created_at": "string",
+    "processed_at": "string",
     "metadata": {
-      "title": "深度学习在自然语言处理中的应用",
-      "authors": ["张三", "李四", "王五"],
-      "abstract": "本文全面综述了深度学习技术在自然语言处理领域的应用现状、挑战和未来发展方向...",
-      "keywords": ["深度学习", "自然语言处理", "神经网络", "Transformer"],
-      "language": "zh",
-      "page_count": 15,
-      "document_type": "academic_paper",
-      "subject_area": "计算机科学",
-      "publication_year": 2023,
-      "doi": "10.1000/182",
-      "citations_count": 156
-    },
-    "structure": {
-      "sections": [
-        {"title": "摘要", "page_range": [1, 1], "word_count": 245},
-        {"title": "引言", "page_range": [2, 3], "word_count": 892},
-        {"title": "相关工作", "page_range": [4, 6], "word_count": 1456},
-        {"title": "方法", "page_range": [7, 11], "word_count": 2134},
-        {"title": "实验", "page_range": [12, 14], "word_count": 1678},
-        {"title": "结论", "page_range": [15, 15], "word_count": 423}
-      ],
-      "tables": [
-        {"title": "实验结果对比", "page": 13, "row_count": 8, "col_count": 5},
-        {"title": "模型参数统计", "page": 14, "row_count": 6, "col_count": 3}
-      ],
-      "figures": [
-        {"title": "模型架构图", "page": 8, "type": "diagram"},
-        {"title": "训练损失曲线", "page": 12, "type": "chart"},
-        {"title": "注意力热力图", "page": 13, "type": "heatmap"}
-      ]
+      "page_count": "integer",
+      "processing_time": "number",
+      "language": "string",
+      "content_type": "string",
+      "chunk_count": "integer"
     },
     "processing_stages": {
-      "PreProcessor": {
-        "status": "completed",
-        "duration": 2.1,
-        "output": "图像预处理完成，提升对比度"
+      "ocr": {
+        "status": "completed|failed|skipped",
+        "confidence": "number",
+        "duration": "number"
       },
-      "OCRProcessor": {
-        "status": "completed", 
-        "duration": 28.5,
-        "output": "提取文本15,847字符，置信度98.2%"
-      },
-      "StructureProcessor": {
-        "status": "completed",
-        "duration": 8.3,
-        "output": "识别6个章节，2个表格，3个图表"
-      },
-      "ClassificationProcessor": {
-        "status": "completed",
-        "duration": 3.1,
-        "output": "分类：学术论文，置信度95.7%"
-      },
-      "EmbeddingProcessor": {
-        "status": "completed",
-        "duration": 3.2,
-        "output": "生成384维向量表示"
+      "embedding": {
+        "status": "completed|failed",
+        "model": "string",
+        "dimensions": "integer",
+        "duration": "number"
       }
-    },
-    "quality_metrics": {
-      "ocr_confidence": 0.982,
-      "structure_completeness": 0.945,
-      "classification_confidence": 0.957,
-      "embedding_quality": 0.891
     }
   }
 }
 ```
 
-### 使用示例
+### Usage Examples
 
-```
-显示文档 doc_abc123 的详细信息
-请提供文档ID为 doc_xyz789 的处理状态
-查看最近处理的文档的元数据信息
-```
+```python
+# Retrieve document information
+result = tools.get_document_info({
+    "document_id": "doc_abc123"
+})
 
----
+# Check processing status
+if result["document_info"]["processing_status"] == "completed":
+    print("Document ready for queries")
+```
 
 ## list_sessions
 
-列出所有聊天会话及其基本信息。
+Returns inventory of active conversation sessions with associated metadata.
 
-### 参数
+### Parameters
 
-无需参数。
+No input parameters required.
 
-### 输入格式
+### Request Schema
 
 ```json
-{}
+{
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}
 ```
 
-### 输出格式
+### Response Schema
 
 ```json
 {
   "status": "success",
   "sessions": [
     {
-      "session_id": "session_abc123",
-      "created_at": "2024-01-15T09:00:00Z",
-      "last_active_at": "2024-01-15T10:30:00Z",
-      "message_count": 12,
+      "session_id": "string",
+      "created_at": "string",
+      "last_active_at": "string",
+      "message_count": "integer",
+      "document_scope": ["string"],
       "metadata": {
-        "user_id": "user_001",
-        "topic": "深度学习研究",
-        "document_count": 5,
-        "avg_response_time": 1.8
-      }
-    },
-    {
-      "session_id": "session_xyz789", 
-      "created_at": "2024-01-14T14:20:00Z",
-      "last_active_at": "2024-01-14T15:45:00Z",
-      "message_count": 8,
-      "metadata": {
-        "user_id": "user_002",
-        "topic": "自然语言处理",
-        "document_count": 3,
-        "avg_response_time": 2.1
+        "user_context": "string",
+        "total_queries": "integer",
+        "avg_response_time": "number"
       }
     }
   ],
-  "total_count": 2,
-  "active_sessions": 1,
+  "total_count": "integer",
+  "active_sessions": "integer",
   "statistics": {
-    "total_messages": 20,
-    "avg_messages_per_session": 10,
-    "most_active_session": "session_abc123",
-    "oldest_session": "2024-01-10T08:00:00Z"
+    "oldest_session": "string",
+    "most_active_session": "string",
+    "total_queries": "integer"
   }
 }
 ```
 
-### 使用示例
+### Usage Examples
 
+```python
+# List all sessions
+result = tools.list_sessions({})
+
+# Process session data
+for session in result["sessions"]:
+    print(f"Session {session['session_id']}: {session['message_count']} messages")
 ```
-显示所有聊天会话
-列出我的对话历史
-查看会话统计信息
-```
 
----
+## Error Handling
 
-## 通用错误处理
+### Standard Error Response Format
 
-### 标准错误格式
+All tools return consistent error responses following this schema:
 
 ```json
 {
   "status": "error",
-  "error_code": "INVALID_PARAMETER",
-  "message": "Parameter 'file_path' is required but was not provided",
+  "error": "ErrorType",
+  "message": "Human-readable error description",
   "details": {
-    "parameter": "file_path",
-    "expected_type": "string",
-    "received": null
+    "parameter": "string",
+    "expected": "string",
+    "received": "string"
   },
-  "timestamp": "2024-01-15T10:30:00Z",
-  "request_id": "req_abc123"
+  "timestamp": "string",
+  "request_id": "string"
 }
 ```
 
-### 常见错误码
+### Common Error Types
 
-| 错误码 | 描述 | HTTP状态码 | 解决方法 |
-|--------|------|------------|----------|
-| `INVALID_PARAMETER` | 参数无效或缺失 | 400 | 检查参数格式和必填项 |
-| `FILE_NOT_FOUND` | 文件不存在 | 404 | 确认文件路径正确 |
-| `UNSUPPORTED_FORMAT` | 不支持的文件格式 | 400 | 使用支持的文件格式 |
-| `PROCESSING_ERROR` | 处理过程出错 | 500 | 重试或联系支持 |
-| `RATE_LIMIT_EXCEEDED` | 请求频率过高 | 429 | 降低请求频率 |
-| `AUTHENTICATION_FAILED` | 认证失败 | 401 | 检查API密钥 |
-| `INSUFFICIENT_STORAGE` | 存储空间不足 | 507 | 清理旧文件或扩容 |
+| Error Code | HTTP Equivalent | Description | Typical Causes |
+|------------|-----------------|-------------|----------------|
+| `ValidationError` | 400 | Invalid input parameters | Missing required fields, type mismatches |
+| `NotFoundError` | 404 | Resource not found | Invalid document ID, file path |
+| `ProcessingError` | 500 | Internal processing failure | OCR failure, embedding generation error |
+| `TimeoutError` | 504 | Operation timeout | Large document processing, API timeouts |
+| `RateLimitError` | 429 | Request rate exceeded | Too many concurrent requests |
 
----
+### Error Recovery Strategies
 
-## 最佳实践
+**Transient Errors**
+- Implement exponential backoff for retries
+- Check service health before retry attempts
+- Log errors for monitoring and analysis
 
-### 1. 会话管理
+**Configuration Errors**
+- Validate configuration before operation
+- Provide clear error messages with correction guidance
+- Implement configuration validation utilities
 
-**推荐做法**:
-- 为每个用户或任务创建独立会话
-- 在相关主题的多轮对话中保持同一会话ID
-- 定期清理不活跃的会话
+**Resource Errors**
+- Monitor disk space and memory usage
+- Implement resource cleanup procedures
+- Set appropriate resource limits
 
-**示例**:
-```
-# 开始新主题
-query_documents(query="什么是机器学习？")  # 新会话
+## Performance Characteristics
 
-# 继续同一主题
-query_documents(query="它有哪些应用？", session_id="session_123")
-query_documents(query="与深度学习的区别？", session_id="session_123")
-```
+### Processing Time Estimates
 
-### 2. 文档处理优化
+| Operation | Typical Duration | Factors |
+|-----------|------------------|---------|
+| PDF processing (10 pages) | 15-30 seconds | Page complexity, text density |
+| OCR processing (10 pages) | 30-60 seconds | Image resolution, text clarity |
+| Query execution | 1-3 seconds | Corpus size, query complexity |
+| Document info retrieval | <1 second | Database query performance |
 
-**文件准备**:
-- 使用高分辨率扫描（300 DPI以上）
-- 确保文字清晰，避免模糊和倾斜
-- PDF格式优于图片格式
-- 文件大小控制在16MB以内
+### Resource Utilization
 
-**批量处理**:
-```python
-# 推荐的批量处理方式
-documents = [
-    "/papers/paper1.pdf",
-    "/papers/paper2.pdf", 
-    "/papers/paper3.pdf"
-]
+| Resource | Baseline | Peak Usage |
+|----------|----------|------------|
+| Memory | 500MB | 2GB (during processing) |
+| CPU | 10% | 80% (during OCR/embedding) |
+| Disk I/O | Minimal | High (during indexing) |
+| Network | API calls only | Moderate (LLM requests) |
 
-for doc_path in documents:
-    result = process_document(file_path=doc_path)
-    if result.status == "success":
-        print(f"✅ {doc_path} 处理完成")
-    else:
-        print(f"❌ {doc_path} 处理失败: {result.message}")
-```
+### Scalability Considerations
 
-### 3. 查询优化技巧
+**Concurrent Operations**
+- Document processing: Limit to 3 concurrent operations
+- Query handling: No strict limits, scales with available resources
+- Session management: Automatic cleanup after inactivity periods
 
-**具体化查询**:
-```
-# 好的查询
-"Transformer架构中自注意力机制的计算复杂度是多少？"
+**Storage Requirements**
+- Original documents: User-provided files
+- Processed data: ~10-20% of original document size
+- Vector indices: ~5-10MB per 100 pages processed
 
-# 避免过于宽泛的查询  
-"机器学习"
-```
+## Integration Examples
 
-**结构化查询**:
-```
-"请对比以下三种优化算法的优缺点：
-1. SGD (随机梯度下降)
-2. Adam
-3. RMSprop
-
-并生成对比表格"
-```
-
-**上下文利用**:
-```
-# 第一轮：建立上下文
-"解释一下BERT模型的架构"
-
-# 第二轮：基于上下文深入
-"它相比GPT有什么创新之处？"
-
-# 第三轮：实际应用
-"在情感分析任务中如何使用它？"
-```
-
-### 4. 错误处理和重试
-
-**重试策略**:
-```python
-import time
-import random
-
-def process_with_retry(file_path, max_retries=3):
-    for attempt in range(max_retries):
-        try:
-            result = process_document(file_path=file_path)
-            if result.status == "success":
-                return result
-        except Exception as e:
-            if attempt < max_retries - 1:
-                # 指数退避
-                wait_time = (2 ** attempt) + random.uniform(0, 1)
-                time.sleep(wait_time)
-            else:
-                raise e
-```
-
-**错误监控**:
-```python
-def monitor_processing(file_path):
-    try:
-        result = process_document(file_path=file_path)
-        
-        # 检查处理质量
-        if result.metadata.get("ocr_confidence", 0) < 0.8:
-            print("⚠️ OCR置信度较低，建议检查原文档质量")
-            
-        return result
-    except Exception as e:
-        print(f"❌ 处理失败: {e}")
-        return None
-```
-
-### 5. 性能优化
-
-**并发处理**:
-```python
-import asyncio
-
-async def process_documents_concurrently(file_paths):
-    tasks = []
-    for file_path in file_paths:
-        task = asyncio.create_task(
-            process_document(file_path=file_path)
-        )
-        tasks.append(task)
-    
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    return results
-```
-
-**缓存查询结果**:
-```python
-from functools import lru_cache
-
-@lru_cache(maxsize=100)
-def cached_query(query_text, session_id=None):
-    return query_documents(query=query_text, session_id=session_id)
-```
-
----
-
-## 集成示例
-
-### Python集成
+### Python Client Implementation
 
 ```python
-import json
-import requests
-
 class MCPAcademicRAGClient:
-    def __init__(self, base_url="http://localhost:8000"):
-        self.base_url = base_url
-        
-    def process_document(self, file_path, file_name=None):
-        """处理文档"""
-        data = {"file_path": file_path}
-        if file_name:
-            data["file_name"] = file_name
-            
-        response = requests.post(
-            f"{self.base_url}/mcp/process_document",
-            json=data
-        )
-        return response.json()
+    def __init__(self, mcp_tools):
+        self.tools = mcp_tools
     
-    def query(self, query, session_id=None, top_k=5):
-        """查询文档"""
-        data = {
-            "query": query,
-            "top_k": top_k
-        }
+    def process_document(self, file_path, file_name=None):
+        """Process a document and return processing results."""
+        params = {"file_path": file_path}
+        if file_name:
+            params["file_name"] = file_name
+        return self.tools.process_document(params)
+    
+    def query_with_session(self, query, session_id=None, top_k=5):
+        """Execute query with optional session context."""
+        params = {"query": query, "top_k": top_k}
         if session_id:
-            data["session_id"] = session_id
-            
-        response = requests.post(
-            f"{self.base_url}/mcp/query_documents", 
-            json=data
-        )
-        return response.json()
-
-# 使用示例
-client = MCPAcademicRAGClient()
-
-# 处理文档
-result = client.process_document("/path/to/paper.pdf")
-print(f"文档ID: {result['document_id']}")
-
-# 查询
-answer = client.query("什么是深度学习？")
-print(f"回答: {answer['answer']}")
+            params["session_id"] = session_id
+        return self.tools.query_documents(params)
+    
+    def get_document_details(self, document_id):
+        """Retrieve comprehensive document information."""
+        return self.tools.get_document_info({"document_id": document_id})
+    
+    def list_active_sessions(self):
+        """Get all active conversation sessions."""
+        return self.tools.list_sessions({})
 ```
 
-### cURL集成
+### MCP Client Configuration
+
+#### Claude Desktop Configuration
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "academic-rag": {
+      "command": "uvx",
+      "args": ["--from", ".", "mcp-academic-rag-server"],
+      "cwd": "/absolute/path/to/mcp-academic-rag-server"
+    }
+  }
+}
+```
+
+#### Environment Setup
+
+Required environment variables:
 
 ```bash
-#!/bin/bash
+# Essential configuration
+OPENAI_API_KEY=your_openai_api_key
+MCP_PORT=8000
+DATA_PATH=./data
 
-# 处理文档
-curl -X POST http://localhost:8000/mcp/process_document \
-  -H "Content-Type: application/json" \
-  -d '{
-    "file_path": "/home/user/papers/deep_learning.pdf",
-    "file_name": "深度学习综述"
-  }' | jq .
-
-# 查询文档
-curl -X POST http://localhost:8000/mcp/query_documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "什么是卷积神经网络？",
-    "top_k": 3
-  }' | jq .
+# Optional configuration
+LOG_LEVEL=INFO
+OCR_LANGUAGE=eng
 ```
 
----
+## Troubleshooting
 
-## 故障排除
+### Diagnostic Procedures
 
-### 常见问题
+**Document Processing Issues**
 
-#### 1. 文档处理失败
+1. Verify file accessibility and format
+2. Check available system resources
+3. Review processing logs for specific errors
+4. Test with smaller documents to isolate issues
 
-**问题**: OCR识别率低
-**解决方案**:
-- 提高原文档分辨率
-- 确保文字清晰对比度高
-- 检查文档是否为扫描版本
+**Query Performance Problems**
 
-#### 2. 查询无结果
+1. Check document corpus size and complexity
+2. Verify OpenAI API key validity and quota
+3. Monitor response times and identify bottlenecks
+4. Adjust retrieval parameters (top_k, similarity threshold)
 
-**问题**: 查询返回空结果
-**解决方案**:
-- 确认已有相关文档被处理
-- 调整查询关键词
-- 增加top_k参数值
-- 检查会话ID是否正确
+**Session Management Issues**
 
-#### 3. 处理超时
+1. Verify session ID format and validity
+2. Check session timeout configuration
+3. Monitor memory usage for session storage
+4. Implement session cleanup procedures
 
-**问题**: 大文档处理超时
-**解决方案**:
-- 分页处理大文档
-- 增加处理超时时间
-- 检查系统资源使用情况
+### Debug Mode Operations
 
-#### 4. 内存不足
+Enable detailed logging for troubleshooting:
 
-**问题**: 处理过程中内存溢出
-**解决方案**:
-- 减少并发处理数量
-- 清理不必要的缓存
-- 升级系统内存
+```bash
+LOG_LEVEL=DEBUG python mcp_server.py
+```
 
-### 调试模式
+This enables comprehensive logging including:
+- MCP protocol message traces
+- Document processing pipeline details
+- Query execution timing and results
+- Error stack traces and context
 
-启用详细日志:
+### Performance Monitoring
+
+Monitor key metrics for optimal performance:
+
 ```python
+# Example monitoring implementation
+import time
 import logging
-logging.basicConfig(level=logging.DEBUG)
 
-# 处理时会输出详细日志
-result = process_document(file_path="/path/to/doc.pdf")
+logger = logging.getLogger(__name__)
+
+def monitor_tool_performance(tool_name, operation):
+    """Decorator for monitoring tool performance."""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            try:
+                result = func(*args, **kwargs)
+                duration = time.time() - start_time
+                logger.info(f"{tool_name} completed in {duration:.2f}s")
+                return result
+            except Exception as e:
+                duration = time.time() - start_time
+                logger.error(f"{tool_name} failed after {duration:.2f}s: {e}")
+                raise
+        return wrapper
+    return decorator
 ```
-
-### 性能监控
-
-检查系统状态:
-```bash
-# 检查系统健康状态
-curl http://localhost:8000/health
-
-# 查看处理队列状态  
-curl http://localhost:8000/api/status
-```
-
----
-
-## 版本更新日志
-
-### v1.2.0 (2024-01-15)
-- 新增结构化内容展示功能
-- 优化混合检索性能
-- 增加批量处理支持
-
-### v1.1.0 (2024-01-01)  
-- 添加知识图谱提取
-- 支持多语言文档处理
-- 改进错误处理机制
-
-### v1.0.0 (2023-12-01)
-- 初始发布版本
-- 基础MCP工具支持
-- 文档处理和查询功能
-
----
-
-*最后更新: 2024-01-15*

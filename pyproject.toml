@@ -4,104 +4,82 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-academic-rag-server"
-version = "1.2.0"
-description = "MCP-based Academic Document RAG Server with OCR and intelligent retrieval"
+version = "1.0.0"
+description = "A focused MCP server for basic academic document processing and RAG queries"
 authors = [
-    {name = "Academic RAG Team", email = "team@academic-rag.com"}
+    {name = "MCP Academic RAG Team", email = "noreply@example.com"}
 ]
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "Intended Audience :: Education",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Text Processing :: Linguistic",
 ]
-keywords = ["rag", "ocr", "academic", "mcp", "nlp", "document-processing"]
+keywords = ["mcp", "rag", "document-processing", "academic", "ai"]
 
 dependencies = [
-    "Flask>=2.3.3",
-    "Werkzeug>=2.3.7",
-    "haystack-ai>=2.16.1",
-    "sentence-transformers>=2.2.2",
-    "openai>=1.3.0",
-    "mcp>=0.9.0",
+    # Core MCP dependencies
+    "mcp>=1.0.0",
+    
+    # Basic document processing
+    "PyPDF2>=3.0.0",
+    "Pillow>=10.0.0",
+    "pytesseract>=0.3.10",
+    
+    # RAG pipeline (essential only)
+    "haystack-ai>=2.0.0",
+    "sentence-transformers>=2.2.0",
+    "openai>=1.0.0",
+    
+    # Basic utilities
     "requests>=2.31.0",
-    "PyPDF2>=3.0.1",
-    "pdf2image>=1.16.3",
-    "pdfkit>=1.0.0",
-    "Pillow>=10.0.1",
-    "opencv-python>=4.8.1.78",
-    "numpy>=1.24.4",
-    "scikit-learn>=1.3.2",
-    "scipy>=1.11.4",
-    "nltk>=3.8.1",
-    "spacy>=3.6.1",
-    "markdown>=3.5.1",
-    "pandas>=2.1.3",
-    "openpyxl>=3.1.2",
-    "faiss-cpu>=1.7.4",
-    "chromadb>=0.4.15",
+    "aiohttp>=3.9.0",
     "python-dotenv>=1.0.0",
-    "pyyaml>=6.0.1",
-    "click>=8.1.7",
-    "tqdm>=4.66.1",
-    "jsonschema>=4.20.0",
-    "aiohttp>=3.8.6",
-    "loguru>=0.7.2",
-    "prometheus-client>=0.18.0",
-    "cryptography>=41.0.7",
-    "passlib>=1.7.4",
-    "python-magic>=0.4.27",
-    "chardet>=5.2.0",
-    "sqlalchemy>=2.0.23",
-    "transformers>=4.35.0",
-    "torch>=2.1.0",
-    "tokenizers>=0.14.1",
-    "pymilvus>=2.3.4",
-    "psutil>=5.9.6",
-    "python-multipart>=0.0.6",
+    
+    # Simple vector storage
+    "faiss-cpu>=1.7.0",
+    
+    # Configuration and logging
+    "pydantic>=2.0.0",
+    "loguru>=0.7.0",
+    
+    # JSON validation
+    "jsonschema>=4.0.0",
 ]
 
 [project.optional-dependencies]
+# Development dependencies (simplified)
 dev = [
-    "pytest>=7.4.3",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
-    "pytest-mock>=3.11.1",
-    "pytest-asyncio>=0.21.1",
-    "black>=23.9.1",
-    "flake8>=6.1.0",
+    "black>=23.0.0",
     "isort>=5.12.0",
-    "mypy>=1.6.1",
-    "pre-commit>=3.5.0",
-    "bandit>=1.7.5",
-    "safety>=2.3.5",
-    "selenium>=4.15.0",
-    "pytest-benchmark>=4.0.0",
-    "memory-profiler>=0.61.0",
-    "py-spy>=0.3.14",
+    "mypy>=1.5.0",
+    "flake8>=6.0.0",
 ]
 
-docs = [
-    "sphinx>=7.2.6",
-    "sphinx-rtd-theme>=1.3.0",
-    "sphinx-autodoc-typehints>=1.24.0",
-    "myst-parser>=2.0.0",
+# Enhanced processing (optional for advanced users)
+enhanced = [
+    "spacy>=3.6.0",          # Only if user wants advanced NLP
+    "nltk>=3.8.0",           # Only if user wants additional text processing
 ]
 
-monitoring = [
-    "opentelemetry-api>=1.21.0",
-    "opentelemetry-sdk>=1.21.0",
-    "opentelemetry-instrumentation-flask>=0.42b0",
-    "opentelemetry-exporter-prometheus>=0.42b0",
-    "opentelemetry-exporter-jaeger>=1.21.0",
+# Web interface (optional)
+web = [
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
 ]
 
 [project.urls]
@@ -111,10 +89,12 @@ Repository = "https://github.com/yourusername/mcp-academic-rag-server.git"
 Issues = "https://github.com/yourusername/mcp-academic-rag-server/issues"
 
 [project.scripts]
-academic-rag = "cli.document_cli:main"
+# Main MCP server entry point for uvx
+mcp-academic-rag-server = "mcp_server:main"
+
+# Additional CLI tools (optional)
+academic-rag-process = "cli.document_cli:main"
 academic-rag-chat = "cli.chat_cli:main"
-academic-rag-server = "mcp_server:main"
-academic-rag-web = "webapp:main"
 
 [tool.setuptools]
 packages = ["core", "processors", "connectors", "models", "rag", "utils", "cli", "document_stores", "retrievers"]

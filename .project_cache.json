@@ -1,0 +1,102 @@
+{
+  "project_context": {
+    "name": "mcp-academic-rag-server",
+    "version": "1.2.0",
+    "python_version": "3.13.5",
+    "license": "MIT",
+    "status": "production_ready",
+    "architecture": "async_microservices_containerized",
+    "last_updated": "2024-12-15",
+    "cache_version": "1.0"
+  },
+  "dependencies": {
+    "core": {
+      "Flask": "2.3.3",
+      "haystack-ai": "2.16.1",
+      "mcp": "0.9.0",
+      "openai": "1.3.0",
+      "sentence-transformers": "2.2.2"
+    },
+    "processing": {
+      "PyPDF2": "3.0.1",
+      "Pillow": "10.0.1",
+      "opencv-python": "4.8.1.78"
+    },
+    "storage": {
+      "pymilvus": "2.3.4",
+      "faiss-cpu": "1.7.4",
+      "chromadb": "0.4.15"
+    },
+    "development": {
+      "pytest": "7.4.3",
+      "black": "23.9.1",
+      "mypy": "1.6.1",
+      "selenium": "4.15.0"
+    }
+  },
+  "configuration": {
+    "storage_paths": {
+      "data": "./data",
+      "output": "./output",
+      "logs": "./logs"
+    },
+    "vector_db": {
+      "type": "milvus",
+      "host": "localhost",
+      "port": 19530,
+      "collection": "academic_documents",
+      "dimension": 384
+    },
+    "processors": {
+      "enabled": ["pre_processor", "ocr_processor", "structure_processor", "embedding_processor", "knowledge_graph_processor"],
+      "disabled": ["classification_processor", "format_converter"]
+    },
+    "api_integrations": {
+      "ocr": "azure",
+      "llm": "openai",
+      "embeddings": "sentence-transformers"
+    }
+  },
+  "deployment": {
+    "docker_services": {
+      "main": "academic-rag-server:8000",
+      "database": "milvus:19530",
+      "cache": "redis:6379",
+      "monitoring": "prometheus:9090"
+    },
+    "kubernetes": {
+      "supported": true,
+      "manifests": ["deployment", "service", "configmap", "pvc"]
+    }
+  },
+  "structure": {
+    "main_files": ["app.py", "webapp.py", "mcp_server.py", "health_check.py"],
+    "core_dirs": ["core", "processors", "rag", "models", "utils"],
+    "interface_dirs": ["cli", "templates", "static"],
+    "config_dirs": ["config", "k8s"],
+    "test_dirs": ["tests"]
+  },
+  "testing": {
+    "framework": "pytest",
+    "coverage_target": "85%",
+    "types": ["unit", "integration", "component", "performance", "e2e"],
+    "tools": ["pytest-cov", "selenium", "pytest-benchmark"]
+  },
+  "performance": {
+    "document_processing": "15-30s per PDF (10 pages)",
+    "query_response": "<500ms average",
+    "memory_usage": "<2GB standard config",
+    "test_coverage": "85%+"
+  },
+  "mcp_integration": {
+    "tools": ["process_document", "query_documents", "get_document_info", "list_sessions"],
+    "protocol_version": "1.0",
+    "server_port": 8000
+  },
+  "security": {
+    "api_key_management": "environment_variables",
+    "input_validation": "json_schema",
+    "container_security": "non_root_execution",
+    "vulnerability_scanning": ["bandit", "safety"]
+  }
+}

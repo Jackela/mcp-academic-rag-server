@@ -1,250 +1,65 @@
 {
+  "server": {
+    "name": "academic-rag-server",
+    "version": "1.0.0",
+    "port": 8000
+  },
+  
+  "mcp": {
+    "tools_enabled": [
+      "process_document",
+      "query_documents", 
+      "get_document_info",
+      "list_sessions"
+    ]
+  },
+  
   "storage": {
+    "type": "local",
+    "vector_store": "faiss",
     "base_path": "./data",
-    "output_path": "./output"
+    "index_name": "academic_documents"
   },
-  "processors": {
-    "pre_processor": {
+  
+  "processing": {
+    "ocr": {
       "enabled": true,
-      "config": {
-        "enhance_image": true,
-        "correct_skew": true,
-        "remove_noise": true,
-        "deskew_threshold": 5.0
-      }
+      "engine": "tesseract",
+      "language": "eng"
     },
-    "ocr_processor": {
-      "enabled": true,
-      "config": {
-        "api": "azure",
-        "language": "zh-Hans",
-        "confidence_threshold": 0.6,
-        "max_retries": 3,
-        "timeout": 30
-      }
-    },
-    "structure_processor": {
-      "enabled": true,
-      "config": {
-        "detect_sections": true,
-        "detect_headings": true,
-        "detect_tables": true,
-        "detect_figures": true,
-        "detect_equations": true,
-        "min_heading_confidence": 0.7
-      }
-    },
-    "classification_processor": {
-      "enabled": true,
-      "config": {
-        "api": "openai",
-        "min_confidence": 0.7,
-        "categories": [
-          "computer_science",
-          "mathematics",
-          "physics",
-          "chemistry",
-          "biology",
-          "engineering",
-          "medicine",
-          "economics",
-          "psychology",
-          "other"
-        ]
-      }
-    },
-    "format_converter": {
-      "enabled": true,
-      "config": {
-        "output_formats": ["markdown", "pdf"],
-        "preserve_layout": true,
-        "include_metadata": true
-      }
-    },
-    "embedding_processor": {
-      "enabled": true,
-      "config": {
-        "model_name_or_path": "sentence-transformers/all-MiniLM-L6-v2",
-        "chunk_size": 500,
-        "chunk_overlap": 50,
-        "batch_size": 32,
-        "normalize_embeddings": true
-      }
-    },
-    "knowledge_graph_processor": {
-      "enabled": true,
-      "config": {
-        "extract_entities": true,
-        "extract_relations": true,
-        "extract_concepts": true,
-        "min_entity_freq": 2,
-        "max_entities": 100,
-        "max_relations": 50,
-        "language": "auto"
-      }
+    
+    "embedding": {
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "chunk_size": 1000,
+      "chunk_overlap": 200,
+      "batch_size": 4
     }
   },
-  "vector_db": {
-    "document_store": {
-      "type": "milvus",
-      "embedding_dim": 384,
-      "similarity": "cosine",
-      "return_embedding": true,
-      "milvus": {
-        "host": "localhost",
-        "port": 19530,
-        "user": "",
-        "password": "",
-        "database": "default",
-        "collection_name": "academic_documents",
-        "vector_dimension": 384,
-        "index_type": "IVF_FLAT",
-        "metric_type": "COSINE",
-        "index_params": {"nlist": 128},
-        "search_params": {"nprobe": 10}
-      }
-    }
-  },
-  "connectors": {
-    "OCRAPIConnector": {
-      "azure": {
-        "endpoint": "YOUR_AZURE_ENDPOINT",
-        "api_key": "YOUR_AZURE_API_KEY",
-        "region": "eastus"
-      },
-      "google": {
-        "api_key": "YOUR_GOOGLE_API_KEY"
-      },
-      "baidu": {
-        "app_id": "YOUR_BAIDU_APP_ID",
-        "api_key": "YOUR_BAIDU_API_KEY",
-        "secret_key": "YOUR_BAIDU_SECRET_KEY"
-      }
+  
+  "rag": {
+    "retrieval": {
+      "top_k": 5,
+      "similarity_threshold": 0.7
     },
-    "ClassificationAPIConnector": {
-      "openai": {
-        "api_key": "YOUR_OPENAI_API_KEY",
-        "model": "gpt-3.5-turbo"
-      },
-      "baidu": {
-        "app_id": "YOUR_BAIDU_APP_ID",
-        "api_key": "YOUR_BAIDU_API_KEY",
-        "secret_key": "YOUR_BAIDU_SECRET_KEY"
-      },
-      "huggingface": {
-        "api_key": "YOUR_HUGGINGFACE_API_KEY",
-        "model": "distilbert-base-uncased"
-      }
-    },
-    "VectorDBConnector": {
-      "type": "milvus",
-      "url": "localhost:19530",
-      "api_key": "YOUR_VECTOR_DB_API_KEY",
-      "collection": "academic_papers",
-      "settings": {
-        "index_type": "IVF_FLAT",
-        "metric_type": "IP",
-        "params": {"nlist": 1024}
-      }
-    },
-    "LLMConnector": {
-      "type": "openai",
-      "api_url": "https://api.openai.com/v1",
-      "api_key": "YOUR_OPENAI_API_KEY",
+    
+    "generation": {
+      "llm_provider": "openai",
       "model": "gpt-3.5-turbo",
-      "embedding_model": "text-embedding-3-small",
-      "settings": {
-        "temperature": 0.7,
-        "max_tokens": 2000,
-        "top_p": 0.9,
-        "frequency_penalty": 0.0,
-        "presence_penalty": 0.0
-      }
+      "temperature": 0.1,
+      "max_tokens": 500
     }
   },
-  "rag_settings": {
-    "top_k": 5,
-    "threshold": 0.75,
-    "prompt_template": "基于以下文献内容回答问题:\n\n{context}\n\n问题: {question}\n\n回答:",
-    "retriever": {
-      "enable_hybrid": true,
-      "dense_weight": 0.7,
-      "sparse_weight": 0.3,
-      "rerank": true,
-      "rerank_model": "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    },
-    "generator": {
-      "max_answer_length": 500,
-      "min_answer_length": 50,
-      "include_citations": true,
-      "citation_format": "inline"
-    }
+  
+  "session": {
+    "max_history_length": 10,
+    "timeout_minutes": 30,
+    "storage": "memory"
   },
-  "llm": {
-    "type": "openai",
-    "api_url": "https://api.openai.com/v1",
-    "api_key": "YOUR_OPENAI_API_KEY",
-    "model": "gpt-3.5-turbo",
-    "embedding_model": "text-embedding-3-small",
-    "settings": {
-      "temperature": 0.7,
-      "max_tokens": 2000,
-      "stream": false
-    }
-  },
+  
   "logging": {
     "level": "INFO",
-    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    "file": "./logs/system.log",
-    "max_file_size": 10485760,
-    "backup_count": 5,
-    "enable_console": true,
-    "enable_file": true,
-    "use_json": false
-  },
-  "performance": {
-    "async_processing": {
-      "enabled": true,
-      "max_concurrent_documents": 10,
-      "max_concurrent_processors": 5,
-      "queue_size": 100
-    },
-    "caching": {
-      "enabled": true,
-      "cache_type": "redis",
-      "ttl": 3600,
-      "max_cache_size": 1000
-    },
-    "batch_processing": {
-      "enabled": true,
-      "batch_size": 10,
-      "timeout": 300
-    }
-  },
-  "security": {
-    "api_key_required": true,
-    "cors_enabled": true,
-    "cors_origins": ["http://localhost:3000", "http://localhost:5000"],
-    "rate_limiting": {
-      "enabled": true,
-      "requests_per_minute": 60,
-      "requests_per_hour": 600
-    },
-    "file_upload": {
-      "max_size_mb": 16,
-      "allowed_extensions": ["pdf", "png", "jpg", "jpeg", "tif", "tiff"],
-      "scan_for_malware": false
-    }
-  },
-  "monitoring": {
-    "metrics_enabled": true,
-    "metrics_port": 9090,
-    "health_check_interval": 60,
-    "alert_thresholds": {
-      "error_rate": 0.05,
-      "response_time_ms": 1000,
-      "memory_usage_percent": 80,
-      "disk_usage_percent": 90
-    }
+    "format": "structured",
+    "file_enabled": true,
+    "max_size_mb": 10
   }
 }

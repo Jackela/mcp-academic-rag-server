@@ -27,9 +27,18 @@ import json
 
 # 初始化Flask应用
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_for_development_only')
+
+# 初始化安全增强功能
+try:
+    from utils.security_enhancements import init_security_enhancements
+    security_components = init_security_enhancements(app)
+except ImportError:
+    # 回退到基本的安全配置
+    import secrets
+    app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_urlsafe(32)
+    
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', './uploads')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 限制上传文件大小为16MB
+app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_UPLOAD_SIZE', 16)) * 1024 * 1024
 
 # 确保必要目录存在
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -52,7 +61,11 @@ session_manager = ChatSessionManager()
 # 初始化处理流水线
 processing_pipeline = None
 rag_pipeline = None
+# 使用线程安全的状态管理
+from threading import Lock
+import threading
 document_status = {}  # 存储文档处理状态
+document_status_lock = Lock()  # 保护文档状态的线程锁
 
 def init_pipeline():
     """初始化处理流水线"""

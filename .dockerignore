@@ -102,7 +102,11 @@ data/documents/
 data/embeddings/
 data/cache/
 output/
-models/
+# NOTE: models/ directory contains Python code - don't exclude
+# Only exclude trained model files
+*.model
+*.pkl
+*.joblib
 .models/
 
 # Testing

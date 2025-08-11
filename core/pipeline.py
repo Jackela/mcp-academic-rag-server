@@ -7,10 +7,12 @@
 import asyncio
 import logging
 from typing import List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor
 
 from models.document import Document
 from models.process_result import ProcessResult
 from processors.base_processor import IProcessor
+from utils.performance_enhancements import MemoryManager, profile_performance
 
 
 class Pipeline:
@@ -146,13 +148,16 @@ class Pipeline:
             
             try:
                 # 检查处理器是否支持异步处理
-                if hasattr(processor, 'process_async'):
+                if hasattr(processor, 'process_async') and callable(processor.process_async):
                     # 使用异步方法
                     result = await processor.process_async(document)
                 else:
-                    # 在线程池中运行同步方法以避免阻塞
+                    # 使用专用线程池执行器避免阻塞，限制并发线程数
+                    if not hasattr(self, '_executor'):
+                        self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix='pipeline-worker')
+                    
                     loop = asyncio.get_event_loop()
-                    result = await loop.run_in_executor(None, processor.process, document)
+                    result = await loop.run_in_executor(self._executor, processor.process, document)
                 
                 if not result.is_successful():
                     document.update_status("error")

@@ -1,0 +1,54 @@
+# Simplified Docker Compose for MCP Academic RAG Server
+# Focused on core MCP server functionality only
+
+version: '3.8'
+
+services:
+  # Core MCP Academic RAG Server (simplified)
+  mcp-academic-rag-server:
+    container_name: mcp-academic-rag-server
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
+    environment:
+      # Basic configuration
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+      
+      # Local storage (no external databases)
+      - STORAGE_TYPE=local
+      - VECTOR_STORE=faiss
+      - DATA_PATH=/app/data
+      
+      # API Keys (required)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your_openai_key_here}
+      
+    ports:
+      - "8000:8000"
+    
+    volumes:
+      # Data persistence (simplified)
+      - ./data:/app/data
+      - ./config:/app/config
+      
+      # Optional: Documents directory
+      - ${DOCUMENTS_PATH:-./documents}:/app/documents:ro
+    
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    
+    restart: unless-stopped
+
+# No external networks needed - simplified architecture
+networks:
+  default:
+    driver: bridge
+
+# Minimal volumes for data persistence
+volumes:
+  app_data:
+    driver: local
