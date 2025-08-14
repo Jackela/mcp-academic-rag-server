@@ -1,0 +1,110 @@
+{
+  "mcpServers": {
+    "academic-rag": {
+      "command": "uvx",
+      "args": [
+        "--from", 
+        "git+https://github.com/yourusername/mcp-academic-rag-server",
+        "mcp-academic-rag-server"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-openai-api-key-here",
+        "DATA_PATH": "./data",
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+
+// Alternative configurations for different scenarios:
+
+// 1. Direct GitHub with custom paths
+{
+  "mcpServers": {
+    "academic-rag-dev": {
+      "command": "uvx",
+      "args": [
+        "--from", 
+        "git+https://github.com/yourusername/mcp-academic-rag-server",
+        "mcp-academic-rag-server",
+        "--data-path", "/custom/data/path", 
+        "--log-level", "DEBUG"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "sk-your-development-key-here"
+      }
+    }
+  }
+}
+
+// 2. Local installation (if installed globally)
+{
+  "mcpServers": {
+    "academic-rag-local": {
+      "command": "mcp-academic-rag-server",
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-openai-api-key-here",
+        "DATA_PATH": "/absolute/path/to/data",
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+
+// 3. Python direct execution (for development)
+{
+  "mcpServers": {
+    "academic-rag-python": {
+      "command": "python",
+      "args": ["/absolute/path/to/mcp-academic-rag-server/mcp_server_secure.py"],
+      "cwd": "/absolute/path/to/mcp-academic-rag-server",
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-openai-api-key-here",
+        "DATA_PATH": "./data",
+        "LOG_LEVEL": "DEBUG"
+      }
+    }
+  }
+}
+
+// 4. Multiple configurations (different API keys or settings)
+{
+  "mcpServers": {
+    "academic-rag-prod": {
+      "command": "uvx",
+      "args": ["run", "mcp-academic-rag-server"],
+      "env": {
+        "OPENAI_API_KEY": "sk-production-key-here",
+        "DATA_PATH": "/prod/data",
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "academic-rag-test": {
+      "command": "uvx", 
+      "args": ["run", "mcp-academic-rag-server"],
+      "env": {
+        "OPENAI_API_KEY": "sk-test-key-here",
+        "DATA_PATH": "/test/data",
+        "LOG_LEVEL": "DEBUG"
+      }
+    }
+  }
+}
+
+/*
+IMPORTANT NOTES:
+
+1. Replace "sk-your-actual-openai-api-key-here" with your real OpenAI API key
+2. API keys must be valid OpenAI keys starting with "sk-"
+3. Use absolute paths for production deployments
+4. The server will validate the API key on startup
+5. Check logs at ~/Library/Logs/Claude/mcp.log (macOS) for connection issues
+
+Configuration file locations:
+- macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+- Windows: %APPDATA%\Claude\claude_desktop_config.json
+- Linux: ~/.config/claude/claude_desktop_config.json
+
+Testing your configuration:
+uvx run mcp-academic-rag-server --validate-only
+*/

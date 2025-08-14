@@ -1,0 +1,115 @@
+{
+  "processor_mappings": {
+    "pre_processor": {
+      "module": "processors.pre_processor",
+      "class": "PreProcessor",
+      "description": "Initial document preprocessing and validation",
+      "dependencies": [],
+      "configuration_schema": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean", "default": true}
+        }
+      }
+    },
+    "ocr_processor": {
+      "module": "processors.ocr_processor",
+      "class": "OCRProcessor", 
+      "description": "Optical Character Recognition using Tesseract",
+      "dependencies": ["pytesseract"],
+      "configuration_schema": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean", "default": true},
+          "language": {"type": "string", "default": "eng"},
+          "confidence_threshold": {"type": "number", "default": 0.7}
+        }
+      }
+    },
+    "structure_processor": {
+      "module": "processors.structure_processor",
+      "class": "StructureProcessor",
+      "description": "Document structure analysis and section extraction",
+      "dependencies": [],
+      "configuration_schema": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean", "default": true},
+          "extract_headers": {"type": "boolean", "default": true},
+          "extract_tables": {"type": "boolean", "default": true}
+        }
+      }
+    },
+    "classification_processor": {
+      "module": "processors.classification_processor",
+      "class": "ClassificationProcessor",
+      "description": "Document classification and categorization",
+      "dependencies": [],
+      "configuration_schema": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean", "default": false},
+          "classification_model": {"type": "string", "default": "simple"}
+        }
+      }
+    },
+    "format_converter": {
+      "module": "processors.format_converter",
+      "class": "FormatConverterProcessor",
+      "description": "Document format conversion and normalization",
+      "dependencies": [],
+      "configuration_schema": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean", "default": false},
+          "target_format": {"type": "string", "default": "markdown"}
+        }
+      }
+    },
+    "embedding_processor": {
+      "module": "processors.haystack_embedding_processor",
+      "class": "HaystackEmbeddingProcessor",
+      "description": "Vector embedding generation using sentence transformers",
+      "dependencies": ["sentence-transformers", "haystack-ai"],
+      "configuration_schema": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean", "default": true},
+          "model": {"type": "string", "default": "sentence-transformers/all-MiniLM-L6-v2"},
+          "chunk_size": {"type": "integer", "default": 1000},
+          "chunk_overlap": {"type": "integer", "default": 200}
+        }
+      }
+    }
+  },
+  
+  "processor_groups": {
+    "minimal": ["pre_processor", "ocr_processor", "embedding_processor"],
+    "standard": ["pre_processor", "ocr_processor", "structure_processor", "embedding_processor"],
+    "full": ["pre_processor", "ocr_processor", "structure_processor", "classification_processor", "format_converter", "embedding_processor"]
+  },
+  
+  "processing_order": {
+    "standard_pipeline": [
+      "pre_processor",
+      "ocr_processor", 
+      "structure_processor",
+      "embedding_processor"
+    ],
+    "advanced_pipeline": [
+      "pre_processor",
+      "ocr_processor",
+      "structure_processor", 
+      "classification_processor",
+      "format_converter",
+      "embedding_processor"
+    ]
+  },
+  
+  "metadata": {
+    "version": "1.0.0",
+    "description": "Processor configuration mappings for MCP Academic RAG Server",
+    "last_updated": "2024-01-15",
+    "schema_version": "1.0"
+  }
+}

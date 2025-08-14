@@ -182,7 +182,7 @@ class ChatPromptBuilder:
         )
     
     @component.output_types(messages=List[ChatMessage])
-    def __call__(
+    def run(
         self,
         query: str,
         documents: List[Document],

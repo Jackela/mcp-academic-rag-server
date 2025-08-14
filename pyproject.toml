@@ -84,17 +84,18 @@ web = [
 
 [project.urls]
 Homepage = "https://github.com/yourusername/mcp-academic-rag-server"
-Documentation = "https://mcp-academic-rag-server.readthedocs.io"
+Documentation = "https://github.com/yourusername/mcp-academic-rag-server/blob/main/README.md"
 Repository = "https://github.com/yourusername/mcp-academic-rag-server.git"
 Issues = "https://github.com/yourusername/mcp-academic-rag-server/issues"
+"Bug Reports" = "https://github.com/yourusername/mcp-academic-rag-server/issues"
+"Source Code" = "https://github.com/yourusername/mcp-academic-rag-server"
 
 [project.scripts]
-# Main MCP server entry point for uvx
-mcp-academic-rag-server = "mcp_server:main"
+# Main MCP server entry point (follows MCP 2024 best practices)
+mcp-academic-rag-server = "mcp_server_secure:main"
 
-# Additional CLI tools (optional)
-academic-rag-process = "cli.document_cli:main"
-academic-rag-chat = "cli.chat_cli:main"
+# Development/testing entry point
+mcp-academic-rag-server-dev = "mcp_server:main"
 
 [tool.setuptools]
 packages = ["core", "processors", "connectors", "models", "rag", "utils", "cli", "document_stores", "retrievers"]

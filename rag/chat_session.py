@@ -358,6 +358,70 @@ class ChatSession:
         self.citations = {}
         logger.info(f"会话{self.session_id}清空了历史记录")
     
+    def set_rag_pipeline(self, rag_pipeline: RAGPipeline):
+        """
+        设置RAG管道
+        
+        Args:
+            rag_pipeline (RAGPipeline): RAG管道实例
+        """
+        self.rag_pipeline = rag_pipeline
+        logger.info(f"会话{self.session_id}设置了RAG管道")
+    
+    def query(self, query: str, generation_kwargs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        执行查询
+        
+        Args:
+            query (str): 用户查询
+            generation_kwargs (dict, optional): 生成参数
+            
+        Returns:
+            dict: 查询结果，包含answer和documents
+        """
+        if not self.rag_pipeline:
+            return {
+                "answer": "RAG pipeline not available. Please ensure the system is properly configured.",
+                "documents": [],
+                "error": "No RAG pipeline configured"
+            }
+        
+        try:
+            # 添加用户消息
+            self.add_message("user", query)
+            
+            # 准备聊天历史
+            chat_history = [
+                {"role": msg.role, "content": msg.content}
+                for msg in self.messages[-10:]  # 最近10条消息
+            ]
+            
+            # 执行RAG查询
+            result = self.rag_pipeline.run(
+                query=query,
+                chat_history=chat_history,
+                generation_kwargs=generation_kwargs
+            )
+            
+            # 添加助手回答
+            answer = result.get("answer", "No answer generated")
+            self.add_message("assistant", answer)
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Query processing failed: {str(e)}"
+            logger.error(f"会话{self.session_id}查询失败: {e}")
+            
+            # 添加错误消息
+            self.add_message("assistant", error_msg)
+            
+            return {
+                "answer": error_msg,
+                "documents": [],
+                "error": str(e)
+            }
+    
     def to_dict(self) -> Dict[str, Any]:
         """
         转换为字典

@@ -30,6 +30,7 @@ class ConfigManager:
             config_path: 配置文件路径，默认为"./config/config.json"
         """
         self.config_path = config_path
+        self.config_file_path = config_path  # 添加别名以保持兼容性
         self.config = {}
         self.logger = logging.getLogger("config_manager")
         self.validator = ConfigValidator()
@@ -57,12 +58,14 @@ class ConfigManager:
                 if self.validator.validate_config(normalized_config):
                     self.config = normalized_config
                     self._is_validated = True
-                    self.logger.info(f"成功从 {self.config_path} 加载并验证配置")
+                    self.logger.info(f"Successfully loaded and validated configuration from {self.config_path}", 
+                                    extra={'config_path': self.config_path, 'validated': True})
                     
                     # 如果配置被标准化了，保存更新后的配置
                     if raw_config != normalized_config:
                         self.save_config()
-                        self.logger.info("配置已标准化并保存")
+                        self.logger.info("Configuration normalized and saved", 
+                                        extra={'config_path': self.config_path, 'normalized': True})
                     
                     return True
                 else:
@@ -70,9 +73,11 @@ class ConfigManager:
                     self.config = normalized_config
                     self._is_validated = False
                     report = self.validator.get_validation_report()
-                    self.logger.error(f"配置验证失败，错误: {report['errors']}")
+                    self.logger.error(f"Configuration validation failed. Errors: {report['errors']}", 
+                                     extra={'config_path': self.config_path, 'error_count': len(report['errors'])})
                     if report['warnings']:
-                        self.logger.warning(f"配置警告: {report['warnings']}")
+                        self.logger.warning(f"Configuration warnings: {report['warnings']}", 
+                                          extra={'config_path': self.config_path, 'warning_count': len(report['warnings'])})
                     return False
             else:
                 self.logger.warning(f"配置文件 {self.config_path} 不存在，创建默认配置")

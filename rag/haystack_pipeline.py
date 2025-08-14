@@ -8,14 +8,14 @@ from typing import Dict, Any, Optional, List, Union, Callable
 import json
 
 from haystack import Pipeline
-from haystack.components.generators import OpenAIChatGenerator
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.document_stores import DocumentStore
+from haystack.document_stores.types import DocumentStore
 
-from .prompt_builder import ChatPromptBuilder
-from ..connectors.haystack_llm_connector import HaystackLLMConnector
+from rag.prompt_builder import ChatPromptBuilder
+from connectors.haystack_llm_connector import HaystackLLMConnector
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ class RAGPipeline:
         
         # 定义组件之间的连接
         self.pipeline.connect("retriever", "prompt_builder.documents")
-        self.pipeline.connect("prompt_builder", "llm")
+        self.pipeline.connect("prompt_builder.messages", "llm.messages")
         
         logger.info(f"成功创建Haystack RAG Pipeline")
     

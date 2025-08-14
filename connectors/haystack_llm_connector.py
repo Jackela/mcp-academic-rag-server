@@ -7,7 +7,7 @@ import logging
 from typing import Dict, Any, Optional, List, Union, Callable
 import json
 
-from haystack.components.generators import OpenAIChatGenerator
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
 

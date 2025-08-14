@@ -10,12 +10,13 @@
 A production-ready Model Context Protocol (MCP) server for academic document processing and retrieval-augmented generation queries. This server provides standardized tools for document analysis, OCR processing, and intelligent question-answering capabilities.
 
 **🎯 Status**: Production Ready - Successfully deployed and validated  
-**🚀 Quick Deploy**: `uvx --from . mcp-academic-rag-server`  
-**📋 Architecture**: Focused MCP server (refactored from enterprise platform)
+**🚀 Quick Deploy**: `uvx --from git+https://github.com/yourusername/mcp-academic-rag-server mcp-academic-rag-server`  
+**📋 Architecture**: Focused MCP server following 2024 best practices  
+**⚡ Installation**: Direct from GitHub, no local setup required
 
 ## Features
 
-The server implements four core MCP tools:
+The server implements 4 core tools for academic document processing:
 
 | Tool | Description | Input | Output |
 |------|-------------|-------|---------|
@@ -24,70 +25,210 @@ The server implements four core MCP tools:
 | `get_document_info` | Retrieve document processing details | Document ID | Comprehensive document information |
 | `list_sessions` | List conversation sessions | None | Session metadata and statistics |
 
-## Quick Start
+## ⚡ Quick Start (2 Minutes)
 
-### Prerequisites
+### 🚀 Ultra-Fast Setup
 
-- **Python**: 3.9 or later (tested with 3.13.5)
-- **uvx**: Package manager (`pip install uvx`)
-- **OpenAI API Key**: For RAG query generation
-- **System**: Windows, Linux, or macOS
+1. **Get your OpenAI API key** from [OpenAI Platform](https://platform.openai.com/api-keys)
 
-### Installation
+2. **Configure Claude Desktop** (choose one):
 
-#### Method 1: uvx Deployment (Production Ready) ⭐
-
-```bash
-# Clone and deploy (5-minute setup)
-git clone <repository-url>
-cd mcp-academic-rag-server
-uvx --from . mcp-academic-rag-server
-```
-
-#### Method 2: Docker Deployment (Container Ready)
-
-```bash
-# Build and deploy with Docker
-docker-compose -f docker-compose.simple.yml up -d
-
-# View logs
-docker-compose -f docker-compose.simple.yml logs -f
-```
-
-#### Method 3: Development Install
-
-```bash
-# For development and testing
-pip install -e ".[dev]"
-python mcp_server.py
-```
-
-### Configuration
-
-1. Create environment configuration:
-```bash
-cp .env.example .env
-```
-
-2. Set required environment variables:
-```bash
-OPENAI_API_KEY=your_openai_api_key_here
-MCP_PORT=8000
-DATA_PATH=./data
-```
-
-3. Configure MCP client (Claude Desktop example):
+**Option A: Direct GitHub (Recommended) 🌟**
 ```json
 {
   "mcpServers": {
     "academic-rag": {
       "command": "uvx",
-      "args": ["--from", ".", "mcp-academic-rag-server"],
-      "cwd": "/path/to/mcp-academic-rag-server"
+      "args": [
+        "--from", 
+        "git+https://github.com/yourusername/mcp-academic-rag-server",
+        "mcp-academic-rag-server"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-api-key-here"
+      }
     }
   }
 }
 ```
+
+**Option B: Test First**
+```bash
+# Test installation first
+export OPENAI_API_KEY=sk-your-key-here
+uvx --from git+https://github.com/yourusername/mcp-academic-rag-server mcp-academic-rag-server --validate-only
+```
+
+3. **Restart Claude Desktop** - Done! 🎉
+
+### 📋 Configuration File Locations
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`  
+- **Linux**: `~/.config/claude/claude_desktop_config.json`
+
+### Prerequisites
+
+- **Python**: 3.9+ (auto-installed by uvx if needed)
+- **OpenAI API Key**: Required for RAG queries
+- **Claude Desktop**: Latest version recommended
+
+## 📦 Installation Methods
+
+### 🚀 Method 1: Direct from GitHub (Recommended)
+
+**No local setup required!** Perfect for end users.
+
+```bash
+# Test installation
+export OPENAI_API_KEY=sk-your-key-here
+uvx --from git+https://github.com/yourusername/mcp-academic-rag-server mcp-academic-rag-server --validate-only
+
+# Or configure directly in Claude Desktop (see Quick Start above)
+```
+
+**Pros**: ✅ Zero setup ✅ Always latest version ✅ No disk space used  
+**Cons**: ⚠️ Requires internet for first run
+
+### 🔧 Method 2: Local Development
+
+**For developers and advanced users who want to customize.**
+
+```bash
+# Clone and setup
+git clone https://github.com/yourusername/mcp-academic-rag-server
+cd mcp-academic-rag-server
+
+# Guided setup (recommended for beginners)
+python deploy_secure.py
+
+# Or manual setup
+export OPENAI_API_KEY=sk-your-key-here
+uvx install .
+uvx run mcp-academic-rag-server --validate-only
+```
+
+**Pros**: ✅ Full control ✅ Offline usage ✅ Code customization  
+**Cons**: ⚠️ Requires local setup ⚠️ Manual updates
+
+### 🐳 Method 3: Docker
+
+**For containerized environments.**
+
+```bash
+# Setup environment
+echo "OPENAI_API_KEY=sk-your-key-here" > .env
+
+# Deploy with Docker
+docker-compose -f docker-compose.simple.yml up -d
+
+# View logs
+docker-compose logs -f mcp-academic-rag-server
+```
+
+**Pros**: ✅ Isolated environment ✅ Easy scaling ✅ Production ready  
+**Cons**: ⚠️ Docker overhead ⚠️ Complexity
+
+### 🧪 Method 4: Development Mode
+
+**For active development and debugging.**
+
+```bash
+# Development install
+git clone https://github.com/yourusername/mcp-academic-rag-server
+cd mcp-academic-rag-server
+pip install -e ".[dev]"
+
+# Set API key and run
+export OPENAI_API_KEY=sk-your-key-here
+python mcp_server_secure.py --validate-only
+```
+
+**Pros**: ✅ Live code changes ✅ Full debugging ✅ Test suite access  
+**Cons**: ⚠️ Development complexity ⚠️ Not for production
+
+## ⚙️ Configuration
+
+### 🔑 Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENAI_API_KEY` | ✅ Yes | - | Your OpenAI API key (starts with `sk-`) |
+| `DATA_PATH` | ❌ No | `./data` | Data storage directory |
+| `LOG_LEVEL` | ❌ No | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `OCR_LANGUAGE` | ❌ No | `eng` | Tesseract OCR language code |
+
+### 🖥️ Claude Desktop Configuration
+
+Choose the configuration that matches your installation method:
+
+#### Option 1: Direct GitHub (Most Popular) 🌟
+```json
+{
+  "mcpServers": {
+    "academic-rag": {
+      "command": "uvx",
+      "args": [
+        "--from", 
+        "git+https://github.com/yourusername/mcp-academic-rag-server",
+        "mcp-academic-rag-server"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-api-key-here",
+        "DATA_PATH": "./data",
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+#### Option 2: Local Installation
+```json
+{
+  "mcpServers": {
+    "academic-rag": {
+      "command": "uvx",
+      "args": ["run", "mcp-academic-rag-server"],
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-api-key-here",
+        "DATA_PATH": "./data",
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+#### Option 3: Custom Configuration
+```json
+{
+  "mcpServers": {
+    "academic-rag": {
+      "command": "uvx",
+      "args": [
+        "--from", 
+        "git+https://github.com/yourusername/mcp-academic-rag-server",
+        "mcp-academic-rag-server",
+        "--data-path", "/custom/path",
+        "--log-level", "DEBUG"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-api-key-here"
+      }
+    }
+  }
+}
+```
+
+### 📁 Configuration File Locations
+
+| Platform | Configuration File Location |
+|----------|----------------------------|
+| **macOS** | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| **Windows** | `%APPDATA%\Claude\claude_desktop_config.json` |
+| **Linux** | `~/.config/claude/claude_desktop_config.json` |
+
+> 💡 **Tip**: Create the directory if it doesn't exist, and restart Claude Desktop after changes.
 
 ## Architecture
 
@@ -120,45 +261,95 @@ User Query → Vector Retrieval → Context Assembly → LLM Generation → Resp
 - **Language Model**: OpenAI API (configurable)
 - **Package Management**: uvx compatible
 
-## Usage Examples
+## 📝 Usage Examples
 
-### Document Processing
+Once configured in Claude Desktop, you can use these natural language commands:
 
-```python
-# Process a research paper
-result = tools.process_document({
-    "file_path": "./papers/research_paper.pdf",
-    "file_name": "Machine Learning Survey"
-})
+### 📄 Document Processing
+
+```
+👤 "I need to process a research paper PDF located at /Users/john/papers/ml-survey.pdf"
+
+🤖 I'll process that PDF for you using OCR and extract the content for analysis.
+
+[Uses process_document tool internally]
+✅ Document processed successfully
+📊 Extracted 45 pages, 12,000 words
+🔍 Ready for querying
 ```
 
-### Document Querying
+### 🔍 Document Querying  
 
-```python
-# Single query
-result = tools.query_documents({
-    "query": "What are the main contributions of this paper?",
-    "top_k": 5
-})
+```
+👤 "What are the main contributions of the paper I just uploaded?"
 
-# Multi-turn conversation
-result = tools.query_documents({
-    "query": "How does this relate to previous work?",
-    "session_id": "session_001",
-    "top_k": 3
-})
+🤖 Based on the processed document, the main contributions are:
+1. Novel attention mechanism for transformer models
+2. 15% improvement in BLEU scores on translation tasks
+3. Reduced computational complexity by 30%
+
+[Uses query_documents tool with RAG pipeline]
+📚 Sources: Sections 3.2, 4.1, and 6.3 of the paper
 ```
 
-### Document Information Retrieval
+### 💬 Multi-turn Conversations
 
-```python
-# Get document details
-result = tools.get_document_info({
-    "document_id": "doc_abc123"
-})
+```
+👤 "How does this approach compare to BERT?"
 
-# List active sessions
-result = tools.list_sessions({})
+🤖 The paper compares their method to BERT in several ways:
+- Uses different attention patterns (sparse vs. dense)
+- Achieves better performance on long sequences
+- Requires less training data
+
+👤 "What about the computational requirements?"
+
+🤖 [Continuing the conversation with session memory]
+The computational analysis shows:
+- 40% less memory usage than BERT-Large
+- 2x faster inference time
+- Similar training time requirements
+
+[Uses query_documents with session_id for context]
+```
+
+### 📊 Document Management
+
+```
+👤 "Show me information about the document I processed earlier"
+
+🤖 Document Information:
+📄 File: ml-survey.pdf
+📅 Processed: 2024-01-15 14:30
+📖 Pages: 45
+🔤 Word Count: ~12,000
+🏷️ Status: Successfully processed
+💾 Available for querying
+
+👤 "List all my conversation sessions"
+
+🤖 Active Sessions:
+1. Session 001 - ML Survey Discussion (5 messages)
+2. Session 002 - Architecture Questions (3 messages)
+3. Session 003 - Performance Analysis (8 messages)
+```
+
+### 🎯 Advanced Usage
+
+```
+👤 "Process this image of a research paper page and then answer questions about it"
+
+🤖 I'll process the image using OCR and make it available for queries.
+
+[Image processing with OCR]
+✅ Image processed successfully
+📝 Extracted text from handwritten/printed content
+🔍 Content now searchable
+
+👤 "What methodology does this page describe?"
+
+🤖 Based on the OCR'd content, this page describes:
+[Detailed analysis of the methodology...]
 ```
 
 ## Configuration
@@ -256,51 +447,180 @@ pytest tests/unit/           # Unit tests only
 pytest tests/integration/    # Integration tests only
 ```
 
-### Validation Scripts
+### Validation & Testing
 
 ```bash
-# System validation
-python test_final_validation.py
+# Complete MCP setup validation
+python validate_mcp.py
 
-# Core functionality test
-python test_mcp_core.py
+# Environment validation only (direct GitHub)
+export OPENAI_API_KEY=sk-your-key
+uvx --from git+https://github.com/yourusername/mcp-academic-rag-server mcp-academic-rag-server --validate-only
 
-# uvx compatibility test  
-python test_uvx_install.py
+# Test with custom settings
+uvx --from git+https://github.com/yourusername/mcp-academic-rag-server mcp-academic-rag-server --data-path ./test-data --log-level DEBUG --validate-only
+
+# Local installation validation
+uvx run mcp-academic-rag-server --validate-only
 ```
 
-## Deployment
+## 🛠️ Troubleshooting
 
-### 🎆 Deployment Status: PRODUCTION READY
+### 🚨 Common Issues & Solutions
 
-**✅ Validated**: All prerequisites and configuration files  
-**✅ Built**: uvx package + Docker container artifacts  
-**✅ Tested**: Health checks and core functionality  
-**✅ Deployed**: Ready for immediate MCP integration  
-
----
-
-### Production Deployment 🚀
-
-#### Primary Method: uvx (Recommended)
-
+#### ❌ "OPENAI_API_KEY not found"
 ```bash
-# Deploy immediately (validated and ready)
+# Check if API key is set
+echo $OPENAI_API_KEY
+
+# Set API key temporarily
+export OPENAI_API_KEY=sk-your-actual-key-here
+
+# Permanently set (add to ~/.bashrc or ~/.zshrc)
+echo 'export OPENAI_API_KEY=sk-your-actual-key-here' >> ~/.bashrc
+```
+
+#### ❌ "uvx command not found"
+```bash
+# Install uvx
+pip install uvx
+
+# Or update if already installed
+pip install --upgrade uvx
+
+# Verify installation
+uvx --version
+```
+
+#### ❌ "git+https connection failed"
+```bash
+# Test GitHub connectivity
+curl -I https://github.com
+
+# Use SSH instead of HTTPS
+uvx --from git+ssh://git@github.com/yourusername/mcp-academic-rag-server mcp-academic-rag-server
+
+# Or clone locally first
+git clone https://github.com/yourusername/mcp-academic-rag-server
 cd mcp-academic-rag-server
-uvx --from . mcp-academic-rag-server
-
-# With custom configuration
-OPENAI_API_KEY=your_key uvx --from . mcp-academic-rag-server
+uvx install .
 ```
 
-#### Container Deployment: Docker
+#### ❌ "Claude Desktop not connecting"
+```bash
+# Check configuration file syntax
+cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | python -m json.tool
+
+# Check Claude Desktop logs (macOS)
+tail -f ~/Library/Logs/Claude/mcp.log
+
+# Restart Claude Desktop completely
+pkill -f Claude
+open -a Claude\ Desktop
+```
+
+#### ❌ "Invalid API key format"
+- API key must start with `sk-`
+- Must be at least 20 characters long
+- Get a valid key from [OpenAI Platform](https://platform.openai.com/api-keys)
+
+#### ❌ "Permission denied"
+```bash
+# On macOS/Linux, ensure proper permissions
+chmod +x ~/.local/bin/uvx
+
+# Or use Python directly
+python -m uvx --from git+https://github.com/yourusername/mcp-academic-rag-server mcp-academic-rag-server
+```
+
+### 🔍 Debug Mode
+
+Enable detailed logging for troubleshooting:
+
+```json
+{
+  "mcpServers": {
+    "academic-rag": {
+      "command": "uvx",
+      "args": [
+        "--from", 
+        "git+https://github.com/yourusername/mcp-academic-rag-server",
+        "mcp-academic-rag-server",
+        "--log-level", "DEBUG"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-api-key-here",
+        "LOG_LEVEL": "DEBUG"
+      }
+    }
+  }
+}
+```
+
+### 📞 Getting Help
+
+1. **Check logs**: `~/Library/Logs/Claude/mcp-server-academic-rag.log`
+2. **Run validation**: `python validate_mcp.py`
+3. **Test manually**: `uvx --from git+https://... --validate-only`
+4. **Create issue**: [GitHub Issues](https://github.com/yourusername/mcp-academic-rag-server/issues)
+
+## 🚀 Production Deployment
+
+### ✅ Deployment Status: PRODUCTION READY
+
+**Ready for immediate use!** Choose your deployment method:
+
+| Method | Complexity | Best For |
+|--------|------------|----------|
+| 🌟 **Direct GitHub** | ⭐ Minimal | End users, quick setup |
+| 🔧 **Local Install** | ⭐⭐ Low | Developers, customization |
+| 🐳 **Docker** | ⭐⭐⭐ Medium | Production, scaling |
+| 🧪 **Development** | ⭐⭐⭐⭐ High | Active development |
+
+### 🌟 Recommended: Direct GitHub Deployment
+
+**Zero local setup required!**
 
 ```bash
-# Production deployment with Docker
+# Just set your API key and use directly in Claude Desktop
+export OPENAI_API_KEY=sk-your-key-here
+
+# Test installation (optional)
+uvx --from git+https://github.com/yourusername/mcp-academic-rag-server mcp-academic-rag-server --validate-only
+```
+
+**Claude Desktop Config:**
+```json
+{
+  "mcpServers": {
+    "academic-rag": {
+      "command": "uvx",
+      "args": [
+        "--from", 
+        "git+https://github.com/yourusername/mcp-academic-rag-server",
+        "mcp-academic-rag-server"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-api-key-here"
+      }
+    }
+  }
+}
+```
+
+### 🐳 Enterprise Docker Deployment
+
+```bash
+# Production with environment file
+echo "OPENAI_API_KEY=sk-your-key-here" > .env
+echo "DATA_PATH=/app/data" >> .env
+echo "LOG_LEVEL=WARNING" >> .env
+
+# Deploy with monitoring
 docker-compose -f docker-compose.simple.yml up -d
 
-# Monitor deployment
-docker-compose -f docker-compose.simple.yml logs -f mcp-academic-rag-server
+# Health check
+docker-compose logs -f mcp-academic-rag-server
 ```
 
 ### Development Environment

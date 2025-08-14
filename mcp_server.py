@@ -12,6 +12,8 @@ import sys
 import os
 import json
 from typing import Dict, Any, List, Optional
+import uuid
+import time
 
 # Add project root to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -21,132 +23,62 @@ try:
     from mcp.server import NotificationOptions, Server
     from mcp.types import Resource, Tool, TextContent, ImageContent, EmbeddedResource
     import mcp.types as types
-except ImportError:
-    print("MCP package not found. Please install with: pip install mcp")
+except ImportError as e:
+    print(f"MCP package not found. Please install with: pip install mcp\nError: {e}")
     sys.exit(1)
 
-from core.config_manager import ConfigManager
-from core.pipeline import Pipeline
-from rag.haystack_pipeline import RAGPipeline, RAGPipelineFactory
-from rag.chat_session import ChatSessionManager
-from connectors.haystack_llm_connector import HaystackLLMConnector
+from core.server_context import ServerContext
 from models.document import Document
-from processors.base_processor import IProcessor
-import importlib
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure structured logging (MCP best practice: never write to stdout in STDIO mode)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr  # Critical: Always use stderr for STDIO transport
+)
 logger = logging.getLogger("mcp-academic-rag-server")
 
-# Global instances
-config_manager = ConfigManager()
-document_pipeline = None
-rag_pipeline = None
-session_manager = ChatSessionManager()
+# Server context (dependency injection container)
+server_context = ServerContext()
 
 # Server instance
 server = Server("academic-rag-server")
 
-def load_processors() -> List[IProcessor]:
-    """
-    Dynamically load processors based on configuration
-    
-    Returns:
-        List[IProcessor]: List of loaded processor instances
-    """
-    processors = []
-    processor_configs = config_manager.get_value("processors", {})
-    
-    # Default processor configuration and mapping (same as app.py)
-    default_processor_mapping = {
-        'pre_processor': {
-            'module': 'processors.pre_processor',
-            'class': 'PreProcessor'
-        },
-        'ocr_processor': {
-            'module': 'processors.ocr_processor', 
-            'class': 'OCRProcessor'
-        },
-        'structure_processor': {
-            'module': 'processors.structure_processor',
-            'class': 'StructureProcessor'
-        },
-        'classification_processor': {
-            'module': 'processors.classification_processor',
-            'class': 'ClassificationProcessor'
-        },
-        'format_converter': {
-            'module': 'processors.format_converter',
-            'class': 'FormatConverterProcessor'
-        },
-        'embedding_processor': {
-            'module': 'processors.haystack_embedding_processor',
-            'class': 'HaystackEmbeddingProcessor'
-        }
-    }
-    
-    for processor_name, processor_config in processor_configs.items():
-        if not processor_config.get("enabled", True):
-            logger.info(f"Skipping disabled processor: {processor_name}")
-            continue
-            
-        try:
-            # Get module and class name
-            if processor_name in default_processor_mapping:
-                # Use default mapping
-                mapping = default_processor_mapping[processor_name]
-                module_path = mapping['module']
-                class_name = mapping['class']
-            else:
-                # Use configuration mapping
-                module_path = processor_config.get("module", f"processors.{processor_name}")
-                class_name = processor_config.get("class", f"{processor_name.title()}Processor")
-            
-            # Import module
-            logger.info(f"Loading processor: {processor_name} from {module_path}.{class_name}")
-            module = importlib.import_module(module_path)
-            processor_class = getattr(module, class_name)
-            
-            # Create processor instance
-            processor_init_config = processor_config.get("config", {})
-            processor = processor_class(config=processor_init_config)
-            processors.append(processor)
-            
-            logger.info(f"Successfully loaded processor: {processor_name}")
-            
-        except Exception as e:
-            logger.error(f"Failed to load processor {processor_name}: {str(e)}")
-            # Continue loading other processors
-    
-    logger.info(f"Successfully loaded {len(processors)} processors")
-    return processors
 
-def initialize_system():
-    """Initialize the academic RAG system"""
-    global document_pipeline, rag_pipeline
+def validate_environment() -> bool:
+    """Validate required environment variables and system requirements"""
+    required_vars = ['OPENAI_API_KEY']
+    missing_vars = []
+    
+    for var in required_vars:
+        if not os.environ.get(var):
+            missing_vars.append(var)
+    
+    if missing_vars:
+        logger.warning(f"Missing environment variables: {missing_vars}. "
+                      "Some functionality may be limited.")
+        return False
+    
+    logger.info("Environment validation passed", extra={'validated_vars': required_vars})
+    return True
+
+def initialize_system() -> None:
+    """Initialize the academic RAG system using dependency injection"""
+    # Validate environment first
+    validate_environment()
     
     try:
-        # Initialize document processing pipeline
-        document_pipeline = Pipeline()
-        processors = load_processors()
+        # Initialize server context with all dependencies
+        server_context.initialize()
         
-        for processor in processors:
-            document_pipeline.add_processor(processor)
-        
-        # Initialize RAG pipeline
-        llm_config = config_manager.get_value("llm", {})
-        llm_connector = HaystackLLMConnector(config=llm_config)
-        
-        rag_config = config_manager.get_value("rag_settings", {})
-        rag_pipeline = RAGPipelineFactory.create_pipeline(
-            llm_connector=llm_connector,
-            config=rag_config
+        logger.info(
+            "Academic RAG system initialized successfully",
+            extra=server_context.get_status()
         )
-        
-        logger.info("Academic RAG system initialized successfully")
         
     except Exception as e:
         logger.error(f"Failed to initialize system: {str(e)}")
+        logger.debug(f"Server context status: {server_context.get_status()}")
         raise
 
 @server.list_tools()
@@ -224,33 +156,76 @@ async def handle_list_tools() -> List[Tool]:
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
     """
-    Handle tool calls from the MCP client.
+    Handle tool calls from the MCP client with enhanced error handling and resource management.
     """
+    # Generate request context for tracing
+    request_id = str(uuid.uuid4())[:8]
+    start_time = time.time()
+    
+    logger.info(f"Handling tool call: {name}", 
+               extra={'request_id': request_id, 'tool': name, 'args_keys': list(arguments.keys())})
+    
+    # Tool dispatch map for better performance
+    tool_handlers = {
+        "process_document": process_document,
+        "query_documents": query_documents,
+        "get_document_info": get_document_info,
+        "list_sessions": list_sessions
+    }
+    
     try:
-        if name == "process_document":
-            return await process_document(arguments)
-        elif name == "query_documents":
-            return await query_documents(arguments)
-        elif name == "get_document_info":
-            return await get_document_info(arguments)
-        elif name == "list_sessions":
-            return await list_sessions(arguments)
-        else:
+        # Validate tool name early
+        if name not in tool_handlers:
             raise ValueError(f"Unknown tool: {name}")
+        
+        # Validate arguments structure
+        if not isinstance(arguments, dict):
+            raise ValueError(f"Invalid arguments format for tool {name}")
+        
+        # Execute tool with timeout protection
+        handler = tool_handlers[name]
+        try:
+            result = await asyncio.wait_for(handler(arguments), timeout=300.0)  # 5-minute timeout
+            return result
+        except asyncio.TimeoutError:
+            raise ValueError(f"Tool {name} timed out after 5 minutes")
+    
+    except ValueError as e:
+        # Client error - log as warning, not error
+        duration = time.time() - start_time
+        logger.warning(f"Client error for tool {name}: {str(e)}", 
+                      extra={'request_id': request_id, 'tool': name, 'duration': duration, 'error_type': 'client'})
+        return [types.TextContent(type="text", text=f"Error: {str(e)}")]
     
     except Exception as e:
-        error_msg = f"Error calling tool {name}: {str(e)}"
-        logger.error(error_msg)
-        return [types.TextContent(type="text", text=error_msg)]
+        # Server error - log as error with full context
+        duration = time.time() - start_time
+        logger.error(f"Server error calling tool {name}: {str(e)}", 
+                    extra={'request_id': request_id, 'tool': name, 'duration': duration, 'error_type': 'server'}, 
+                    exc_info=True)
+        return [types.TextContent(type="text", text=f"Internal server error: {str(e)}")]
+    
+    finally:
+        duration = time.time() - start_time
+        logger.info(f"Tool call completed: {name}", 
+                   extra={'request_id': request_id, 'tool': name, 'duration': duration})
 
 async def process_document(arguments: Dict[str, Any]) -> List[types.TextContent]:
     """
     Process a document through the processing pipeline.
     """
     file_path = arguments.get("file_path")
-    file_name = arguments.get("file_name", os.path.basename(file_path))
+    file_name = arguments.get("file_name", os.path.basename(file_path) if file_path else "unknown")
+    
+    logger.info(f"Starting document processing", 
+               extra={'file_path': file_path, 'file_name': file_name})
+    
+    if not file_path:
+        logger.error("No file path provided")
+        return [types.TextContent(type="text", text="Error: file_path is required")]
     
     if not os.path.exists(file_path):
+        logger.error(f"File not found: {file_path}")
         return [types.TextContent(type="text", text=f"Error: File not found: {file_path}")]
     
     try:
@@ -258,10 +233,13 @@ async def process_document(arguments: Dict[str, Any]) -> List[types.TextContent]
         document = Document(file_path)
         
         # Process document through pipeline asynchronously
-        if document_pipeline:
-            result = await document_pipeline.process_document(document)
+        if server_context.document_pipeline:
+            result = await server_context.document_pipeline.process_document(document)
             
             if result.is_successful():
+                logger.info(f"Document processed successfully", 
+                           extra={'document_id': document.document_id, 'file_name': file_name, 
+                                 'stages': list(document.content.keys())})
                 response = {
                     "status": "success",
                     "document_id": document.document_id,
@@ -279,7 +257,8 @@ async def process_document(arguments: Dict[str, Any]) -> List[types.TextContent]
         else:
             response = {
                 "status": "error",
-                "message": "Document processing pipeline not initialized"
+                "message": "Document processing pipeline not initialized",
+                "context_status": server_context.get_status()
             }
         
         return [types.TextContent(type="text", text=json.dumps(response, indent=2))]
@@ -300,16 +279,16 @@ async def query_documents(arguments: Dict[str, Any]) -> List[types.TextContent]:
         return [types.TextContent(type="text", text="Error: Query is required")]
     
     try:
-        if rag_pipeline:
+        if server_context.rag_pipeline:
             # Get or create session
             if session_id:
-                session = session_manager.get_session(session_id)
+                session = server_context.session_manager.get_session(session_id)
                 if not session:
-                    session = session_manager.create_session(session_id)
-                    session.set_rag_pipeline(rag_pipeline)
+                    session = server_context.session_manager.create_session(session_id)
+                    session.set_rag_pipeline(server_context.rag_pipeline)
             else:
-                session = session_manager.create_session()
-                session.set_rag_pipeline(rag_pipeline)
+                session = server_context.session_manager.create_session()
+                session.set_rag_pipeline(server_context.rag_pipeline)
                 session_id = session.session_id
             
             # Execute query
@@ -331,7 +310,8 @@ async def query_documents(arguments: Dict[str, Any]) -> List[types.TextContent]:
         else:
             response = {
                 "status": "error",
-                "message": "RAG pipeline not initialized"
+                "message": "RAG pipeline not initialized",
+                "context_status": server_context.get_status()
             }
         
         return [types.TextContent(type="text", text=json.dumps(response, indent=2))]
@@ -369,7 +349,7 @@ async def list_sessions(arguments: Dict[str, Any]) -> List[types.TextContent]:
     List all chat sessions.
     """
     try:
-        sessions = session_manager.get_all_sessions()
+        sessions = server_context.session_manager.get_all_sessions()
         
         session_list = []
         for session_id, session in sessions.items():
