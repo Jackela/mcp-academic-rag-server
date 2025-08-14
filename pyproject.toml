@@ -92,13 +92,14 @@ Issues = "https://github.com/yourusername/mcp-academic-rag-server/issues"
 
 [project.scripts]
 # Main MCP server entry point (follows MCP 2024 best practices)
-mcp-academic-rag-server = "mcp_server_secure:main"
+mcp-academic-rag-server = "mcp_server_secure:cli_main"
 
 # Development/testing entry point
 mcp-academic-rag-server-dev = "mcp_server:main"
 
 [tool.setuptools]
-packages = ["core", "processors", "connectors", "models", "rag", "utils", "cli", "document_stores", "retrievers"]
+packages = ["core", "processors", "connectors", "models", "rag", "utils"]
+py-modules = ["mcp_server_secure", "mcp_server", "deploy_secure"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.yaml", "*.yml", "*.html", "*.css", "*.js"]

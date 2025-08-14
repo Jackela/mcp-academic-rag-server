@@ -132,5 +132,21 @@ async def main():
         logger.error(f"Server error: {str(e)}")
         sys.exit(1)
 
+def cli_main():
+    """Command line interface entry point for uvx installation"""
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--validate-only":
+        # Validation mode - just check environment and exit
+        try:
+            validate_environment()
+            print("✅ Environment validation passed - ready for MCP operations")
+            sys.exit(0)
+        except Exception as e:
+            print(f"❌ Environment validation failed: {e}")
+            sys.exit(1)
+    else:
+        # Normal MCP server mode
+        asyncio.run(main())
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    cli_main()
