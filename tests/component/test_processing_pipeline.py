@@ -10,8 +10,8 @@ import shutil
 
 from core.pipeline import Pipeline
 from models.document import Document
-from core.process_result import ProcessResult
-from processors.base_processor import IProcessor
+from models.process_result import ProcessResult
+from processors.base_processor import BaseProcessor as IProcessor
 
 
 class MockProcessor(IProcessor):

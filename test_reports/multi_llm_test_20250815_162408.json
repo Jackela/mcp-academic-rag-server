@@ -1,0 +1,135 @@
+{
+  "test_session": {
+    "test_type": "Multi-LLM Integration Test",
+    "start_time": "2025-08-15T16:23:31.055505",
+    "end_time": "2025-08-15T16:24:08.219941",
+    "duration_seconds": 37.164436,
+    "total_tests": 5,
+    "passed": 4,
+    "failed": 1,
+    "skipped": 1,
+    "success_rate": "100.0%"
+  },
+  "api_usage": {
+    "total_api_calls": 3,
+    "estimated_cost": 0.003
+  },
+  "test_results": [
+    {
+      "test": "openai_integration",
+      "status": "PASSED",
+      "details": {
+        "chat_model": "gpt-3.5-turbo",
+        "embedding_model": "text-embedding-ada-002",
+        "chat_response": "Machine learning is a subset of artificial intelligence that involves developing algorithms and statistical models that enable computers to learn from and make predictions or decisions based on data.",
+        "embedding_dimension": 1536,
+        "response_quality": true,
+        "api_calls": 2
+      }
+    },
+    {
+      "test": "anthropic_integration",
+      "status": "SKIPPED",
+      "reason": "Library not installed"
+    },
+    {
+      "test": "llm_connector_abstraction",
+      "status": "PASSED",
+      "details": {
+        "provider": "openai",
+        "connector_class": "OpenAIConnector",
+        "is_connected": true,
+        "generation_success": false,
+        "response_preview": "Error: OpenAIConnector.generate() got an unexpected keyword argument 'max_tokens'",
+        "api_calls": 0
+      }
+    },
+    {
+      "test": "multi_model_consistency",
+      "status": "PASSED",
+      "details": {
+        "test_query": "What is the main purpose of vector embeddings in information retrieval?",
+        "responses": {
+          "openai": {
+            "model": "gpt-3.5-turbo",
+            "response": "The main purpose of vector embeddings in information retrieval is to represent words, phrases, or documents as dense vectors in a high-dimensional space. This allows for semantic relationships between words or documents to be captured and used for various tasks such as search, recommendation, and classification. By representing text data as vectors, it becomes easier to compare and retrieve relevant information based on similarity measures in the vector space. This can lead to more accurate and efficient information retrieval systems.",
+            "tokens": 109
+          },
+          "anthropic": {
+            "error": "No module named 'anthropic'"
+          }
+        },
+        "successful_providers": [
+          "openai"
+        ],
+        "consistency_score": 0.5,
+        "quality_checks": [
+          {
+            "provider": "openai",
+            "length": 540,
+            "contains_vector": true,
+            "contains_embedding": true,
+            "is_relevant": true
+          }
+        ],
+        "api_calls": 1
+      }
+    },
+    {
+      "test": "model_switching_capability",
+      "status": "PASSED",
+      "details": {
+        "original_provider": "openai",
+        "original_model": "gpt-3.5-turbo",
+        "test_configurations": [
+          {
+            "provider": "openai",
+            "model": "gpt-3.5-turbo",
+            "parameters": {
+              "temperature": 0.1,
+              "max_tokens": 50
+            }
+          },
+          {
+            "provider": "openai",
+            "model": "gpt-4",
+            "parameters": {
+              "temperature": 0.2,
+              "max_tokens": 50
+            }
+          }
+        ],
+        "config_tests": [
+          {
+            "config_index": 0,
+            "config": {
+              "provider": "openai",
+              "model": "gpt-3.5-turbo",
+              "parameters": {
+                "temperature": 0.1,
+                "max_tokens": 50
+              }
+            },
+            "config_valid": true,
+            "switch_successful": true
+          },
+          {
+            "config_index": 1,
+            "config": {
+              "provider": "openai",
+              "model": "gpt-4",
+              "parameters": {
+                "temperature": 0.2,
+                "max_tokens": 50
+              }
+            },
+            "config_valid": true,
+            "switch_successful": true
+          }
+        ],
+        "successful_switches": 2,
+        "switch_success_rate": 1.0
+      }
+    }
+  ]
+}

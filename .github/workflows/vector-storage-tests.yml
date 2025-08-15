@@ -1,0 +1,355 @@
+name: Vector Storage Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'document_stores/**'
+      - 'utils/vector_migration.py'
+      - 'tests/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/vector-storage-tests.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'document_stores/**'
+      - 'utils/vector_migration.py'
+      - 'tests/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+
+env:
+  PYTHONUNBUFFERED: 1
+  TESTING: true
+  LOG_LEVEL: INFO
+
+jobs:
+  lint-and-format:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort flake8 mypy
+          pip install -r requirements.txt
+
+      - name: Run Black
+        run: black --check --diff document_stores/ utils/vector_migration.py tests/
+
+      - name: Run isort
+        run: isort --check-only --diff document_stores/ utils/vector_migration.py tests/
+
+      - name: Run Flake8
+        run: flake8 document_stores/ utils/vector_migration.py tests/ --max-line-length=100
+
+      - name: Run MyPy
+        run: mypy document_stores/ utils/vector_migration.py --ignore-missing-imports
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+        exclude:
+          # Reduce test matrix for faster runs
+          - os: windows-latest
+            python-version: '3.9'
+          - os: macos-latest
+            python-version: '3.9'
+          - os: macos-latest
+            python-version: '3.10'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov pytest-xdist pytest-timeout
+          pip install -r requirements.txt
+
+      - name: Install optional dependencies
+        run: |
+          # Install FAISS for testing
+          pip install faiss-cpu || echo "FAISS installation failed, tests will be skipped"
+          # Note: Milvus requires Docker, skip in CI
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ \
+            --cov=document_stores \
+            --cov=utils.vector_migration \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --junitxml=test-results/junit-unit.xml \
+            -v \
+            --durations=10 \
+            -m "not slow and not benchmark"
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unit
+          name: unit-tests
+          fail_ci_if_error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results-unit-${{ matrix.os }}-${{ matrix.python-version }}
+          path: test-results/
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.11']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov pytest-xdist pytest-timeout
+          pip install -r requirements.txt
+          pip install faiss-cpu
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ \
+            --cov=document_stores \
+            --cov=utils.vector_migration \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --junitxml=test-results/junit-integration.xml \
+            -v \
+            --durations=10 \
+            -m "not slow and not requires_milvus"
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: integration
+          name: integration-tests
+          fail_ci_if_error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results-integration-${{ matrix.python-version }}
+          path: test-results/
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-benchmark
+          pip install -r requirements.txt
+          pip install faiss-cpu
+
+      - name: Run performance tests
+        run: |
+          pytest tests/performance/ \
+            --junitxml=test-results/junit-performance.xml \
+            -v \
+            --durations=20 \
+            -m "benchmark" \
+            --timeout=600
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-results
+          path: test-results/
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety bandit semgrep
+
+      - name: Run Safety check
+        run: safety check --json --output safety-report.json || true
+
+      - name: Run Bandit security scan
+        run: |
+          bandit -r document_stores/ utils/vector_migration.py \
+            -f json -o bandit-report.json || true
+
+      - name: Run Semgrep
+        run: |
+          semgrep --config=auto --json --output=semgrep-report.json \
+            document_stores/ utils/vector_migration.py || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: |
+            safety-report.json
+            bandit-report.json
+            semgrep-report.json
+
+  docker-tests:
+    name: Docker Environment Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    services:
+      milvus:
+        image: milvusdb/milvus:v2.3.3
+        ports:
+          - 19530:19530
+        options: >-
+          --health-cmd="curl -f http://localhost:9091/healthz || exit 1"
+          --health-interval=30s
+          --health-timeout=20s
+          --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          pip install -r requirements.txt
+          pip install faiss-cpu pymilvus
+
+      - name: Wait for Milvus
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:19530/healthz; do sleep 2; done'
+
+      - name: Run Milvus integration tests
+        run: |
+          pytest tests/integration/ \
+            -v \
+            -m "requires_milvus" \
+            --junitxml=test-results/junit-milvus.xml
+        env:
+          MILVUS_HOST: localhost
+          MILVUS_PORT: 19530
+
+      - name: Upload Docker test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results-docker
+          path: test-results/
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, performance-tests, security-scan]
+    if: always()
+
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v3
+        with:
+          path: all-test-results/
+
+      - name: Publish test summary
+        run: |
+          echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.unit-tests.result }}" == "success" ]; then
+            echo "✅ Unit Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Unit Tests: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.integration-tests.result }}" == "success" ]; then
+            echo "✅ Integration Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Integration Tests: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.performance-tests.result }}" == "success" ]; then
+            echo "✅ Performance Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Performance Tests: ${{ needs.performance-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.security-scan.result }}" == "success" ]; then
+            echo "✅ Security Scan: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Security Scan: ${{ needs.security-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          fi

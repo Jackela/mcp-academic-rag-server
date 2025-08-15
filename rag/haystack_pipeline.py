@@ -2,14 +2,13 @@
 Haystack Pipeline模块 - 实现基于Haystack的RAG管道
 """
 
-import os
 import logging
-from typing import Dict, Any, Optional, List, Union, Callable
-import json
+from typing import Dict, Any, Optional, List
 
 from haystack import Pipeline
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
+from haystack.components.embedders import SentenceTransformersTextEmbedder
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore
@@ -28,7 +27,8 @@ class RAGPipeline:
         llm_connector: HaystackLLMConnector,
         document_store: Optional[DocumentStore] = None,
         retriever_top_k: int = 5,
-        prompt_builder = None
+        prompt_builder = None,
+        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     ):
         """
         初始化RAG管道
@@ -38,11 +38,19 @@ class RAGPipeline:
             document_store (DocumentStore, optional): 文档存储，如果为None则创建InMemoryDocumentStore
             retriever_top_k (int): 检索器返回的最大文档数量
             prompt_builder (ChatPromptBuilder, optional): 提示构建器，如果为None则创建默认构建器
+            embedding_model (str): 嵌入模型名称
         """
         self.llm_connector = llm_connector
         self.document_store = document_store or InMemoryDocumentStore()
         self.retriever_top_k = retriever_top_k
         self.prompt_builder = prompt_builder or ChatPromptBuilder()
+        self.embedding_model = embedding_model
+        
+        # 创建查询嵌入器
+        self.query_embedder = SentenceTransformersTextEmbedder(
+            model=embedding_model,
+            progress_bar=False
+        )
         
         # 创建检索器
         self.retriever = InMemoryEmbeddingRetriever(document_store=self.document_store, top_k=retriever_top_k)
@@ -55,15 +63,17 @@ class RAGPipeline:
         self.pipeline = Pipeline()
         
         # 向Pipeline中添加组件
+        self.pipeline.add_component("query_embedder", self.query_embedder)
         self.pipeline.add_component("retriever", self.retriever)
         self.pipeline.add_component("prompt_builder", self.prompt_builder)
         self.pipeline.add_component("llm", self.llm_connector.generator)
         
         # 定义组件之间的连接
-        self.pipeline.connect("retriever", "prompt_builder.documents")
+        self.pipeline.connect("query_embedder.embedding", "retriever.query_embedding")
+        self.pipeline.connect("retriever.documents", "prompt_builder.documents")
         self.pipeline.connect("prompt_builder.messages", "llm.messages")
         
-        logger.info(f"成功创建Haystack RAG Pipeline")
+        logger.info(f"成功创建Haystack RAG Pipeline (含查询嵌入器)")
     
     def run(
         self,
@@ -87,7 +97,8 @@ class RAGPipeline:
         try:
             # 准备输入
             inputs = {
-                "retriever": {"query": query, "filters": filters},
+                "query_embedder": {"text": query},
+                "retriever": {"filters": filters},
                 "prompt_builder": {
                     "query": query,
                     "chat_history": chat_history or []
@@ -96,11 +107,17 @@ class RAGPipeline:
             
             # 运行管道
             logger.info(f"运行RAG管道: 查询='{query}'")
-            output = self.pipeline.run(inputs)
+            logger.debug(f"Pipeline inputs: {inputs}")
+            output = self.pipeline.run(inputs, include_outputs_from={"retriever"})
+            
+            # 调试：打印输出结构
+            logger.debug(f"Pipeline output keys: {list(output.keys())}")
+            if "retriever" in output:
+                logger.debug(f"Retriever output documents count: {len(output['retriever']['documents'])}")
             
             # 提取结果
-            answer = output["llm"]["replies"][0].content
-            documents = output["retriever"]["documents"]
+            answer = output["llm"]["replies"][0].text
+            documents = output["retriever"]["documents"] if "retriever" in output else []
             
             # 构建结果
             result = {
@@ -108,7 +125,7 @@ class RAGPipeline:
                 "documents": [{
                     "id": doc.id,
                     "content": doc.content,
-                    "metadata": doc.metadata
+                    "metadata": doc.meta
                 } for doc in documents],
                 "query": query
             }

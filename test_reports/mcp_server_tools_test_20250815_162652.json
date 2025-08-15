@@ -1,0 +1,173 @@
+{
+  "test_session": {
+    "test_type": "MCP Server Tools Test",
+    "start_time": "2025-08-15T16:25:54.834354",
+    "end_time": "2025-08-15T16:26:52.607811",
+    "duration_seconds": 57.773457,
+    "total_tests": 5,
+    "passed": 2,
+    "failed": 3,
+    "success_rate": "40.0%"
+  },
+  "test_results": [
+    {
+      "test": "mcp_server_module_structure",
+      "status": "PASSED",
+      "details": {
+        "module_path": "servers.mcp_server",
+        "available_components": [],
+        "missing_components": [
+          "app",
+          "get_available_tools",
+          "process_tool_call"
+        ],
+        "component_coverage": 0.0,
+        "mcp_imports_available": true,
+        "mcp_import_error": null
+      }
+    },
+    {
+      "test": "mcp_tool_definitions",
+      "status": "PASSED",
+      "details": {
+        "expected_tools": [
+          "process_document",
+          "query_documents",
+          "get_document_info",
+          "list_sessions",
+          "manage_collection"
+        ],
+        "available_tools": [],
+        "covered_tools": [],
+        "coverage_rate": 0.0,
+        "tools_function_available": false,
+        "tool_validations": [],
+        "total_tools": 0
+      }
+    },
+    {
+      "test": "tool_call_simulation",
+      "status": "PASSED",
+      "details": {
+        "test_calls": 3,
+        "successful_calls": 0,
+        "success_rate": 0.0,
+        "call_results": [
+          {
+            "tool_name": "process_document",
+            "call_successful": false,
+            "response_valid": false,
+            "error": "Function not implemented"
+          },
+          {
+            "tool_name": "query_documents",
+            "call_successful": false,
+            "response_valid": false,
+            "error": "Function not implemented"
+          },
+          {
+            "tool_name": "get_document_info",
+            "call_successful": false,
+            "response_valid": false,
+            "error": "Function not implemented"
+          }
+        ]
+      }
+    },
+    {
+      "test": "mcp_protocol_compliance",
+      "status": "PASSED",
+      "details": {
+        "protocol_checks": [
+          {
+            "check": "mcp_library_availability",
+            "passed": true,
+            "details": {
+              "version": "unknown"
+            }
+          },
+          {
+            "check": "server_app_availability",
+            "passed": false,
+            "details": {
+              "server_type": null
+            }
+          },
+          {
+            "check": "tool_registration_mechanism",
+            "passed": false,
+            "details": {}
+          },
+          {
+            "check": "message_handling",
+            "passed": false,
+            "details": {}
+          }
+        ],
+        "passed_checks": 1,
+        "total_checks": 4,
+        "compliance_score": 0.25,
+        "mcp_library_available": true
+      }
+    },
+    {
+      "test": "mcp_configuration_validation",
+      "status": "PASSED",
+      "details": {
+        "config_file_exists": true,
+        "config_valid": true,
+        "server_configs": [
+          {
+            "name": "academic-rag-test",
+            "has_command": true,
+            "has_args": true,
+            "has_cwd": true,
+            "has_env": true,
+            "python_command": true,
+            "correct_module": false
+          }
+        ],
+        "environment_vars": [
+          {
+            "name": "OPENAI_API_KEY",
+            "is_template": true,
+            "value_preview": "${OPENAI_API_KEY}"
+          },
+          {
+            "name": "ANTHROPIC_API_KEY",
+            "is_template": true,
+            "value_preview": "${ANTHROPIC_API_KEY}"
+          },
+          {
+            "name": "PYTHONPATH",
+            "is_template": false,
+            "value_preview": "E:\\Code\\mcp-academic..."
+          },
+          {
+            "name": "MCP_LOG_LEVEL",
+            "is_template": false,
+            "value_preview": "DEBUG"
+          }
+        ],
+        "actual_environment_vars": [
+          {
+            "name": "OPENAI_API_KEY",
+            "available": true,
+            "length": 164
+          },
+          {
+            "name": "ANTHROPIC_API_KEY",
+            "available": true,
+            "length": 108
+          },
+          {
+            "name": "PYTHONPATH",
+            "available": false,
+            "length": 0
+          }
+        ],
+        "quality_score": 1.0
+      }
+    }
+  ]
+}

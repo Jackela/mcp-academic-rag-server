@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "academic-rag-test": {
+      "command": "python",
+      "args": [
+        "-m", "servers.mcp_server",
+        "--config", "config/config.test.json"
+      ],
+      "cwd": "E:\\Code\\mcp-academic-rag-server",
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+        "PYTHONPATH": "E:\\Code\\mcp-academic-rag-server",
+        "MCP_LOG_LEVEL": "DEBUG"
+      }
+    }
+  }
+}

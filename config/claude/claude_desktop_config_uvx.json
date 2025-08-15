@@ -1,0 +1,55 @@
+{
+  "mcpServers": {
+    "academic-rag": {
+      "command": "uvx",
+      "args": ["mcp-academic-rag-server"],
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-api-key-here",
+        "DATA_PATH": "~/academic-rag-data",
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+
+/*
+UVX一键安装使用说明:
+
+1. 安装 uvx (如果尚未安装):
+   pip install uvx
+
+2. 使用 uvx 安装本项目:
+   uvx install git+https://github.com/Jackela/mcp-academic-rag-server
+
+3. 将此配置复制到: %APPDATA%\Claude\claude_desktop_config.json
+
+4. 替换 "sk-your-actual-api-key-here" 为真实的OpenAI API密钥
+
+5. 重启Claude Desktop
+
+优势:
+✅ 一键安装，无需本地克隆
+✅ 自动依赖管理
+✅ 隔离环境，避免冲突
+✅ 支持直接从GitHub安装
+✅ 自动更新支持
+
+测试连接:
+- 在Claude Desktop中发送: "test_connection"
+- 或者: "请验证系统状态"
+- 或者: "帮我测试MCP连接"
+
+备选配置 (本地开发):
+{
+  "mcpServers": {
+    "academic-rag-dev": {
+      "command": "python",
+      "args": ["path/to/mcp_server_sdk.py"],
+      "cwd": "path/to/project",
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-api-key-here"
+      }
+    }
+  }
+}
+*/

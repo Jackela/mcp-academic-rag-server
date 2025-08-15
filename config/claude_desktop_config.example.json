@@ -1,0 +1,87 @@
+{
+  "mcpServers": {
+    "academic-rag": {
+      "command": "python",
+      "args": ["/full/path/to/mcp_server.py"],
+      "env": {
+        "_comment_openai": "For OpenAI models (default)",
+        "OPENAI_API_KEY": "sk-your-openai-api-key-here",
+        
+        "_comment_anthropic": "For Claude models (uncomment and set provider in config)",
+        "_ANTHROPIC_API_KEY": "sk-ant-your-anthropic-api-key-here",
+        
+        "_comment_google": "For Gemini models (uncomment and set provider in config)", 
+        "_GOOGLE_API_KEY": "your-google-ai-api-key-here",
+        
+        "_comment_config": "Optional: Override config file settings",
+        "_LLM_PROVIDER": "openai",
+        "_LLM_MODEL": "gpt-3.5-turbo",
+        
+        "DATA_PATH": "./data",
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  },
+  
+  "_comment_configurations": {
+    "_comment": "Example configurations for different providers",
+    
+    "openai_config": {
+      "description": "OpenAI GPT models configuration",
+      "env_variables": {
+        "OPENAI_API_KEY": "sk-your-openai-api-key-here",
+        "LLM_PROVIDER": "openai",
+        "LLM_MODEL": "gpt-3.5-turbo"
+      },
+      "supported_models": [
+        "gpt-3.5-turbo",
+        "gpt-3.5-turbo-16k", 
+        "gpt-4",
+        "gpt-4-32k",
+        "gpt-4-turbo",
+        "gpt-4o",
+        "gpt-4o-mini"
+      ]
+    },
+    
+    "anthropic_config": {
+      "description": "Anthropic Claude models configuration", 
+      "env_variables": {
+        "ANTHROPIC_API_KEY": "sk-ant-your-anthropic-api-key-here",
+        "LLM_PROVIDER": "anthropic",
+        "LLM_MODEL": "claude-3-sonnet-20240229"
+      },
+      "supported_models": [
+        "claude-3-opus-20240229",
+        "claude-3-sonnet-20240229",
+        "claude-3-haiku-20240307", 
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022"
+      ]
+    },
+    
+    "google_config": {
+      "description": "Google Gemini models configuration",
+      "env_variables": {
+        "GOOGLE_API_KEY": "your-google-ai-api-key-here",
+        "LLM_PROVIDER": "google", 
+        "LLM_MODEL": "gemini-pro"
+      },
+      "supported_models": [
+        "gemini-pro",
+        "gemini-pro-vision",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b"
+      ]
+    }
+  },
+  
+  "_comment_setup_instructions": {
+    "step_1": "Choose your preferred LLM provider (openai, anthropic, or google)",
+    "step_2": "Set the appropriate API key environment variable",
+    "step_3": "Optionally set LLM_PROVIDER and LLM_MODEL to override config defaults",
+    "step_4": "Update the command path to point to your mcp_server.py location",
+    "step_5": "Restart Claude Desktop to load the new configuration"
+  }
+}

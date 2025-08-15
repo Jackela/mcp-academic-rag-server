@@ -1,0 +1,42 @@
+[
+  {
+    "test": "connection",
+    "status": "✅ 成功",
+    "rag_mode": "完整RAG",
+    "details": "✅ MCP Academic RAG Server (Enhanced) 连接成功!\n📩 收到消息: Inspector测试\n🕐 时间: 2025-08-14 20:07:32\n🐍 Python: 3.13.5\n📁 工作目录: E:\\Code\\mcp-academic-rag-server\n📚 已处理文档: 0\n🔧 依赖状态: 完整依赖\n🛠️ 服务器上下文: 未初始化\n🧠 RAG管道: ✅ 可用 ..."
+  },
+  {
+    "test": "tool_exploration",
+    "status": "✅ 成功",
+    "tools_available": 4,
+    "document_processing": "成功"
+  },
+  {
+    "test": "mode_comparison",
+    "comparisons": [
+      {
+        "query": "What is machine learning?",
+        "mode": "智能RAG",
+        "quality": "高",
+        "response_length": 391,
+        "concept_coverage": 0.0,
+        "status": "✅ 成功"
+      },
+      {
+        "query": "How do neural networks work?",
+        "mode": "智能RAG",
+        "quality": "高",
+        "response_length": 491,
+        "concept_coverage": 0.0,
+        "status": "✅ 成功"
+      }
+    ],
+    "intelligent_rag_success_rate": 100.0
+  },
+  {
+    "test": "performance",
+    "response_time_ms": 3599.473714828491,
+    "status": "✅ 优秀",
+    "openai_calls": "成功"
+  }
+]

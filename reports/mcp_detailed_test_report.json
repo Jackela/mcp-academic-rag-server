@@ -1,0 +1,226 @@
+{
+  "report_metadata": {
+    "generated_at": "2025-08-14T20:18:55.683168",
+    "test_suite": "MCP Inspector Detailed Analysis",
+    "version": "1.0",
+    "environment": {
+      "python_version": "3.13.5",
+      "working_directory": "E:\\Code\\mcp-academic-rag-server"
+    }
+  },
+  "system_status": {
+    "connection_test": "成功",
+    "rag_mode": "完整RAG",
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "llm_model": "OpenAI GPT-3.5-turbo",
+    "mcp_compliance": "✅ 符合MCP标准",
+    "full_response": "✅ MCP Academic RAG Server (Enhanced) 连接成功!\n📩 收到消息: 详细报告测试\n🕐 时间: 2025-08-14 20:18:55\n🐍 Python: 3.13.5\n📁 工作目录: E:\\Code\\mcp-academic-rag-server\n📚 已处理文档: 0\n🔧 依赖状态: 完整依赖\n🛠️ 服务器上下文: 未初始化\n🧠 RAG管道: ✅ 可用 (Sentence-BERT + OpenAI)\n🎯 嵌入模型: sentence-transformers/all-MiniLM-L6-v2\n🤖 生成模型: OpenAI GPT-3.5-turbo"
+  },
+  "document_processing": [
+    {
+      "file_path": "test-documents/machine-learning.txt",
+      "status": "成功",
+      "processing_time_ms": 2920.811891555786,
+      "rag_processing": true,
+      "embedding_generated": true,
+      "full_response": "✅ 文档处理成功!\n\n📄 文件信息:\n  • 路径: test-documents/machine-learning.txt\n  • 名称: machine-learning.txt\n  • 类型: .txt\n  • 状态: completed\n\n🆔 文档ID: a54de143-ec30-47a4-8bff-d6faef5e6d58\n\n📊 内容统计:\n  • 字符数: 1,286\n  • 单词数: 164\n  • 行数: 13\n\n🧠 RAG处理状态: completed\n📊 向量嵌入信息:\n  • 文档分块数: 1\n  • 嵌入模型: sentence-transformers/all-MiniLM-L6-v2\n  • 向量维度: 384维\n\n✅ 文档已成功处理并建立索引，可以使用 query_documents 工具进行智能RAG查询。",
+      "character_count": 1286,
+      "word_count": 164
+    },
+    {
+      "file_path": "test-documents/neural-networks.txt",
+      "status": "成功",
+      "processing_time_ms": 49.47924613952637,
+      "rag_processing": true,
+      "embedding_generated": true,
+      "full_response": "✅ 文档处理成功!\n\n📄 文件信息:\n  • 路径: test-documents/neural-networks.txt\n  • 名称: neural-networks.txt\n  • 类型: .txt\n  • 状态: completed\n\n🆔 文档ID: fccaf5cc-0eeb-4dd8-8995-15e75ecbf5cf\n\n📊 内容统计:\n  • 字符数: 1,352\n  • 单词数: 174\n  • 行数: 21\n\n🧠 RAG处理状态: completed\n📊 向量嵌入信息:\n  • 文档分块数: 1\n  • 嵌入模型: sentence-transformers/all-MiniLM-L6-v2\n  • 向量维度: 384维\n\n✅ 文档已成功处理并建立索引，可以使用 query_documents 工具进行智能RAG查询。",
+      "character_count": 1352,
+      "word_count": 174
+    },
+    {
+      "file_path": "test-documents/nlp-research.txt",
+      "status": "成功",
+      "processing_time_ms": 52.59418487548828,
+      "rag_processing": true,
+      "embedding_generated": true,
+      "full_response": "✅ 文档处理成功!\n\n📄 文件信息:\n  • 路径: test-documents/nlp-research.txt\n  • 名称: nlp-research.txt\n  • 类型: .txt\n  • 状态: completed\n\n🆔 文档ID: 953fe0e6-4c3e-4f34-93f1-f642073231d9\n\n📊 内容统计:\n  • 字符数: 1,526\n  • 单词数: 187\n  • 行数: 22\n\n🧠 RAG处理状态: completed\n📊 向量嵌入信息:\n  • 文档分块数: 1\n  • 嵌入模型: sentence-transformers/all-MiniLM-L6-v2\n  • 向量维度: 384维\n\n✅ 文档已成功处理并建立索引，可以使用 query_documents 工具进行智能RAG查询。",
+      "character_count": 1526,
+      "word_count": 187
+    }
+  ],
+  "query_analysis": [
+    {
+      "query_id": "ml_definition",
+      "query": "What is machine learning and how is it used in research?",
+      "expected_complexity": "medium",
+      "response_time_ms": 3607.8102588653564,
+      "status": "成功",
+      "mode": "智能RAG",
+      "retrieval_method": "语义向量搜索",
+      "generation_method": "OpenAI LLM",
+      "response_length": 1529,
+      "contains_citations": true,
+      "retrieval_info": true,
+      "generation_info": true,
+      "ai_answer": "Machine learning is a subset of artificial intelligence that allows computers to learn and improve from experience without being explicitly programmed. In scientific research, machine learning plays a critical role in analyzing complex datasets, identifying patterns, and making predictions (文档ID: c7e63c36e5adc4609a416cad6fc0b4d6780ca73a1a46f39ed06d01fb4729cd78). Researchers utilize machine learning algorithms such as supervised learning, unsupervised learning, and reinforcement learning to proce...",
+      "topic_coverage": {
+        "expected_topics": [
+          "artificial intelligence",
+          "algorithms",
+          "data analysis",
+          "research applications"
+        ],
+        "found_topics": [
+          "artificial intelligence",
+          "algorithms"
+        ],
+        "coverage_percentage": 50.0
+      },
+      "full_response": "🤖 智能RAG查询结果:\n\n❓ 问题: What is machine learning and how is it used in research?\n\n💬 AI答案:\nMachine learning is a subset of artificial intelligence that allows computers to learn and improve from experience without being explicitly programmed. In scientific research, machine learning plays a critical role in analyzing complex datasets, identifying patterns, and making predictions (文档ID: c7e63c36e5adc4609a416cad6fc0b4d6780ca73a1a46f39ed06d01fb4729cd78). Researchers utilize machine learning algorithms such as supervised learning, unsupervised learning, and reinforcement learning to process research data, forecast experimental outcomes, analyze images, and extract knowledge from scientific literature.\n\nMachine learning is widely used in research for various applications including data mining, predictive modeling, image analysis, and natural language processing (文档ID: c7e63c36e5adc4609a416cad6fc0b4d6780ca73a1a46f39ed06d01fb4729cd78). For instance, in the field of natural language processing (NLP), researchers use machine learning to analyze textual data, perform sentiment analysis, and extract valuable information from research papers (文档ID: 19593f5f181bc7c48cf46c3584b29a305c82c649d7f40e0675503eef8c1de3b0). Machine learning algorithms have significantly accelerated scientific discovery in diverse fields such as biology, chemistry, physics, medicine, and social sciences (文档ID: c7e63c36e5adc4609a416cad6fc0b4d6780ca73a1a46f39ed06d01fb4729cd78).\n\n📁 相关文档片段 (前0个):\n\n🔍 检索模式: 嵌入向量匹配 (Sentence-BERT)\n🤖 生成模式: OpenAI GPT (LLM)"
+    },
+    {
+      "query_id": "neural_networks",
+      "query": "Explain neural networks and deep learning architecture",
+      "expected_complexity": "high",
+      "response_time_ms": 2630.1300525665283,
+      "status": "成功",
+      "mode": "智能RAG",
+      "retrieval_method": "语义向量搜索",
+      "generation_method": "OpenAI LLM",
+      "response_length": 1899,
+      "contains_citations": true,
+      "retrieval_info": true,
+      "generation_info": true,
+      "ai_answer": "Neural networks are computational systems inspired by biological neural networks and are a key component of deep learning, a subset of machine learning. Deep learning utilizes artificial neural networks with multiple layers (deep networks) to analyze complex patterns in data. The architecture of neural networks includes several components:\n\n1. Input Layer: This layer receives raw data inputs.\n2. Hidden Layers: These layers process and transform data through weighted connections.\n3. Output Layer:...",
+      "topic_coverage": {
+        "expected_topics": [
+          "neural networks",
+          "deep learning",
+          "layers",
+          "activation functions"
+        ],
+        "found_topics": [
+          "neural networks",
+          "deep learning",
+          "layers",
+          "activation functions"
+        ],
+        "coverage_percentage": 100.0
+      },
+      "full_response": "🤖 智能RAG查询结果:\n\n❓ 问题: Explain neural networks and deep learning architecture\n\n💬 AI答案:\nNeural networks are computational systems inspired by biological neural networks and are a key component of deep learning, a subset of machine learning. Deep learning utilizes artificial neural networks with multiple layers (deep networks) to analyze complex patterns in data. The architecture of neural networks includes several components:\n\n1. Input Layer: This layer receives raw data inputs.\n2. Hidden Layers: These layers process and transform data through weighted connections.\n3. Output Layer: The final layer produces predictions or classifications.\n4. Activation Functions: Non-linear functions like ReLU, sigmoid, and tanh are used to introduce non-linearity into the network.\n5. Backpropagation: An algorithm used for training neural networks by updating weights based on prediction errors.\n\nDifferent types of neural networks include feedforward networks, convolutional neural networks (CNNs) for image processing, recurrent neural networks (RNNs) for sequential data, Long Short-Term Memory (LSTM) networks for long sequences, and Transformer networks for natural language processing (文档ID: cca25b8596582fe63e26ba942d98130adce430444142f77127aed30f62acd5ab).\n\nDeep learning has proven successful in various applications such as computer vision, speech recognition, natural language understanding, recommendation systems, and autonomous vehicles. Training deep learning models often requires large datasets and significant computational resources, commonly utilizing GPUs or specialized hardware. The breakthrough results achieved by deep learning in tasks previously considered to require human-level intelligence showcase its potential in various domains (文档ID: cca25b8596582fe63e26ba942d98130adce430444142f77127aed30f62acd5ab).\n\n📁 相关文档片段 (前0个):\n\n🔍 检索模式: 嵌入向量匹配 (Sentence-BERT)\n🤖 生成模式: OpenAI GPT (LLM)"
+    },
+    {
+      "query_id": "nlp_research",
+      "query": "How does NLP help in academic research?",
+      "expected_complexity": "medium",
+      "response_time_ms": 2491.2095069885254,
+      "status": "成功",
+      "mode": "智能RAG",
+      "retrieval_method": "语义向量搜索",
+      "generation_method": "OpenAI LLM",
+      "response_length": 1365,
+      "contains_citations": true,
+      "retrieval_info": true,
+      "generation_info": true,
+      "ai_answer": "NLP (Natural Language Processing) plays a crucial role in academic research by enabling computers to understand, interpret, and generate human language, which is essential for processing and analyzing textual data in various research applications. In academic research, NLP technologies such as tokenization, part-of-speech tagging, named entity recognition, sentiment analysis, topic modeling, and machine translation are utilized for tasks like literature review, knowledge extraction, citation ana...",
+      "topic_coverage": {
+        "expected_topics": [
+          "natural language processing",
+          "text analysis",
+          "research",
+          "literature"
+        ],
+        "found_topics": [
+          "natural language processing",
+          "research",
+          "literature"
+        ],
+        "coverage_percentage": 75.0
+      },
+      "full_response": "🤖 智能RAG查询结果:\n\n❓ 问题: How does NLP help in academic research?\n\n💬 AI答案:\nNLP (Natural Language Processing) plays a crucial role in academic research by enabling computers to understand, interpret, and generate human language, which is essential for processing and analyzing textual data in various research applications. In academic research, NLP technologies such as tokenization, part-of-speech tagging, named entity recognition, sentiment analysis, topic modeling, and machine translation are utilized for tasks like literature review, knowledge extraction, citation analysis, grant proposal analysis, and peer review assistance (文档ID: 19593f5f181bc7c48cf46c3584b29a305c82c649d7f40e0675503eef8c1de3b0).\n\nNLP tools are particularly beneficial in automatically analyzing research papers, mining insights from scientific publications, understanding research impact and relationships through citation analysis, evaluating funding applications, and supporting manuscript evaluation processes during peer review. Moreover, the integration of NLP in research workflows helps researchers manage information overload and discover new knowledge connections across different disciplines, ultimately advancing scientific discovery (文档ID: 19593f5f181bc7c48cf46c3584b29a305c82c649d7f40e0675503eef8c1de3b0).\n\n📁 相关文档片段 (前0个):\n\n🔍 检索模式: 嵌入向量匹配 (Sentence-BERT)\n🤖 生成模式: OpenAI GPT (LLM)"
+    },
+    {
+      "query_id": "ml_comparison",
+      "query": "What are the differences between supervised and unsupervised learning?",
+      "expected_complexity": "high",
+      "response_time_ms": 3011.861562728882,
+      "status": "成功",
+      "mode": "智能RAG",
+      "retrieval_method": "语义向量搜索",
+      "generation_method": "OpenAI LLM",
+      "response_length": 680,
+      "contains_citations": true,
+      "retrieval_info": true,
+      "generation_info": true,
+      "ai_answer": "在提供的文献中，监督学习（supervised learning）和无监督学习（unsupervised learning）是机器学习算法的两种主要类型之一。监督学习是一种机器学习方法，通过使用带有标签的数据来训练模型，使其能够预测或分类新的未标记数据。例如，科学家们可以使用监督学习算法来预测实验结果或优化研究参数（文档ID: c7e63c36e5adc4609a416cad6fc0b4d6780ca73a1a46f39ed06d01fb4729cd78）。相比之下，无监督学习是一种机器学习方法，它使用未标记的数据，不需要预先定义的输出标签，从而使模型能够发现数据中的隐藏结构或模式。无监督学习方法包括聚类和降维等技术，例如用于处理大型数据集中隐藏模式和相关性的数据挖掘（文档ID: c7e63c36e5adc4609a416cad6fc0b4d6780ca73a1a46f39ed06d01fb4729cd78)。\n\n因此，监督学习依赖于带有标签的数据进行训练和预测，而无监督学习则通过未标记的数据来发现模式和结构。这两种方法在科学研究中都扮演着重要的角色，帮助科学家们分析复杂数据、发现模式...",
+      "topic_coverage": {
+        "expected_topics": [
+          "supervised learning",
+          "unsupervised learning",
+          "classification",
+          "clustering"
+        ],
+        "found_topics": [
+          "supervised learning",
+          "unsupervised learning"
+        ],
+        "coverage_percentage": 50.0
+      },
+      "full_response": "🤖 智能RAG查询结果:\n\n❓ 问题: What are the differences between supervised and unsupervised learning?\n\n💬 AI答案:\n在提供的文献中，监督学习（supervised learning）和无监督学习（unsupervised learning）是机器学习算法的两种主要类型之一。监督学习是一种机器学习方法，通过使用带有标签的数据来训练模型，使其能够预测或分类新的未标记数据。例如，科学家们可以使用监督学习算法来预测实验结果或优化研究参数（文档ID: c7e63c36e5adc4609a416cad6fc0b4d6780ca73a1a46f39ed06d01fb4729cd78）。相比之下，无监督学习是一种机器学习方法，它使用未标记的数据，不需要预先定义的输出标签，从而使模型能够发现数据中的隐藏结构或模式。无监督学习方法包括聚类和降维等技术，例如用于处理大型数据集中隐藏模式和相关性的数据挖掘（文档ID: c7e63c36e5adc4609a416cad6fc0b4d6780ca73a1a46f39ed06d01fb4729cd78)。\n\n因此，监督学习依赖于带有标签的数据进行训练和预测，而无监督学习则通过未标记的数据来发现模式和结构。这两种方法在科学研究中都扮演着重要的角色，帮助科学家们分析复杂数据、发现模式并做出预测。\n\n📁 相关文档片段 (前0个):\n\n🔍 检索模式: 嵌入向量匹配 (Sentence-BERT)\n🤖 生成模式: OpenAI GPT (LLM)"
+    }
+  ],
+  "performance_metrics": {
+    "average_response_time_ms": 2967.862049738566,
+    "min_response_time_ms": 2088.9859199523926,
+    "max_response_time_ms": 4380.537509918213,
+    "total_queries_tested": 3,
+    "individual_response_times": [
+      4380.537509918213,
+      2434.062719345093,
+      2088.9859199523926
+    ],
+    "performance_rating": "良好"
+  },
+  "technical_validation": {
+    "mcp_tools_available": [
+      "test_connection",
+      "process_document",
+      "query_documents",
+      "list_documents"
+    ],
+    "documents_processed": 3,
+    "embedding_dimensions": 384,
+    "vector_similarity": "dot_product",
+    "pipeline_components": [
+      "SentenceTransformersTextEmbedder",
+      "InMemoryEmbeddingRetriever",
+      "ChatPromptBuilder",
+      "OpenAIChatGenerator"
+    ],
+    "api_integrations": [
+      "OpenAI GPT-3.5-turbo"
+    ],
+    "document_store": "InMemoryDocumentStore",
+    "mcp_protocol_version": "1.0"
+  },
+  "summary": {
+    "overall_status": "优秀",
+    "query_success_rate": 100.0,
+    "intelligent_rag_rate": 100.0,
+    "document_processing_rate": 100.0,
+    "average_response_time_ms": 2967.862049738566,
+    "key_achievements": [
+      "智能RAG成功率: 100.0%",
+      "文档处理成功率: 100.0%",
+      "平均响应时间: 2968ms",
+      "完整的语义检索和LLM生成管道",
+      "符合MCP协议标准"
+    ],
+    "recommendations": [
+      "系统运行正常，建议继续使用",
+      "可以考虑增加更多测试文档",
+      "监控OpenAI API调用成本",
+      "考虑添加缓存机制以提高性能"
+    ]
+  }
+}

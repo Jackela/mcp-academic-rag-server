@@ -17,7 +17,7 @@ from core.config_manager import ConfigManager
 from rag.haystack_pipeline import RAGPipelineFactory
 from rag.prompt_builder import PromptBuilderFactory
 from rag.chat_session import ChatSessionManager
-from connectors.haystack_llm_connector import HaystackLLMConnectorFactory
+from connectors.haystack_llm_connector import HaystackLLMFactory
 from processors.document_processor import DocumentProcessor
 from models.document import Document
 

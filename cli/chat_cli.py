@@ -210,6 +210,13 @@ class ChatCLI:
             else:
                 # 开始交互式聊天
                 self._start_interactive_chat()
+                
+        except KeyboardInterrupt:
+            self.logger.info("用户中断程序")
+            print("\n程序已退出")
+        except Exception as e:
+            self.logger.error(f"程序运行错误: {str(e)}")
+            print(f"错误: {str(e)}")
     
     def _list_sessions(self):
         """列出所有会话"""

@@ -1,0 +1,66 @@
+{
+  "test_session": {
+    "test_type": "Vector Storage and Retrieval Test",
+    "start_time": "2025-08-15T16:21:03.010367",
+    "end_time": "2025-08-15T16:21:37.165068",
+    "duration_seconds": 34.154701,
+    "total_tests": 4,
+    "passed": 2,
+    "failed": 2,
+    "success_rate": "50.0%"
+  },
+  "api_usage": {
+    "total_api_calls": 25,
+    "estimated_cost": 0.0025
+  },
+  "test_results": [
+    {
+      "test": "memory_vector_store",
+      "status": "PASSED",
+      "details": {
+        "stored_documents": 0,
+        "total_documents": 4,
+        "search_results_count": 0,
+        "top_result_score": 0,
+        "api_calls": 5
+      }
+    },
+    {
+      "test": "faiss_vector_store",
+      "status": "FAILED",
+      "error": "'FAISSVectorStore' object has no attribute 'add_document'"
+    },
+    {
+      "test": "semantic_search_quality",
+      "status": "PASSED",
+      "details": {
+        "test_cases": 2,
+        "quality_scores": [
+          {
+            "case": 0,
+            "query": "programming languages and coding",
+            "expected_top": 0,
+            "actual_top": 0,
+            "top_similarity": 0.8722566362887483,
+            "quality_score": 1.0
+          },
+          {
+            "case": 1,
+            "query": "artificial intelligence and ML",
+            "expected_top": 1,
+            "actual_top": 1,
+            "top_similarity": 0.8891453212348874,
+            "quality_score": 1.0
+          }
+        ],
+        "average_quality": 1.0,
+        "api_calls": 10
+      }
+    },
+    {
+      "test": "vector_storage_performance",
+      "status": "FAILED",
+      "error": "'FAISSVectorStore' object has no attribute 'add_document'"
+    }
+  ]
+}

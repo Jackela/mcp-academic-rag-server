@@ -1,0 +1,97 @@
+{
+  "test_session": {
+    "test_type": "Complete RAG Functionality Test",
+    "start_time": "2025-08-15T16:01:29.899865",
+    "end_time": "2025-08-15T16:01:58.473426",
+    "duration_seconds": 28.573561,
+    "total_tests": 6,
+    "passed": 3,
+    "failed": 3,
+    "success_rate": "50.0%"
+  },
+  "api_usage": {
+    "total_api_calls": 4,
+    "estimated_cost": 0.0004
+  },
+  "test_results": [
+    {
+      "test": "config_and_environment",
+      "status": "PASSED",
+      "details": {
+        "available_apis": [
+          "OPENAI_API_KEY",
+          "ANTHROPIC_API_KEY"
+        ],
+        "llm_provider": "openai",
+        "vector_store": "memory",
+        "test_documents": 2
+      }
+    },
+    {
+      "test": "vector_store_creation",
+      "status": "FAILED",
+      "error": "type object 'VectorStoreFactory' has no attribute 'create_store'"
+    },
+    {
+      "test": "document_processing",
+      "status": "PASSED",
+      "details": {
+        "processed_documents": [
+          {
+            "path": "test-documents/research-paper-sample.txt",
+            "chunks": 5,
+            "embedding_dim": 1536,
+            "first_chunk_length": 1000
+          },
+          {
+            "path": "test-documents/machine-learning.txt",
+            "chunks": 2,
+            "embedding_dim": 1536,
+            "first_chunk_length": 1000
+          }
+        ],
+        "total_api_calls": 2
+      }
+    },
+    {
+      "test": "rag_pipeline_creation",
+      "status": "FAILED",
+      "error": "cannot import name 'create_pipeline' from 'rag.haystack_pipeline' (E:\\Code\\mcp-academic-rag-server\\rag\\haystack_pipeline.py)"
+    },
+    {
+      "test": "query_execution",
+      "status": "PASSED",
+      "details": {
+        "successful_queries": 2,
+        "total_queries": 2,
+        "query_results": [
+          {
+            "query": "What are vector databases and how do they work?",
+            "embedding_generated": true,
+            "embedding_dim": 1536
+          },
+          {
+            "query": "What are the main applications of machine learning?",
+            "embedding_generated": true,
+            "embedding_dim": 1536
+          }
+        ],
+        "total_api_calls": 4
+      }
+    },
+    {
+      "test": "mcp_server_validation",
+      "status": "FAILED",
+      "error": "MCP服务器应用未找到"
+    }
+  ],
+  "test_documents": [
+    "test-documents/research-paper-sample.txt",
+    "test-documents/machine-learning.txt"
+  ],
+  "test_queries": [
+    "What are vector databases and how do they work?",
+    "What are the main applications of machine learning?",
+    "How do embedding models improve semantic search?"
+  ]
+}

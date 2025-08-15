@@ -87,7 +87,7 @@ class ChatPromptBuilder:
             content = doc.content
             
             # 获取文档元数据
-            metadata = doc.metadata or {}
+            metadata = doc.meta or {}
             title = metadata.get("title", "未知标题")
             
             # 格式化文档
@@ -212,21 +212,22 @@ class ChatPromptBuilder:
                 user_prompt = self._build_general_prompt(query, context)
             
             # 创建消息列表
-            messages = [ChatMessage(role="system", content=self.system_prompt)]
+            messages = [ChatMessage.from_system(self.system_prompt)]
             
             # 添加聊天历史
             if chat_history:
                 for message in chat_history:
-                    messages.append(
-                        ChatMessage(
-                            role=message.get("role", "user"),
-                            content=message.get("content", ""),
-                            name=message.get("name")
-                        )
-                    )
+                    role = message.get("role", "user")
+                    content = message.get("content", "")
+                    if role == "system":
+                        messages.append(ChatMessage.from_system(content))
+                    elif role == "assistant":
+                        messages.append(ChatMessage.from_assistant(content))
+                    else:  # user
+                        messages.append(ChatMessage.from_user(content))
             
             # 添加用户查询
-            messages.append(ChatMessage(role="user", content=user_prompt))
+            messages.append(ChatMessage.from_user(user_prompt))
             
             logger.debug(f"构建了提示，消息数量: {len(messages)}")
             return {"messages": messages}
@@ -237,9 +238,9 @@ class ChatPromptBuilder:
             # 创建简单的错误消息
             error_message = f"处理查询时出错: {str(e)}"
             messages = [
-                ChatMessage(role="system", content=self.system_prompt),
-                ChatMessage(role="user", content=query),
-                ChatMessage(role="assistant", content=error_message)
+                ChatMessage.from_system(self.system_prompt),
+                ChatMessage.from_user(query),
+                ChatMessage.from_assistant(error_message)
             ]
             
             return {"messages": messages}

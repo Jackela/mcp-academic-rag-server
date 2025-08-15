@@ -1,0 +1,59 @@
+{
+  "server": {
+    "name": "academic-rag-server-prod",
+    "version": "1.0.0",
+    "port": 8000,
+    "debug": false
+  },
+  
+  "vector_db": {
+    "type": "faiss",
+    "vector_dimension": 384,
+    "similarity": "dot_product",
+    "faiss": {
+      "storage_path": "/data/faiss",
+      "index_type": "IVF1024,Flat",
+      "auto_save_interval": 600,
+      "use_gpu": false,
+      "index_params": {
+        "nlist": 1024
+      },
+      "search_params": {
+        "nprobe": 128
+      }
+    }
+  },
+  
+  "llm": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "parameters": {
+      "temperature": 0.1,
+      "max_tokens": 1000
+    },
+    "timeout": 120
+  },
+  
+  "processing": {
+    "embedding": {
+      "batch_size": 8
+    }
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "format": "structured",
+    "file_enabled": true,
+    "max_size_mb": 50
+  },
+  
+  "session": {
+    "max_history_length": 20,
+    "timeout_minutes": 60
+  },
+  
+  "rag_settings": {
+    "retriever_top_k": 10,
+    "similarity_threshold": 0.75
+  }
+}

@@ -1,5 +1,6 @@
 """
 Haystack LLM 连接器模块 - 提供与Haystack框架集成的LLM接口
+此模块保持向后兼容性，但建议使用新的LLMFactory
 """
 
 import os
@@ -10,11 +11,13 @@ import json
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
+from .base_llm_connector import BaseLLMConnector
+from .llm_factory import LLMFactory
 
 # 配置日志
 logger = logging.getLogger(__name__)
 
-class HaystackLLMConnector:
+class HaystackLLMConnector(BaseLLMConnector):
     """Haystack LLM 连接器"""
     
     def __init__(
@@ -27,7 +30,7 @@ class HaystackLLMConnector:
         parameters: Optional[Dict[str, Any]] = None
     ):
         """
-        初始化Haystack LLM连接器
+        初始化Haystack LLM连接器 (向后兼容)
         
         Args:
             api_key (str): OpenAI API密钥
@@ -37,15 +40,15 @@ class HaystackLLMConnector:
             streaming_callback (callable, optional): 用于流式响应的回调函数
             parameters (dict, optional): LLM参数，如temperature、max_tokens等
         """
-        self.api_key = api_key
-        self.model = model
+        super().__init__(api_key, model, timeout, parameters)
         self.api_base_url = api_base_url
-        self.timeout = timeout
         self.streaming_callback = streaming_callback
-        self.parameters = parameters or {}
         
         # 初始化OpenAI生成器
         self._init_generator()
+    
+    def _get_provider_name(self) -> str:
+        return "openai"
     
     def _init_generator(self):
         """初始化OpenAI Chat生成器"""
@@ -63,6 +66,22 @@ class HaystackLLMConnector:
             logger.error(f"初始化Haystack OpenAI生成器失败: {str(e)}")
             raise
     
+    def _create_chat_message(self, message: Dict[str, str]) -> ChatMessage:
+        """创建ChatMessage使用新的Haystack API"""
+        role = message["role"]
+        content = message["content"]
+        
+        # 角色映射到对应的ChatMessage工厂方法
+        role_mapping = {
+            "user": ChatMessage.from_user,
+            "assistant": ChatMessage.from_assistant,
+            "system": ChatMessage.from_system
+        }
+        
+        # 使用角色特定方法或默认为user
+        factory_method = role_mapping.get(role, ChatMessage.from_user)
+        return factory_method(content)
+    
     def generate(
         self, 
         messages: List[Dict[str, str]],
@@ -79,16 +98,9 @@ class HaystackLLMConnector:
             dict: 生成结果
         """
         try:
-            # 转换消息格式为Haystack的ChatMessage
-            chat_messages = []
-            for msg in messages:
-                chat_messages.append(
-                    ChatMessage(
-                        role=msg.get("role", "user"),
-                        content=msg.get("content", ""),
-                        name=msg.get("name")
-                    )
-                )
+            # 转换消息格式为Haystack的ChatMessage (使用新API)
+            normalized_messages = self.normalize_messages(messages)
+            chat_messages = [self._create_chat_message(msg) for msg in normalized_messages]
             
             # 合并生成参数
             params = self.parameters.copy()

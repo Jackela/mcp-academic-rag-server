@@ -16,10 +16,46 @@
   
   "storage": {
     "type": "local",
-    "vector_store": "faiss",
     "base_path": "./data",
-    "output_path": "./output",
-    "index_name": "academic_documents"
+    "output_path": "./output"
+  },
+  
+  "vector_db": {
+    "type": "faiss",
+    "vector_dimension": 384,
+    "similarity": "dot_product",
+    "faiss": {
+      "storage_path": "./data/faiss",
+      "index_type": "IVF1024,Flat",
+      "metric_type": "INNER_PRODUCT",
+      "auto_save_interval": 300,
+      "use_gpu": false,
+      "index_params": {
+        "nlist": 1024
+      },
+      "search_params": {
+        "nprobe": 64
+      }
+    },
+    "milvus": {
+      "host": "localhost",
+      "port": 19530,
+      "collection_name": "academic_documents",
+      "index_type": "HNSW",
+      "metric_type": "IP",
+      "auto_create_collection": true,
+      "connection_pool_size": 10,
+      "index_params": {
+        "M": 16,
+        "efConstruction": 256
+      },
+      "search_params": {
+        "ef": 64
+      }
+    },
+    "memory": {
+      "return_embedding": true
+    }
   },
   
   "processors": {
@@ -67,23 +103,64 @@
     "provider": "openai",
     "model": "gpt-3.5-turbo", 
     "api_key": "${OPENAI_API_KEY}",
-    "temperature": 0.1,
-    "max_tokens": 500,
+    "parameters": {
+      "temperature": 0.1,
+      "max_tokens": 500
+    },
     "timeout": 60
   },
   
-  "rag": {
-    "retrieval": {
-      "top_k": 5,
-      "similarity_threshold": 0.7
+  "llm_providers": {
+    "openai": {
+      "models": [
+        "gpt-3.5-turbo",
+        "gpt-3.5-turbo-16k",
+        "gpt-4",
+        "gpt-4-32k",
+        "gpt-4-turbo",
+        "gpt-4o",
+        "gpt-4o-mini"
+      ],
+      "api_key_env": "OPENAI_API_KEY",
+      "default_parameters": {
+        "temperature": 0.1,
+        "max_tokens": 500
+      }
     },
-    
-    "generation": {
-      "llm_provider": "openai",
-      "model": "gpt-3.5-turbo",
-      "temperature": 0.1,
-      "max_tokens": 500
+    "anthropic": {
+      "models": [
+        "claude-3-opus-20240229",
+        "claude-3-sonnet-20240229",
+        "claude-3-haiku-20240307",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022"
+      ],
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "default_parameters": {
+        "temperature": 0.1,
+        "max_tokens": 1000
+      }
+    },
+    "google": {
+      "models": [
+        "gemini-pro",
+        "gemini-pro-vision",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b"
+      ],
+      "api_key_env": "GOOGLE_API_KEY",
+      "default_parameters": {
+        "temperature": 0.1,
+        "max_output_tokens": 1000
+      }
     }
+  },
+  
+  "rag_settings": {
+    "retriever_top_k": 5,
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "similarity_threshold": 0.7
   },
   
   "session": {

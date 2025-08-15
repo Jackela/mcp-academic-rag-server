@@ -1,12 +1,13 @@
 """
 Enhanced pytest configuration for MCP Academic RAG Server
 
-This module provides improved fixtures and test utilities including:
-- Async test support
-- Performance testing utilities
-- Mock API service providers
-- Test data generation
-- Database test fixtures
+基于统一清理器的pytest配置，确保每个测试后都彻底清理资源。
+包含增强的fixtures和测试工具：
+- 异步测试支持和资源自动清理
+- 性能测试工具和内存监控
+- Mock API服务提供者
+- 测试数据生成器
+- 数据库测试fixtures
 """
 
 import pytest
@@ -15,11 +16,15 @@ import tempfile
 import shutil
 import os
 import logging
+import sys
 from typing import Dict, Any, List, Generator
 from unittest.mock import Mock, MagicMock, patch
 from pathlib import Path
 import json
 from datetime import datetime
+
+# 添加项目根目录到路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import project modules
 from models.document import Document
@@ -29,6 +34,13 @@ from core.pipeline import Pipeline
 from processors.base_processor import BaseProcessor
 from rag.chat_session import ChatSession, ChatSessionManager
 from utils.performance_enhancements import MemoryManager
+
+# Import cleanup utilities
+from tests.utils.cleanup import (
+    run_cleanups, cleanup_sync, register_cleanup, emergency_cleanup,
+    register_process, register_server, register_connection,
+    register_temp_file, register_temp_dir
+)
 
 
 @pytest.fixture(scope="session")
@@ -44,10 +56,29 @@ def event_loop():
 
 @pytest.fixture(scope="session")
 def temp_test_dir():
-    """Create a temporary directory for test files."""
+    """Create a temporary directory for test files with auto-cleanup."""
     temp_dir = tempfile.mkdtemp(prefix="mcp_rag_test_")
+    register_temp_dir(temp_dir)  # 注册到清理器
     yield temp_dir
-    shutil.rmtree(temp_dir, ignore_errors=True)
+    # 立即清理（作为备份）
+    try:
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"临时目录清理失败: {e}")
+
+@pytest.fixture
+def test_temp_dir():
+    """为单个测试提供临时目录"""
+    temp_dir = tempfile.mkdtemp(prefix='test_mcp_single_')
+    register_temp_dir(temp_dir)
+    yield temp_dir
+    # 立即清理（作为备份）
+    try:
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"单测临时目录清理失败: {e}")
 
 
 @pytest.fixture
@@ -361,17 +392,68 @@ def performance_monitor():
     return PerformanceMonitor()
 
 
+# pytest钩子：测试会话开始
+def pytest_sessionstart(session):
+    """测试会话开始时的设置"""
+    logger = logging.getLogger(__name__)
+    logger.info("=== 测试会话开始 ===")
+    
+    # 设置环境变量
+    os.environ['TESTING'] = 'true'
+    os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
+    
+    # 注册会话级清理
+    register_cleanup(lambda: logger.info("会话级清理完成"))
+
+# pytest钩子：测试会话结束
+def pytest_sessionfinish(session, exitstatus):
+    """测试会话结束时的清理"""
+    logger = logging.getLogger(__name__)
+    logger.info("=== 测试会话结束，执行最终清理 ===")
+    
+    try:
+        # 执行同步清理
+        cleanup_sync()
+        logger.info("测试会话清理完成")
+    except Exception as e:
+        logger.error(f"会话清理失败: {e}")
+        # 执行紧急清理
+        emergency_cleanup()
+
+@pytest.fixture(autouse=True)
+def auto_cleanup():
+    """自动清理fixture - 每个测试后运行"""
+    yield  # 测试运行
+    
+    try:
+        # 检查是否有事件循环在运行
+        try:
+            loop = asyncio.get_running_loop()
+            # 如果有事件循环，创建清理任务
+            task = loop.create_task(run_cleanups())
+            # 等待清理完成
+            loop.run_until_complete(asyncio.wait_for(task, timeout=10))
+        except RuntimeError:
+            # 没有运行的事件循环，使用同步清理
+            cleanup_sync()
+            
+        # Force garbage collection
+        import gc
+        gc.collect()
+        
+        logger = logging.getLogger(__name__)
+        logger.debug("测试后清理完成")
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.warning(f"测试后清理失败: {e}")
+
 @pytest.fixture(autouse=True)
 def cleanup_test_environment():
-    """Automatically cleanup test environment after each test."""
+    """Automatically cleanup test environment after each test - 兼容性保留"""
     yield
     
-    # Force garbage collection
-    import gc
-    gc.collect()
-    
-    # Clear any global state
-    # This can be extended based on specific needs
+    # This fixture is kept for backward compatibility
+    # The actual cleanup is handled by auto_cleanup fixture above
 
 
 @pytest.fixture

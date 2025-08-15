@@ -1,0 +1,254 @@
+{
+  "test_session": {
+    "test_type": "Document Pipeline Integrity Test",
+    "start_time": "2025-08-15T16:30:35.760089",
+    "end_time": "2025-08-15T16:34:18.330616",
+    "duration_seconds": 222.570527,
+    "total_tests": 5,
+    "passed": 5,
+    "failed": 0,
+    "success_rate": "100.0%"
+  },
+  "api_usage": {
+    "total_api_calls": 7,
+    "estimated_cost": 0.0007
+  },
+  "test_results": [
+    {
+      "test": "document_reading_and_validation",
+      "status": "PASSED",
+      "details": {
+        "test_documents": 2,
+        "successful_reads": 2,
+        "success_rate": 1.0,
+        "reading_results": [
+          {
+            "path": "test-documents/research-paper-sample.txt",
+            "status": "success",
+            "content_length": 4608,
+            "meets_min_length": true,
+            "has_content": true,
+            "encoding_valid": true,
+            "content_preview": "Academic Research Paper: Advanced Vector Databases for Information Retrieval\n\nAbstract\nThis paper examines the implementation and performance characteristics of advanced vector database systems for la..."
+          },
+          {
+            "path": "test-documents/machine-learning.txt",
+            "status": "success",
+            "content_length": 1286,
+            "meets_min_length": true,
+            "has_content": true,
+            "encoding_valid": true,
+            "content_preview": "Machine Learning in Scientific Research\n\nMachine learning (ML) is a subset of artificial intelligence that enables computers to learn and improve from experience without being explicitly programmed. I..."
+          }
+        ]
+      }
+    },
+    {
+      "test": "text_preprocessing_pipeline",
+      "status": "PASSED",
+      "details": {
+        "preprocessing_results": [
+          {
+            "original_length": 81,
+            "processed_length": 81,
+            "original_preview": "This is a sample text with UPPERCASE words, number...",
+            "processed_preview": "This is a sample text with UPPERCASE words, number...",
+            "reduction_ratio": 0.0,
+            "status": "success"
+          },
+          {
+            "original_length": 62,
+            "processed_length": 55,
+            "original_preview": "Multiple    spaces   and\n\nnewlines\t\ttabs should be...",
+            "processed_preview": "Multiple spaces and newlines tabs should be normal...",
+            "reduction_ratio": 0.11290322580645162,
+            "status": "success"
+          },
+          {
+            "original_length": 53,
+            "processed_length": 37,
+            "original_preview": "HTML tags <h1>should</h1> be <b>removed</b> proper...",
+            "processed_preview": "HTML tags should be removed properly.",
+            "reduction_ratio": 0.30188679245283023,
+            "status": "success"
+          },
+          {
+            "original_length": 62,
+            "processed_length": 62,
+            "original_preview": "Unicode characters: café, naïve, résumé should wor...",
+            "processed_preview": "Unicode characters: café, naïve, résumé should wor...",
+            "reduction_ratio": 0.0,
+            "status": "success"
+          }
+        ],
+        "preprocessing_success_rate": 1.0,
+        "chunking_result": {
+          "original_length": 3000,
+          "chunk_count": 7,
+          "average_chunk_size": 471.42857142857144,
+          "overlap_working": true
+        },
+        "test_cases": 4
+      }
+    },
+    {
+      "test": "embedding_generation_pipeline",
+      "status": "PASSED",
+      "details": {
+        "embedding_results": [
+          {
+            "text_length": 10,
+            "embedding_dimension": 1536,
+            "expected_dimension": 1536,
+            "dimension_correct": true,
+            "has_values": true,
+            "value_range_normal": true,
+            "embedding_preview": [
+              -0.026953009888529778,
+              0.015610672533512115,
+              0.017392469570040703,
+              -0.011003263294696808,
+              -0.017352579161524773
+            ],
+            "status": "success"
+          },
+          {
+            "text_length": 84,
+            "embedding_dimension": 1536,
+            "expected_dimension": 1536,
+            "dimension_correct": true,
+            "has_values": true,
+            "value_range_normal": true,
+            "embedding_preview": [
+              -0.0225523728877306,
+              0.0076950532384216785,
+              -0.00417124480009079,
+              -0.0010326950578019023,
+              0.0019237633096054196
+            ],
+            "status": "success"
+          },
+          {
+            "text_length": 640,
+            "embedding_dimension": 1536,
+            "expected_dimension": 1536,
+            "dimension_correct": true,
+            "has_values": true,
+            "value_range_normal": true,
+            "embedding_preview": [
+              -0.006547989789396524,
+              0.0034981481730937958,
+              -0.0010129346046596766,
+              -0.010148026049137115,
+              -0.0016386955976486206
+            ],
+            "status": "success"
+          }
+        ],
+        "embedding_success_rate": 1.0,
+        "batch_test_result": {
+          "batch_size": 2,
+          "returned_embeddings": 2,
+          "batch_successful": true,
+          "consistent_dimensions": true
+        },
+        "api_calls": 4
+      }
+    },
+    {
+      "test": "end_to_end_document_flow",
+      "status": "PASSED",
+      "details": {
+        "test_document": "test-documents/research-paper-sample.txt",
+        "pipeline_steps": [
+          {
+            "step": "document_reading",
+            "success": true,
+            "content_length": 4608
+          },
+          {
+            "step": "text_preprocessing",
+            "success": true,
+            "processed_length": 4591,
+            "reduction_ratio": 0.0036892361111111605
+          },
+          {
+            "step": "text_chunking",
+            "success": true,
+            "chunk_count": 7,
+            "average_chunk_size": 741.5714285714286
+          },
+          {
+            "step": "embedding_generation",
+            "success": true,
+            "processed_chunks": 3,
+            "successful_embeddings": 3
+          },
+          {
+            "step": "vector_storage",
+            "success": true,
+            "store_type": "FAISSVectorStore",
+            "storage_available": true
+          },
+          {
+            "step": "query_processing",
+            "success": true,
+            "query_example": "What are vector databases?",
+            "simulated": true
+          }
+        ],
+        "successful_steps": 6,
+        "total_steps": 6,
+        "pipeline_success_rate": 1.0,
+        "api_calls": 3
+      }
+    },
+    {
+      "test": "error_handling_and_recovery",
+      "status": "PASSED",
+      "details": {
+        "error_test_cases": 4,
+        "correctly_handled": 4,
+        "error_handling_rate": 1.0,
+        "error_handling_results": [
+          {
+            "test_name": "invalid_file_path",
+            "status": "error_as_expected",
+            "handled_correctly": true,
+            "error_type": "FileNotFoundError"
+          },
+          {
+            "test_name": "empty_text_processing",
+            "status": "success_as_expected",
+            "handled_correctly": true
+          },
+          {
+            "test_name": "invalid_encoding",
+            "status": "error_as_expected",
+            "handled_correctly": true,
+            "error_type": "UnicodeDecodeError"
+          },
+          {
+            "test_name": "oversized_text_chunk",
+            "status": "success_as_expected",
+            "handled_correctly": true
+          }
+        ],
+        "recovery_tests": [
+          {
+            "name": "partial_document_processing",
+            "description": "Continue processing when some chunks fail",
+            "simulation": true,
+            "recovery_successful": true
+          },
+          {
+            "name": "api_rate_limit_handling",
+            "description": "Handle API rate limits gracefully",
+            "simulation": true,
+            "recovery_successful": true
+          }
+        ]
+      }
+    }
+  ]
+}

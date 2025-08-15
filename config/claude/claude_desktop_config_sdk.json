@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "academic-rag-sdk": {
+      "command": "python",
+      "args": ["E:\\Code\\mcp-academic-rag-server\\mcp_server_sdk.py"],
+      "cwd": "E:\\Code\\mcp-academic-rag-server",
+      "env": {
+        "OPENAI_API_KEY": "sk-your-actual-api-key-here",
+        "DATA_PATH": "E:\\Code\\mcp-academic-rag-server\\data",
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+
+/*
+使用说明:
+1. 将此文件内容复制到: %APPDATA%\Claude\claude_desktop_config.json
+2. 替换 "sk-your-actual-api-key-here" 为真实的OpenAI API密钥
+3. 重启Claude Desktop
+
+SDK版本优势:
+✅ 官方MCP Python SDK
+✅ 自动协议处理
+✅ 更好的错误处理
+✅ 完整的类型支持
+✅ 调试工具集成
+
+测试方法:
+- 在Claude Desktop中发送: "test_connection"
+- 或者: "请验证系统状态"
+- 或者: "帮我测试MCP连接"
+*/

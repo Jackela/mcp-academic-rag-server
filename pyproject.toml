@@ -45,7 +45,9 @@ dependencies = [
     # Basic utilities
     "requests>=2.31.0",
     "aiohttp>=3.9.0",
+    "aiofiles>=24.1.0",
     "python-dotenv>=1.0.0",
+    "psutil>=6.0.0",
     
     # Simple vector storage
     "faiss-cpu>=1.7.0",
@@ -83,23 +85,28 @@ web = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/mcp-academic-rag-server"
-Documentation = "https://github.com/yourusername/mcp-academic-rag-server/blob/main/README.md"
-Repository = "https://github.com/yourusername/mcp-academic-rag-server.git"
-Issues = "https://github.com/yourusername/mcp-academic-rag-server/issues"
-"Bug Reports" = "https://github.com/yourusername/mcp-academic-rag-server/issues"
-"Source Code" = "https://github.com/yourusername/mcp-academic-rag-server"
+Homepage = "https://github.com/Jackela/mcp-academic-rag-server"
+Documentation = "https://github.com/Jackela/mcp-academic-rag-server/blob/main/README.md"
+Repository = "https://github.com/Jackela/mcp-academic-rag-server.git"
+Issues = "https://github.com/Jackela/mcp-academic-rag-server/issues"
+"Bug Reports" = "https://github.com/Jackela/mcp-academic-rag-server/issues"
+"Source Code" = "https://github.com/Jackela/mcp-academic-rag-server"
 
 [project.scripts]
-# Main MCP server entry point (follows MCP 2024 best practices)
-mcp-academic-rag-server = "mcp_server_secure:cli_main"
+# Main MCP server entry point (SDK version - recommended)
+mcp-academic-rag-server = "mcp_server_sdk:cli_main"
 
-# Development/testing entry point
+# Alternative entry points for different use cases
+academic-rag = "mcp_server_sdk:cli_main"
+academic-rag-server = "mcp_server_sdk:cli_main"
+
+# Legacy versions
+mcp-academic-rag-server-secure = "mcp_server_secure:cli_main"
 mcp-academic-rag-server-dev = "mcp_server:main"
 
 [tool.setuptools]
 packages = ["core", "processors", "connectors", "models", "rag", "utils"]
-py-modules = ["mcp_server_secure", "mcp_server", "deploy_secure"]
+py-modules = ["mcp_server_sdk", "mcp_server_secure", "mcp_server", "deploy_secure"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.yaml", "*.yml", "*.html", "*.css", "*.js"]

@@ -1,0 +1,222 @@
+/* Custom CSS for MCP Academic RAG Server Documentation */
+
+/* API endpoint styling */
+.api-endpoint {
+    background-color: #e3f2fd;
+    border: 1px solid #2196f3;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    color: #1976d2;
+}
+
+/* Configuration key styling */
+.config-key {
+    background-color: #f3e5f5;
+    border: 1px solid #9c27b0;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    color: #7b1fa2;
+}
+
+/* Code block enhancements */
+.highlight {
+    border-radius: 6px;
+    margin: 1em 0;
+}
+
+.highlight pre {
+    border-radius: 6px;
+    padding: 1em;
+    overflow-x: auto;
+}
+
+/* Admonition styling */
+.admonition {
+    border-radius: 6px;
+    margin: 1em 0;
+    padding: 0.8em;
+    border-left: 4px solid;
+}
+
+.admonition.note {
+    border-left-color: #2196f3;
+    background-color: #e3f2fd;
+}
+
+.admonition.warning {
+    border-left-color: #ff9800;
+    background-color: #fff3e0;
+}
+
+.admonition.tip {
+    border-left-color: #4caf50;
+    background-color: #e8f5e8;
+}
+
+.admonition.important {
+    border-left-color: #f44336;
+    background-color: #ffebee;
+}
+
+/* Table styling */
+table.docutils {
+    border-collapse: collapse;
+    border-spacing: 0;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 1em 0;
+    width: 100%;
+}
+
+table.docutils th {
+    background-color: #f5f5f5;
+    border-bottom: 2px solid #ddd;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+}
+
+table.docutils td {
+    border-bottom: 1px solid #eee;
+    padding: 12px;
+    vertical-align: top;
+}
+
+table.docutils tr:nth-child(even) td {
+    background-color: #fafafa;
+}
+
+/* Navigation enhancements */
+.wy-nav-content {
+    max-width: 1200px;
+}
+
+.wy-side-nav-search {
+    background-color: #2980b9;
+}
+
+.wy-side-nav-search > a {
+    color: #fff;
+    font-size: 1.2em;
+    font-weight: 600;
+}
+
+/* TOC tree styling */
+.toctree-wrapper {
+    margin: 2em 0;
+}
+
+.toctree-wrapper p.caption {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: #2980b9;
+    margin-bottom: 0.5em;
+}
+
+/* Responsive improvements */
+@media screen and (max-width: 768px) {
+    .wy-nav-content {
+        margin-left: 0;
+    }
+    
+    .wy-nav-side {
+        left: -300px;
+    }
+    
+    .wy-nav-side.shift {
+        left: 0;
+    }
+}
+
+/* Print styles */
+@media print {
+    .wy-nav-side,
+    .wy-nav-top,
+    .rst-footer-buttons,
+    .wy-breadcrumbs {
+        display: none !important;
+    }
+    
+    .wy-nav-content {
+        margin-left: 0;
+        max-width: none;
+    }
+}
+
+/* API documentation specific styles */
+.py-class, .py-function, .py-method {
+    border-top: 1px solid #eee;
+    padding-top: 1em;
+    margin-top: 1em;
+}
+
+.py-class:first-child,
+.py-function:first-child,
+.py-method:first-child {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+}
+
+/* Parameter list styling */
+.field-list {
+    margin: 1em 0;
+}
+
+.field-list .field-name {
+    font-weight: 600;
+    color: #2980b9;
+}
+
+.field-list .field-body {
+    margin-left: 2em;
+}
+
+/* Version badge */
+.version-badge {
+    background-color: #4caf50;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: 600;
+    margin-left: 0.5em;
+}
+
+/* Status indicators */
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.5em;
+}
+
+.status-indicator.healthy {
+    background-color: #4caf50;
+}
+
+.status-indicator.warning {
+    background-color: #ff9800;
+}
+
+.status-indicator.error {
+    background-color: #f44336;
+}
+
+/* Architecture diagram enhancements */
+.architecture-diagram {
+    text-align: center;
+    margin: 2em 0;
+}
+
+.architecture-diagram img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}

@@ -158,22 +158,59 @@ class ServerContext:
                 self._document_pipeline.add_processor(processor)
     
     def _initialize_rag_pipeline(self) -> None:
-        """Initialize the RAG pipeline with LLM connector."""
+        """Initialize the RAG pipeline with multi-provider LLM support."""
         import os
         from rag.haystack_pipeline import RAGPipelineFactory
+        from connectors.llm_factory import LLMFactory
         
         try:
             # Get LLM configuration
             llm_config = self.config_manager.get_value("llm", {})
-            api_key = llm_config.get("api_key", os.environ.get("OPENAI_API_KEY", ""))
-            model = llm_config.get("model", "gpt-3.5-turbo")
+            provider = llm_config.get("provider", "openai")
+            
+            # Get API key from config or environment
+            api_key_field = llm_config.get("api_key", "")
+            if api_key_field.startswith("${") and api_key_field.endswith("}"):
+                # Extract environment variable name
+                env_var = api_key_field[2:-1]
+                api_key = os.environ.get(env_var, "")
+            else:
+                api_key = api_key_field
+            
+            # Fallback to provider-specific environment variables
+            if not api_key:
+                env_var_name = LLMFactory._get_env_var_name(provider)
+                api_key = os.environ.get(env_var_name, "")
             
             if not api_key:
-                self._logger.warning("No OpenAI API key found, RAG pipeline disabled")
+                self._logger.warning(f"No API key found for {provider}, RAG pipeline disabled")
                 return
             
-            # Create LLM connector
-            llm_connector = HaystackLLMConnector(api_key=api_key, model=model)
+            # Prepare connector config
+            connector_config = {
+                "api_key": api_key,
+                "model": llm_config.get("model", "gpt-3.5-turbo"),
+                "timeout": llm_config.get("timeout", 60),
+                "parameters": llm_config.get("parameters", {})
+            }
+            
+            # Add provider-specific configurations
+            if provider == "openai":
+                connector_config["api_base_url"] = llm_config.get("api_base_url", "https://api.openai.com/v1")
+            
+            # Validate configuration
+            validation = LLMFactory.validate_config(provider, connector_config)
+            if not validation["valid"]:
+                self._logger.error(f"Invalid LLM configuration: {', '.join(validation['errors'])}")
+                return
+            
+            # Create LLM connector using factory
+            try:
+                llm_connector = LLMFactory.create_connector(provider, connector_config)
+                self._logger.info(f"Created {provider} connector for model: {llm_connector.model}")
+            except ImportError as e:
+                self._logger.error(f"Failed to create {provider} connector: {e}")
+                return
             
             # Create RAG pipeline
             rag_config = self.config_manager.get_value("rag_settings", {})
@@ -182,7 +219,7 @@ class ServerContext:
                 config=rag_config
             )
             
-            self._logger.info("RAG pipeline initialized successfully")
+            self._logger.info(f"RAG pipeline initialized successfully with {provider} ({llm_connector.model})")
             
         except Exception as e:
             self._logger.error(f"Failed to initialize RAG pipeline: {str(e)}")

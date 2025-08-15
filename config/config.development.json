@@ -1,0 +1,45 @@
+{
+  "server": {
+    "name": "academic-rag-server-dev",
+    "version": "1.0.0-dev",
+    "port": 8001,
+    "debug": true
+  },
+  
+  "vector_db": {
+    "type": "memory",
+    "vector_dimension": 384,
+    "similarity": "dot_product",
+    "memory": {
+      "return_embedding": true
+    }
+  },
+  
+  "llm": {
+    "provider": "openai",
+    "model": "gpt-3.5-turbo",
+    "parameters": {
+      "temperature": 0.3,
+      "max_tokens": 200
+    },
+    "timeout": 30
+  },
+  
+  "processing": {
+    "embedding": {
+      "batch_size": 2
+    }
+  },
+  
+  "logging": {
+    "level": "DEBUG",
+    "format": "structured",
+    "file_enabled": true,
+    "max_size_mb": 5
+  },
+  
+  "session": {
+    "max_history_length": 5,
+    "timeout_minutes": 15
+  }
+}
