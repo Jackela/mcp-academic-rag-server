@@ -99,12 +99,15 @@ jobs:
         PY
     
     - name: Upload documentation artifacts
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: documentation
         path: |
           docs/_build/html/
           docs/_build/latex/*.pdf
+          docs/_build/latex/*.txt
+          docs/_build/latex/*.log
         retention-days: 30
     
     - name: Setup Pages

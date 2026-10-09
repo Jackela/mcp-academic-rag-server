@@ -218,8 +218,8 @@ latex_elements = {
 \directlua{
   luaotfload.add_fallback("docunicode", {
     "NotoSansMonoCJKSC:mode=node;",
-    "NotoColorEmoji:mode=harf;",
-    "Symbola:mode=harf;"
+    "Symbola:mode=node;",
+    "NotoColorEmoji:mode=harf;"
   })
 }
 \defaultfontfeatures{RawFeature={fallback=docunicode}}
