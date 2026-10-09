@@ -163,15 +163,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
 
-    services:
-      milvus:
-        image: milvusdb/milvus:v2.3.4
-        ports:
-          - 19530:19530
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Start real Milvus dependencies
+        run: docker compose -f .github/milvus-ci.yml up -d --wait --wait-timeout 180
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -196,6 +193,10 @@ jobs:
           MILVUS_HOST: localhost
           MILVUS_PORT: 19530
           HEADLESS: true
+
+      - name: Stop Milvus dependencies
+        if: always()
+        run: docker compose -f .github/milvus-ci.yml down -v
 
   docker-build:
     name: Docker Build & Test

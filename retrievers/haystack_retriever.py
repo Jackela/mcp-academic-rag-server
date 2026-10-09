@@ -7,10 +7,12 @@
 
 import logging
 import time
+from dataclasses import replace
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from haystack.nodes import BM25Retriever, EmbeddingRetriever, SentenceTransformersDocumentEmbedder
-from haystack.schema import Document as HaystackDocument
+from haystack.components.retrievers import InMemoryBM25Retriever, InMemoryEmbeddingRetriever
+from haystack.dataclasses import Document as HaystackDocument
+from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
 
 from document_stores.implementations.haystack_store import HaystackDocumentStore
 from models.document import Document
@@ -70,17 +72,10 @@ class HaystackRetriever:
         """
         try:
             # 初始化嵌入检索器（密集检索）
-            self.embedding_retriever = EmbeddingRetriever(
-                document_store=self.document_store,
-                embedding_model=self.model_name_or_path,
-                top_k=self.top_k,
-                model_format="sentence_transformers",
-                batch_size=self.batch_size,
-            )
-
-            # 初始化BM25检索器（稀疏检索）
+            self.query_embedder = SentenceTransformersTextEmbedder(model=self.model_name_or_path, progress_bar=False)
+            self.embedding_retriever = InMemoryEmbeddingRetriever(document_store=self.document_store, top_k=self.top_k)
             if self.enable_hybrid:
-                self.bm25_retriever = BM25Retriever(document_store=self.document_store, top_k=self.top_k)
+                self.bm25_retriever = InMemoryBM25Retriever(document_store=self.document_store, top_k=self.top_k)
 
             # 保持向后兼容性
             self.retriever = self.embedding_retriever
@@ -296,8 +291,12 @@ class HaystackRetriever:
             "enable_hybrid": self.enable_hybrid,
             "dense_weight": self.dense_weight,
             "sparse_weight": self.sparse_weight,
-            "document_count": self.document_store.get_document_count(),
+            "document_count": self.document_store.count_documents(),
         }
+
+    def _dense_retrieve(self, query: str, top_k: int, filters: Optional[Dict[str, Any]]) -> List[HaystackDocument]:
+        embedding = self.query_embedder.run(text=query)["embedding"]
+        return self.embedding_retriever.run(query_embedding=embedding, top_k=top_k, filters=filters)["documents"]
 
     def _single_retrieve(
         self, query: str, top_k: int, filters: Optional[Dict[str, Any]] = None
@@ -313,7 +312,7 @@ class HaystackRetriever:
         Returns:
             检索结果列表
         """
-        retriever_results = self.embedding_retriever.retrieve(query=query, top_k=top_k, filters=filters)
+        retriever_results = self._dense_retrieve(query, top_k, filters)
 
         return self._format_results(retriever_results)
 
@@ -335,10 +334,10 @@ class HaystackRetriever:
         retrieve_k = min(top_k * 2, 20)
 
         # 密集检索（语义相似度）
-        dense_results = self.embedding_retriever.retrieve(query=query, top_k=retrieve_k, filters=filters)
+        dense_results = self._dense_retrieve(query, retrieve_k, filters)
 
         # 稀疏检索（关键词匹配）
-        sparse_results = self.bm25_retriever.retrieve(query=query, top_k=retrieve_k, filters=filters)
+        sparse_results = self.bm25_retriever.run(query=query, top_k=retrieve_k, filters=filters)["documents"]
 
         # 合并和重新排序结果
         merged_results = self._merge_results(dense_results, sparse_results, top_k)
@@ -399,7 +398,7 @@ class HaystackRetriever:
         for item in sorted_results[:top_k]:
             doc = item["doc"]
             # 更新文档的分数为综合分数
-            doc.score = item["combined_score"]
+            doc = replace(doc, score=item["combined_score"])
             final_results.append(doc)
 
         return final_results

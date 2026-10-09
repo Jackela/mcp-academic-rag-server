@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from haystack import Document as HaystackDocument
 
-from document_stores.implementations.base_vector_store import BaseVectorStore
+from document_stores.implementations.base_vector_store import BaseVectorStore, VectorStoreError
 from document_stores.vector_store_factory import VectorStoreFactory, create_vector_store
 
 
@@ -147,26 +147,14 @@ class VectorStoreMigrator:
         Yields:
             文档批次列表
         """
-        # 注意：这是一个简化的实现
-        # 实际实现需要根据具体存储类型提供批量获取接口
-
-        # 对于内存存储，可以通过Haystack的get_all_documents获取
         if hasattr(store, "get_haystack_store"):
-            haystack_store = store.get_haystack_store()
-            if hasattr(haystack_store, "get_all_documents"):
-                all_docs = haystack_store.get_all_documents()
-
-                for i in range(0, len(all_docs), batch_size):
-                    yield all_docs[i : i + batch_size]
-                return
-
-        # 对于其他存储类型，需要扩展BaseVectorStore接口
-        # 这里提供一个通用的fallback方案
-        self.logger.warning("使用fallback文档批量获取方案")
-
-        # 假设我们有文档ID列表（需要扩展接口获取）
-        # 这里简化为空实现
-        yield []
+            all_docs = store.get_haystack_store().filter_documents({})
+        elif isinstance(getattr(store, "documents", None), dict):
+            all_docs = list(store.documents.values())
+        else:
+            raise VectorStoreError("Storage backend does not expose documents for migration")
+        for i in range(0, len(all_docs), batch_size):
+            yield all_docs[i : i + batch_size]
 
     def backup_storage(self, store: BaseVectorStore, backup_name: str, backup_dir: str = "./backups") -> Optional[str]:
         """
@@ -304,16 +292,26 @@ class VectorStoreMigrator:
             sample_size = max(1, int(source_count * sample_ratio))
             self.logger.info(f"抽样验证 {sample_size} 个文档")
 
-            verification_passed = 0
-
-            # 这里需要扩展BaseVectorStore接口以支持随机抽样
-            # 简化实现：假设验证通过
-            verification_passed = sample_size
-
-            success_rate = verification_passed / sample_size
-            if success_rate < 0.95:  # 要求95%以上的验证成功率
-                self.logger.error(f"验证成功率过低: {success_rate:.2%}")
+            verified = 0
+            for batch in self._get_documents_in_batches(source_store, max(1, sample_size)):
+                for source_doc in batch:
+                    target_doc = target_store.get_document_by_id(source_doc.id)
+                    if (
+                        target_doc is None
+                        or target_doc.content != source_doc.content
+                        or target_doc.meta != source_doc.meta
+                    ):
+                        return False
+                    if source_doc.embedding != target_doc.embedding:
+                        return False
+                    verified += 1
+                    if verified >= sample_size:
+                        break
+                if verified >= sample_size:
+                    break
+            if verified == 0:
                 return False
+            success_rate = verified / sample_size
 
             self.logger.info(f"迁移验证通过，成功率: {success_rate:.2%}")
             return True

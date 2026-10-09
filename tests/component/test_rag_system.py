@@ -25,17 +25,17 @@ class TestRAGSystem:
         """创建测试文档"""
         return [
             HaystackDocument(
-                content="Einstein developed the theory of relativity.", id="doc1", metadata={"title": "Physics History"}
+                content="Einstein developed the theory of relativity.", id="doc1", meta={"title": "Physics History"}
             ),
             HaystackDocument(
                 content="Neural networks are a fundamental component of deep learning.",
                 id="doc2",
-                metadata={"title": "Machine Learning Basics"},
+                meta={"title": "Machine Learning Basics"},
             ),
             HaystackDocument(
                 content="The structure of DNA was discovered by Watson and Crick.",
                 id="doc3",
-                metadata={"title": "Biology Discoveries"},
+                meta={"title": "Biology Discoveries"},
             ),
         ]
 
@@ -55,17 +55,17 @@ class TestRAGSystem:
         return connector
 
     @pytest.fixture
-    def mock_rag_pipeline(self, mock_document_store, mock_llm_connector):
+    def mock_rag_pipeline(self, mock_document_store, mock_llm_connector, test_documents):
         """创建模拟RAG管道"""
         pipeline = MagicMock(spec=RAGPipeline)
 
         # 根据查询返回不同的响应
-        def run_side_effect(query, chat_history=None):
+        def run_side_effect(query, chat_history=None, generation_kwargs=None):
             if "physics" in query.lower():
                 return {
                     "answer": "Einstein developed the theory of relativity in the early 20th century.",
                     "documents": [
-                        {"id": "doc1", "content": test_documents[0].content, "metadata": test_documents[0].metadata}
+                        {"id": "doc1", "content": test_documents[0].content, "metadata": test_documents[0].meta}
                     ],
                     "query": query,
                 }
@@ -73,7 +73,7 @@ class TestRAGSystem:
                 return {
                     "answer": "Neural networks are fundamental to deep learning in artificial intelligence.",
                     "documents": [
-                        {"id": "doc2", "content": test_documents[1].content, "metadata": test_documents[1].metadata}
+                        {"id": "doc2", "content": test_documents[1].content, "metadata": test_documents[1].meta}
                     ],
                     "query": query,
                 }
@@ -106,8 +106,7 @@ class TestRAGSystem:
         assert session.rag_pipeline == session_manager.rag_pipeline
 
         # 添加用户消息并生成回复
-        session.add_message(role="user", content="Tell me about physics and Einstein")
-        response = session.generate_response()
+        response, _ = session.process_query("Tell me about physics and Einstein")
 
         # 验证回复
         assert response.role == "assistant"
@@ -116,7 +115,9 @@ class TestRAGSystem:
 
         # 验证RAG管道被调用
         session.rag_pipeline.run.assert_called_once_with(
-            "Tell me about physics and Einstein", ANY  # 忽略具体的chat_history内容
+            query="Tell me about physics and Einstein",
+            chat_history=ANY,
+            generation_kwargs=None,  # 忽略具体的chat_history内容
         )
 
         # 验证引用被添加
@@ -127,32 +128,35 @@ class TestRAGSystem:
         # 验证消息历史记录
         messages = session.get_messages()
         assert len(messages) == 2
-        assert messages[0].role == "user"
-        assert messages[0].content == "Tell me about physics and Einstein"
-        assert messages[1] == response
+        assert messages[0]["role"] == "user"
+        assert messages[0]["content"] == "Tell me about physics and Einstein"
+        assert messages[1] == {
+            **response.to_dict(),
+            "citations": [citation.to_dict() for citation in session.citations[response.message_id]],
+        }
 
     def test_multi_turn_conversation(self, session_manager):
         """测试多轮对话"""
         session = session_manager.create_session()
 
         # 第一轮对话
-        session.add_message(role="user", content="Tell me about physics")
-        response1 = session.generate_response()
+        response1, _ = session.process_query("Tell me about physics")
 
         # 验证第一轮回复
         assert "Einstein" in response1.content
         assert "relativity" in response1.content.lower()
 
         # 第二轮对话
-        session.add_message(role="user", content="What about neural networks?")
-        response2 = session.generate_response()
+        response2, _ = session.process_query("What about neural networks?")
 
         # 验证第二轮回复
         assert "neural networks" in response2.content.lower()
         assert "deep learning" in response2.content.lower()
 
         # 验证RAG管道第二次调用时包含聊天历史
-        session.rag_pipeline.run.assert_called_with("What about neural networks?", ANY)  # 应该包含完整的聊天历史
+        session.rag_pipeline.run.assert_called_with(
+            query="What about neural networks?", chat_history=ANY, generation_kwargs=None
+        )  # 应该包含完整的聊天历史
 
         # 验证引用被正确添加
         assert response1.message_id in session.citations
@@ -184,8 +188,7 @@ class TestRAGSystem:
         """测试会话持久化"""
         # 创建会话并添加消息
         session = session_manager.create_session(session_id="persist-test")
-        session.add_message(role="user", content="Test message")
-        response = session.generate_response()
+        response, _ = session.process_query("Test message")
 
         # 创建临时文件保存会话
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
@@ -233,35 +236,21 @@ class TestRAGSystem:
         # 验证历史记录限制
         messages = session.get_messages()
         assert len(messages) <= 6  # 最多3对消息(6条)
-        assert messages[0].content == "User message 2"  # 最早的消息应该是第3对的开始
-        assert messages[1].content == "Assistant response 2"
+        assert messages[0]["content"] == "User message 2"  # 最早的消息应该是第3对的开始
+        assert messages[1]["content"] == "Assistant response 2"
 
     def test_chat_session_context_window(self, mock_rag_pipeline):
-        """测试聊天会话的上下文窗口管理"""
-        with patch("rag.prompt_builder.ChatPromptBuilder") as mock_builder_class:
-            # 创建模拟提示构建器
-            mock_builder = MagicMock(spec=ChatPromptBuilder)
-            mock_builder_class.return_value = mock_builder
-
-            # 设置提示构建器响应
-            mock_builder.return_value = {"messages": []}  # 简化返回值
-
-            # 创建会话
-            session = ChatSession(rag_pipeline=mock_rag_pipeline, max_history_length=10)
-
-            # 添加用户消息并生成回复
-            session.add_message(role="user", content="Test query")
-            session.generate_response()
-
-            # 验证RAG管道调用
-            mock_rag_pipeline.run.assert_called_once()
-
-            # 验证提示构建器被调用，并考虑上下文窗口限制
-            for call_args in mock_builder.call_args_list:
-                args, kwargs = call_args
-                if "chat_history" in kwargs:
-                    # 确保聊天历史不为空但长度受到限制
-                    assert isinstance(kwargs["chat_history"], list)
+        """The public query passes only the retained history to the pipeline."""
+        session = ChatSession(rag_pipeline=mock_rag_pipeline, max_history_length=2)
+        for i in range(5):
+            session.add_message(role="user", content=f"Old user {i}")
+            session.add_message(role="assistant", content=f"Old answer {i}")
+        session.process_query("Current query")
+        call = mock_rag_pipeline.run.call_args.kwargs
+        assert call["query"] == "Current query"
+        assert len(call["chat_history"]) == 3
+        assert call["chat_history"][-1] == {"role": "assistant", "content": "Old answer 4"}
+        assert not any(message["content"] == "Old user 0" for message in call["chat_history"])
 
 
 class TestRAGSystemRealisticScenario:
@@ -278,12 +267,12 @@ class TestRAGSystemRealisticScenario:
             HaystackDocument(
                 content="Machine learning is a branch of artificial intelligence that focuses on using data and algorithms to mimic the way humans learn.",
                 id="ml-doc-1",
-                metadata={"title": "Introduction to Machine Learning"},
+                meta={"title": "Introduction to Machine Learning"},
             ),
             HaystackDocument(
                 content="Deep learning is a subset of machine learning that uses neural networks with many layers.",
                 id="dl-doc-1",
-                metadata={"title": "Deep Learning Basics"},
+                meta={"title": "Deep Learning Basics"},
             ),
         ]
         document_store.write_documents(documents)
@@ -299,21 +288,17 @@ class TestRAGSystemRealisticScenario:
         rag_pipeline = MagicMock(spec=RAGPipeline)
 
         # 设置RAG管道响应
-        def run_side_effect(query, chat_history=None):
+        def run_side_effect(query, chat_history=None, generation_kwargs=None):
             if "machine learning" in query.lower():
                 return {
                     "answer": "Machine learning is a branch of AI that uses data and algorithms to learn patterns.",
-                    "documents": [
-                        {"id": "ml-doc-1", "content": documents[0].content, "metadata": documents[0].metadata}
-                    ],
+                    "documents": [{"id": "ml-doc-1", "content": documents[0].content, "metadata": documents[0].meta}],
                     "query": query,
                 }
             elif "deep learning" in query.lower():
                 return {
                     "answer": "Deep learning is a subset of machine learning using neural networks with many layers.",
-                    "documents": [
-                        {"id": "dl-doc-1", "content": documents[1].content, "metadata": documents[1].metadata}
-                    ],
+                    "documents": [{"id": "dl-doc-1", "content": documents[1].content, "metadata": documents[1].meta}],
                     "query": query,
                 }
             else:
@@ -342,10 +327,9 @@ class TestRAGSystemRealisticScenario:
         session = chat_manager.create_session(session_id="realistic-test")
 
         # 添加用户消息
-        user_msg = session.add_message(role="user", content="What is machine learning?")
 
         # 生成第一个回复
-        response1 = session.generate_response()
+        response1, _ = session.process_query("What is machine learning?")
 
         # 验证响应
         assert response1.role == "assistant"
@@ -358,8 +342,7 @@ class TestRAGSystemRealisticScenario:
         assert session.citations[response1.message_id][0].document_id == "ml-doc-1"
 
         # 继续对话
-        user_msg2 = session.add_message(role="user", content="How does deep learning relate to this?")
-        response2 = session.generate_response()
+        response2, _ = session.process_query("How does deep learning relate to this?")
 
         # 验证第二个响应
         assert "deep learning" in response2.content.lower()
@@ -372,24 +355,22 @@ class TestRAGSystemRealisticScenario:
         assert session.citations[response2.message_id][0].document_id == "dl-doc-1"
 
         # 测试未找到相关文档的查询
-        user_msg3 = session.add_message(role="user", content="Tell me about quantum computing")
-        response3 = session.generate_response()
+        response3, _ = session.process_query("Tell me about quantum computing")
 
         # 验证第三个响应
         assert "don't have specific information" in response3.content.lower()
 
         # 验证没有引用
-        assert response3.message_id in session.citations
-        assert len(session.citations[response3.message_id]) == 0
+        assert response3.message_id not in session.citations
 
         # 获取完整会话历史
         messages = session.get_messages()
         assert len(messages) == 6  # 3个用户消息和3个助手回复
 
         # 验证消息顺序
-        assert messages[0].content == "What is machine learning?"
-        assert messages[1].content == response1.content
-        assert messages[2].content == "How does deep learning relate to this?"
-        assert messages[3].content == response2.content
-        assert messages[4].content == "Tell me about quantum computing"
-        assert messages[5].content == response3.content
+        assert messages[0]["content"] == "What is machine learning?"
+        assert messages[1]["content"] == response1.content
+        assert messages[2]["content"] == "How does deep learning relate to this?"
+        assert messages[3]["content"] == response2.content
+        assert messages[4]["content"] == "Tell me about quantum computing"
+        assert messages[5]["content"] == response3.content

@@ -166,7 +166,7 @@ class HaystackDocumentStore:
                 haystack_doc = HaystackDocument(
                     content=text,
                     meta={
-                        "file_path": document.file_path,
+                        "file_path": str(document.file_path),
                         "file_name": document.file_name,
                         "file_type": document.file_type,
                         "original_id": document.document_id,
@@ -221,7 +221,7 @@ class HaystackDocumentStore:
                 self.logger.warning(f"未找到文档ID {document_id} 的映射")
                 return None
 
-            docs = self.document_store.get_documents_by_id([haystack_id])
+            docs = self.document_store.filter_documents({"field": "id", "operator": "in", "value": [haystack_id]})
             if docs:
                 return docs[0]
             return None
@@ -295,7 +295,7 @@ class HaystackDocumentStore:
             如果成功清空则返回True，否则返回False
         """
         try:
-            self.document_store.delete_all_documents()
+            self.document_store.delete_documents([doc.id for doc in self.document_store.filter_documents({})])
             self.id_mapping.clear()
             self.logger.info("已清空Haystack文档存储")
             return True
@@ -311,7 +311,7 @@ class HaystackDocumentStore:
             文档数量
         """
         try:
-            return self.document_store.get_document_count()
+            return self.document_store.count_documents()
         except Exception as e:
             self.logger.error(f"获取文档数量失败: {str(e)}")
             return 0
@@ -417,7 +417,7 @@ class HaystackDocumentStore:
         """
         try:
             # 保存当前文档，用于重新初始化后恢复
-            current_docs = self.document_store.get_all_documents()
+            current_docs = self.document_store.filter_documents({})
 
             # 更新配置
             self.config.update(config)

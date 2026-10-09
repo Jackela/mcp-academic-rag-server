@@ -41,7 +41,7 @@ not certify remote models, vector services, full RAG quality or a production rel
 ## Full-suite recovery evidence
 
 On 2026-10-09, Python 3.11 with the declared dependencies passed the complete
-unit suite (360 tests, 4 subtests). The five existing intentionally failing CI
+unit suite (364 tests, 4 subtests). The five existing intentionally failing CI
 probe cases remain disabled by their own opt-in fixture. FAISS-unavailable is
 now tested explicitly even when FAISS is installed. Native vector updates use
 new Haystack documents instead of mutating deprecated fields. Context cleanup
@@ -62,3 +62,19 @@ Sphinx extension directives to that real Sphinx build. Markdown remains editable
 source. Missing guide chapters and deployment materials are marked as missing.
 The old global lint/type debt remains a separate failing check until repaired;
 these behavioral results do not establish a complete CI pass.
+
+Pytest's default paths match the automated suites actually run in CI. The existing
+`tests/manual` scripts remain separate live-service experiments; they are not
+silently treated as verified research or added to offline CI by discovery tests.
+Explicit manual execution and its service/data requirements remain unverified.
+
+A second recovery pass exercises the current Haystack 2.x embedders/retrievers,
+real in-memory and FAISS stores, prompts, sessions and migration without service
+calls: 77 targeted integration/component/unit cases and 9 MCP boundary cases pass.
+Three negative migration cases have equal document counts but changed content,
+metadata or vectors; verification rejects each. Memory storage still has no disk
+backup implementation, so a requested backup fails rather than reporting success.
+Its migration test explicitly opts out of backup; source documents remain intact
+when backup fails. All 11 existing performance cases pass with correctly sized
+fixture batches and vector dimensions. These are local controlled benchmarks,
+not host deployment performance or research-quality evidence.

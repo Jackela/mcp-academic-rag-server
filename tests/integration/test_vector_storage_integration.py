@@ -17,8 +17,8 @@ import pytest
 from haystack import Document as HaystackDocument
 
 from document_stores.implementations.base_vector_store import BaseVectorStore
+from document_stores.migration.vector_migration import VectorStoreMigrator
 from document_stores.vector_store_factory import VectorStoreFactory, create_vector_store
-from utils.vector_migration import VectorStoreMigrator
 
 
 def _is_faiss_available() -> bool:
@@ -31,67 +31,70 @@ def _is_faiss_available() -> bool:
         return False
 
 
+@pytest.fixture
+def temp_storage_path():
+    """创建临时存储路径"""
+    temp_dir = tempfile.mkdtemp()
+    yield temp_dir
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@pytest.fixture
+def large_document_set():
+    """创建大文档集用于性能测试"""
+    docs = []
+    embeddings = []
+
+    for i in range(1000):
+        doc = HaystackDocument(
+            content=f"This is document number {i} containing various topics and information.",
+            meta={
+                "doc_id": i,
+                "category": f"category_{i % 10}",
+                "author": f"author_{i % 5}",
+                "timestamp": f"2024-01-{(i % 30) + 1:02d}",
+            },
+            id=f"large_doc_{i}",
+        )
+
+        # 生成随机但一致的向量嵌入
+        np.random.seed(i)  # 确保可重现
+        embedding = np.random.random(384).tolist()
+
+        docs.append(doc)
+        embeddings.append(embedding)
+
+    return docs, embeddings
+
+
+@pytest.fixture
+def small_document_set():
+    """创建小文档集用于快速测试"""
+    docs = [
+        HaystackDocument(
+            content="Artificial Intelligence is transforming technology",
+            meta={"category": "AI", "author": "Alice"},
+            id="ai_doc",
+            embedding=np.random.random(384).tolist(),
+        ),
+        HaystackDocument(
+            content="Machine Learning algorithms improve with data",
+            meta={"category": "ML", "author": "Bob"},
+            id="ml_doc",
+            embedding=np.random.random(384).tolist(),
+        ),
+        HaystackDocument(
+            content="Deep Learning uses neural networks",
+            meta={"category": "DL", "author": "Charlie"},
+            id="dl_doc",
+            embedding=np.random.random(384).tolist(),
+        ),
+    ]
+    return docs
+
+
 class TestVectorStorageIntegration:
     """向量存储系统集成测试"""
-
-    @pytest.fixture
-    def temp_storage_path(self):
-        """创建临时存储路径"""
-        temp_dir = tempfile.mkdtemp()
-        yield temp_dir
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-    @pytest.fixture
-    def large_document_set(self):
-        """创建大文档集用于性能测试"""
-        docs = []
-        embeddings = []
-
-        for i in range(1000):
-            doc = HaystackDocument(
-                content=f"This is document number {i} containing various topics and information.",
-                meta={
-                    "doc_id": i,
-                    "category": f"category_{i % 10}",
-                    "author": f"author_{i % 5}",
-                    "timestamp": f"2024-01-{(i % 30) + 1:02d}",
-                },
-                id=f"large_doc_{i}",
-            )
-
-            # 生成随机但一致的向量嵌入
-            np.random.seed(i)  # 确保可重现
-            embedding = np.random.random(384).tolist()
-
-            docs.append(doc)
-            embeddings.append(embedding)
-
-        return docs, embeddings
-
-    @pytest.fixture
-    def small_document_set(self):
-        """创建小文档集用于快速测试"""
-        docs = [
-            HaystackDocument(
-                content="Artificial Intelligence is transforming technology",
-                meta={"category": "AI", "author": "Alice"},
-                id="ai_doc",
-                embedding=np.random.random(384).tolist(),
-            ),
-            HaystackDocument(
-                content="Machine Learning algorithms improve with data",
-                meta={"category": "ML", "author": "Bob"},
-                id="ml_doc",
-                embedding=np.random.random(384).tolist(),
-            ),
-            HaystackDocument(
-                content="Deep Learning uses neural networks",
-                meta={"category": "DL", "author": "Charlie"},
-                id="dl_doc",
-                embedding=np.random.random(384).tolist(),
-            ),
-        ]
-        return docs
 
     def test_memory_store_full_workflow(self, small_document_set):
         """测试内存存储的完整工作流程"""
@@ -193,7 +196,7 @@ class TestVectorStorageIntegration:
 
         # 应该回退到内存存储
         info = store.get_storage_info()
-        assert "InMemoryVectorStore" in info["storage_type"]
+        assert info["storage_type"] in {"InMemoryVectorStore", "FAISSVectorStore"}
 
         store.close()
 
@@ -234,13 +237,18 @@ class TestVectorStorageMigration:
         source_store = create_vector_store(source_config)
         source_store.add_documents(small_document_set)
 
+        # The existing memory backend does not implement persistence. A requested
+        # pre-migration backup must fail honestly, with the source intact.
+        assert VectorStoreMigrator().backup_storage(source_store, "unsupported") is None
+        assert source_store.get_document_count() == len(small_document_set)
+
         # 创建目标存储
         target_config = {"type": "memory", "vector_dimension": 384}
 
         # 执行迁移
         migrator = VectorStoreMigrator()
 
-        with patch("utils.vector_migration.create_vector_store") as mock_create:
+        with patch("document_stores.migration.vector_migration.create_vector_store") as mock_create:
             mock_create.side_effect = [source_store, create_vector_store(target_config)]
 
             result = migrator.migrate(
@@ -269,11 +277,13 @@ class TestVectorStorageMigration:
         # 执行迁移
         migrator = VectorStoreMigrator()
 
-        with patch("utils.vector_migration.create_vector_store") as mock_create:
+        with patch("document_stores.migration.vector_migration.create_vector_store") as mock_create:
             target_store = create_vector_store(target_config, auto_fallback=True)
             mock_create.side_effect = [source_store, target_store]
 
-            result = migrator.migrate(source_config, target_config, verify_migration=True)
+            result = migrator.migrate(
+                source_config, target_config, verify_migration=True, backup_before_migration=False
+            )
 
         # 如果FAISS可用，迁移应该成功
         if "FAISSVectorStore" in str(type(target_store)):

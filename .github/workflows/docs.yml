@@ -62,11 +62,8 @@ jobs:
         # Check RST syntax
         rstcheck --recursive .
     
-    - name: Generate API documentation
-      run: |
-        cd docs
-        sphinx-apidoc -o api ../core ../connectors ../document_stores ../rag ../servers --force
-    
+    # conf.py autosummary_generate owns recursive API pages for all five packages.
+    # A second apidoc invocation previously generated an orphan core-only modules.rst.
     - name: Build HTML documentation
       run: |
         cd docs

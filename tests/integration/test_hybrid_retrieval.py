@@ -8,9 +8,11 @@ import os
 import shutil
 import tempfile
 import unittest
+from dataclasses import replace
 from typing import Any, Dict, List
+from unittest.mock import patch
 
-from haystack.schema import Document as HaystackDocument
+from haystack.dataclasses import Document as HaystackDocument
 
 from document_stores.implementations.haystack_store import HaystackDocumentStore
 from retrievers.haystack_retriever import HaystackRetriever
@@ -64,10 +66,17 @@ class TestHybridRetrieval(unittest.TestCase):
 
         # 向文档存储添加文档
         document_store = self.doc_store.get_document_store()
+        self.test_documents = [replace(doc, embedding=[1.0, 0.0]) for doc in self.test_documents]
         document_store.write_documents(self.test_documents)
+        self.embedder_patch = patch(
+            "retrievers.haystack_retriever.SentenceTransformersTextEmbedder.run",
+            return_value={"embedding": [1.0, 0.0]},
+        )
+        self.embedder_patch.start()
+        self.addCleanup(self.embedder_patch.stop)
 
         # 更新嵌入（如果需要）
-        document_store.update_embeddings()
+        # Fixed test embeddings avoid model downloads; real retrievers and BM25 run.
 
     def tearDown(self):
         """测试后清理"""

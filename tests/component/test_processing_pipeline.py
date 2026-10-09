@@ -19,6 +19,7 @@ class MockProcessor(IProcessor):
     """Mock processor for testing"""
 
     def __init__(self, name, success=True, side_effect=None):
+        super().__init__(name=name)
         self.name = name
         self.success = success
         self.side_effect = side_effect
@@ -59,23 +60,27 @@ class TestProcessingPipeline:
 
         return pipeline
 
-    def test_pipeline_execution(self, basic_pipeline, sample_document):
+    @pytest.mark.asyncio
+    async def test_pipeline_execution(self, basic_pipeline, sample_document):
         """Test the execution of a processing pipeline"""
         # Process the document
-        result = basic_pipeline.process_document(sample_document)
+        result = await basic_pipeline.process_document(sample_document)
 
         # Verify the result
         assert result.is_successful()
-        assert "Preprocessor" in result.data
-        assert "OCRProcessor" in result.data
-        assert "ClassificationProcessor" in result.data
+        assert [record["processor"] for record in sample_document.processing_history if "processor" in record] == [
+            "Preprocessor",
+            "OCRProcessor",
+            "ClassificationProcessor",
+        ]
 
         # Verify all processors were called
         for processor in basic_pipeline.processors:
             assert processor.called
             assert processor.input_document == sample_document
 
-    def test_pipeline_with_failing_processor(self, sample_document):
+    @pytest.mark.asyncio
+    async def test_pipeline_with_failing_processor(self, sample_document):
         """Test pipeline behavior when a processor fails"""
         pipeline = Pipeline("FailingPipeline")
 
@@ -85,25 +90,24 @@ class TestProcessingPipeline:
         pipeline.add_processor(MockProcessor("ThirdProcessor"))
 
         # Process the document
-        result = pipeline.process_document(sample_document)
+        result = await pipeline.process_document(sample_document)
 
         # Verify the result indicates failure
         assert not result.is_successful()
-        assert "FirstProcessor" in result.data
-        assert "FailingProcessor" in result.data
-        assert "ThirdProcessor" not in result.data
+        assert "FailingProcessor" in result.get_message()
 
         # Verify only the first two processors were called
         assert pipeline.processors[0].called
         assert pipeline.processors[1].called
         assert not pipeline.processors[2].called
 
-    def test_pipeline_with_document_modification(self, sample_document):
+    @pytest.mark.asyncio
+    async def test_pipeline_with_document_modification(self, sample_document):
         """Test pipeline where processors modify the document"""
 
         def modify_document(doc):
             """Add content to the document"""
-            doc.content = "OCR extracted text"
+            doc.store_content("ContentProcessor", "Controlled fixture text")
             doc.metadata["language"] = "en"
 
         def add_classification(doc):
@@ -117,28 +121,29 @@ class TestProcessingPipeline:
         pipeline.add_processor(MockProcessor("ClassificationProcessor", side_effect=add_classification))
 
         # Process the document
-        result = pipeline.process_document(sample_document)
+        result = await pipeline.process_document(sample_document)
 
         # Verify the result
         assert result.is_successful()
 
         # Verify document modifications
-        assert sample_document.content == "OCR extracted text"
+        assert sample_document.get_content("ContentProcessor") == "Controlled fixture text"
         assert sample_document.metadata["language"] == "en"
         assert sample_document.metadata["category"] == "science"
 
-    def test_pipeline_empty(self):
+    @pytest.mark.asyncio
+    async def test_pipeline_empty(self):
         """Test behavior of an empty pipeline"""
         pipeline = Pipeline("EmptyPipeline")
         document = Document("test.txt")
 
-        result = pipeline.process_document(document)
+        result = await pipeline.process_document(document)
 
-        # An empty pipeline should succeed but do nothing
-        assert result.is_successful()
-        assert result.get_message() == "No processors in pipeline"
+        assert not result.is_successful()
+        assert "没有处理器" in result.get_message()
 
-    def test_pipeline_execute_one_processor(self, sample_document):
+    @pytest.mark.asyncio
+    async def test_pipeline_start_from_processor(self, sample_document):
         """Test executing just one processor in the pipeline"""
         pipeline = Pipeline("SelectivePipeline")
 
@@ -151,18 +156,22 @@ class TestProcessingPipeline:
         pipeline.add_processor(processor3)
 
         # Execute only the second processor
-        result = pipeline.execute_processor(1, sample_document)
+        result = await pipeline.process_document(sample_document, start_from="Processor2")
 
         # Verify only the second processor was called
         assert not processor1.called
         assert processor2.called
-        assert not processor3.called
+        assert processor3.called
 
         # Verify the result
         assert result.is_successful()
-        assert result.data["processor_name"] == "Processor2"
+        assert [record["processor"] for record in sample_document.processing_history if "processor" in record] == [
+            "Processor2",
+            "Processor3",
+        ]
 
-    def test_pipeline_with_real_temp_files(self):
+    @pytest.mark.asyncio
+    async def test_pipeline_with_real_temp_files(self):
         """Test pipeline with real temporary files"""
         # Create a temporary directory
         temp_dir = tempfile.mkdtemp()
@@ -179,9 +188,9 @@ class TestProcessingPipeline:
             # Define a processor that writes to the output directory
             def save_output(doc):
                 """Save document to output directory"""
-                output_path = os.path.join(output_dir, f"{doc.id}.txt")
+                output_path = os.path.join(output_dir, f"{doc.document_id}.txt")
                 with open(output_path, "w") as f:
-                    f.write(doc.content)
+                    f.write(doc.get_content("fixture"))
                 doc.metadata["output_path"] = output_path
 
             pipeline = Pipeline("FileProcessingPipeline")
@@ -191,10 +200,10 @@ class TestProcessingPipeline:
             # Create a document
             document = Document(test_file_path)
             document.file_path = test_file_path
-            document.content = "Processed content"
+            document.store_content("fixture", "Processed content")
 
             # Process the document
-            result = pipeline.process_document(document)
+            result = await pipeline.process_document(document)
 
             # Verify the result
             assert result.is_successful()

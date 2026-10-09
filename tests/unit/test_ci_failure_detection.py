@@ -131,15 +131,15 @@ class TestCIEnvironmentValidation(unittest.TestCase):
         major, minor = sys.version_info[:2]
 
         # 检查Python版本
-        if major == 3 and minor >= 8:
+        if major == 3 and minor >= 10:
             print(f"✅ Python {major}.{minor} 版本兼容")
             self.assertTrue(True, f"Python {major}.{minor} 支持")
         else:
-            self.fail(f"Python {major}.{minor} 版本不受支持（需要3.8+）")
+            self.fail(f"Python {major}.{minor} 版本不受支持（需要3.10+）")
 
     def test_dependencies_availability(self):
         """测试依赖项可用性"""
-        required_modules = ["numpy", "pandas", "torch", "haystack"]
+        required_modules = ["numpy", "mcp", "torch", "haystack"]
 
         missing_modules = []
 

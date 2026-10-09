@@ -118,7 +118,7 @@ class TestAsyncPerformance(unittest.TestCase):
 
         # 创建测试文档
         self.test_documents = []
-        for i in range(10):
+        for i in range(15):
             doc = Document(f"test_doc_{i}.txt")
             doc.file_type = "text"
             doc.file_path = os.path.join(self.temp_dir, f"test_doc_{i}.txt")
@@ -180,7 +180,7 @@ class TestAsyncPerformance(unittest.TestCase):
         print(f"单文档处理 - 同步耗时: {sync_duration:.3f}s, 异步耗时: {async_duration:.3f}s")
 
         # 验证处理结果一致性
-        self.assertEqual(len(document.processing_history), 3)
+        self.assertEqual(len([record for record in document.processing_history if "processor" in record]), 3)
 
     def test_batch_processing_performance_improvement(self):
         """测试批量处理的性能提升"""
@@ -363,7 +363,7 @@ class TestAsyncPerformance(unittest.TestCase):
 
         # 异步处理可能使用稍多内存（由于并发），但不应该过多
         # 这主要是为了记录和观察，不做严格断言
-        if async_memory_usage > sync_memory_usage * 1.5:
+        if sync_memory_usage > 0 and async_memory_usage > sync_memory_usage * 1.5:
             print(f"警告: 异步处理使用了显著更多内存 ({async_memory_usage/sync_memory_usage:.1f}x)")
 
     def test_error_handling_in_async_pipeline(self):

@@ -289,7 +289,8 @@ class VectorStorageBenchmark:
                 }
 
                 print(f"Testing {store_config['type']} with {dim}D vectors...")
-                result = self.benchmark_store_operations(store_config, test_params)
+                dimension_config = {**store_config, "vector_dimension": dim}
+                result = self.benchmark_store_operations(dimension_config, test_params)
                 result.name = f"{store_config['type']}_{dim}D"
                 results.append(result)
 

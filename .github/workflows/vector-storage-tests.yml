@@ -5,7 +5,7 @@ on:
     branches: [ main, develop ]
     paths:
       - 'document_stores/**'
-      - 'utils/vector_migration.py'
+      - 'document_stores/migration/vector_migration.py'
       - 'tests/**'
       - 'requirements.txt'
       - 'pyproject.toml'
@@ -14,7 +14,7 @@ on:
     branches: [ main, develop ]
     paths:
       - 'document_stores/**'
-      - 'utils/vector_migration.py'
+      - 'document_stores/migration/vector_migration.py'
       - 'tests/**'
       - 'requirements.txt'
       - 'pyproject.toml'
@@ -45,16 +45,16 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Black
-        run: black --check --diff document_stores/ utils/vector_migration.py tests/
+        run: black --check --diff document_stores/ document_stores/migration/vector_migration.py tests/
 
       - name: Run isort
-        run: isort --check-only --diff document_stores/ utils/vector_migration.py tests/
+        run: isort --check-only --diff document_stores/ document_stores/migration/vector_migration.py tests/
 
       - name: Run Flake8
-        run: flake8 document_stores/ utils/vector_migration.py tests/ --max-line-length=100
+        run: flake8 document_stores/ document_stores/migration/vector_migration.py tests/ --max-line-length=100
 
       - name: Run MyPy
-        run: mypy document_stores/ utils/vector_migration.py --ignore-missing-imports
+        run: mypy document_stores/ document_stores/migration/vector_migration.py --ignore-missing-imports
 
   unit-tests:
     name: Unit Tests
@@ -108,7 +108,7 @@ jobs:
         run: |
           pytest tests/unit/ \
             --cov=document_stores \
-            --cov=utils.vector_migration \
+            --cov=document_stores.migration.vector_migration \
             --cov-report=xml \
             --cov-report=term-missing \
             --junitxml=test-results/junit-unit.xml \
@@ -162,7 +162,7 @@ jobs:
         run: |
           pytest tests/integration/ \
             --cov=document_stores \
-            --cov=utils.vector_migration \
+            --cov=document_stores.migration.vector_migration \
             --cov-report=xml \
             --cov-report=term-missing \
             --junitxml=test-results/junit-integration.xml \
@@ -242,17 +242,17 @@ jobs:
           pip install safety bandit semgrep
 
       - name: Run Safety check
-        run: safety check --json --output safety-report.json || true
+        run: safety check --json --output safety-report.json
 
       - name: Run Bandit security scan
         run: |
-          bandit -r document_stores/ utils/vector_migration.py \
-            -f json -o bandit-report.json || true
+          bandit -r document_stores/ document_stores/migration/vector_migration.py \
+            -f json -o bandit-report.json
 
       - name: Run Semgrep
         run: |
           semgrep --config=auto --json --output=semgrep-report.json \
-            document_stores/ utils/vector_migration.py || true
+            document_stores/ document_stores/migration/vector_migration.py
 
       - name: Upload security reports
         uses: actions/upload-artifact@v4

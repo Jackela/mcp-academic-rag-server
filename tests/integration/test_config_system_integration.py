@@ -16,7 +16,6 @@ import pytest
 
 from core.config_environment_manager import ConfigEnvironmentManager, EnvironmentType
 from core.config_migration_tool import ConfigMigrationTool
-from core.config_migration_tool import EnvironmentType as MigrationEnvType
 from core.config_runtime_validator import (
     DependencyConstraint,
     PatternConstraint,
@@ -262,6 +261,12 @@ class TestConfigSystemIntegration:
         env_manager = ConfigEnvironmentManager(temp_config_dir)
         env_manager.set_environment("development")
         dev_config = env_manager.get_environment_config("development")
+        validator = RuntimeConfigValidator(ValidationLevel.STANDARD)
+        valid, results = validator.validate_config(dev_config)
+        assert not valid
+        assert any(result.path == "processors.embedding_processor" for result in results)
+        # Real credentials are intentionally absent from development templates.
+        dev_config["llm"].setdefault("settings", {})["api_key"] = "offline-fixture-key"
 
         # 步骤2: 使用版本管理器管理配置
         version_manager = ConfigVersionManager(str(config_file))

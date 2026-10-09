@@ -139,12 +139,11 @@ class InMemoryVectorStore(BaseVectorStore):
             # Haystack过滤器格式转换
             haystack_filters = None
             if filters:
-                haystack_filters = {}
-                for key, value in filters.items():
-                    if isinstance(value, list):
-                        haystack_filters[key] = {"$in": value}
-                    else:
-                        haystack_filters[key] = value
+                conditions = [
+                    {"field": f"meta.{key}", "operator": "in" if isinstance(value, list) else "==", "value": value}
+                    for key, value in filters.items()
+                ]
+                haystack_filters = {"operator": "AND", "conditions": conditions}
 
             # 执行搜索
             results = self.store.embedding_retrieval(
@@ -186,7 +185,7 @@ class InMemoryVectorStore(BaseVectorStore):
             文档对象，不存在则返回None
         """
         try:
-            docs = self.store.get_documents_by_id([doc_id])
+            docs = self.store.filter_documents({"field": "id", "operator": "in", "value": [doc_id]})
             return docs[0] if docs else None
         except Exception as e:
             self.logger.error(f"获取文档失败: {str(e)}")
@@ -205,15 +204,19 @@ class InMemoryVectorStore(BaseVectorStore):
             更新成功返回True，失败返回False
         """
         try:
-            # 删除旧文档
-            self.store.delete_documents([doc_id])
+            existing = self.get_document_by_id(doc_id)
+            if existing is None:
+                return False
+            selected_embedding = embedding if embedding is not None else document.embedding
+            if selected_embedding is None:
+                selected_embedding = existing.embedding
+            if not self.validate_embedding(selected_embedding):
+                return False
+            replacement = replace(document, id=doc_id, embedding=selected_embedding)
+            from haystack.document_stores.types import DuplicatePolicy
 
-            # 添加新文档
-            document = replace(document, id=doc_id)
-            if embedding:
-                document = replace(document, embedding=embedding)
-
-            return self.add_documents([document])
+            self.store.write_documents([replacement], policy=DuplicatePolicy.OVERWRITE)
+            return True
 
         except Exception as e:
             self.logger.error(f"更新文档失败: {str(e)}")
@@ -245,7 +248,7 @@ class InMemoryVectorStore(BaseVectorStore):
             删除成功返回True，失败返回False
         """
         try:
-            self.store.delete_documents()
+            self.store.delete_documents([doc.id for doc in self.store.filter_documents({})])
             self.logger.info("所有文档已清空")
             return True
         except Exception as e:
@@ -260,7 +263,7 @@ class InMemoryVectorStore(BaseVectorStore):
             文档总数
         """
         try:
-            return self.store.get_document_count()
+            return self.store.count_documents()
         except Exception as e:
             self.logger.error(f"获取文档数量失败: {str(e)}")
             return 0

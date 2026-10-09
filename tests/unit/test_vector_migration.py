@@ -101,7 +101,7 @@ class MockVectorStore(BaseVectorStore):
 
         # 创建包含所有文档的列表
         all_docs = list(self.documents.values())
-        mock_store.get_all_documents.return_value = all_docs
+        mock_store.filter_documents.return_value = all_docs
 
         return mock_store
 
@@ -341,6 +341,22 @@ class TestVectorStoreMigrator:
         result = migrator.verify_migration(source_store_with_data, target_store)
 
         assert result == False
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"content": "Changed content"},
+            {"meta": {"changed": True}},
+            {"embedding": [0.0, 0.0, 0.0, 0.0]},
+        ],
+    )
+    def test_verify_migration_rejects_same_count_changes(self, source_store_with_data, changes):
+        target = MockVectorStore({"type": "mock"})
+        target.initialize()
+        docs = list(source_store_with_data.documents.values())
+        target.add_documents([replace(docs[0], **changes), *docs[1:]])
+        assert target.get_document_count() == source_store_with_data.get_document_count()
+        assert not VectorStoreMigrator().verify_migration(source_store_with_data, target, sample_ratio=1.0)
 
     def test_verify_migration_empty_stores(self):
         """测试空存储的验证"""
