@@ -19,16 +19,32 @@ import traceback
 from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from logging.handlers import RotatingFileHandler
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Literal,
+    Optional,
+    ParamSpec,
+    TypeVar,
+    Union,
+    overload,
+)
 
 try:
-    from loguru import logger as loguru_logger
+    import loguru  # noqa: F401 - optional logging capability probe
 
     HAS_LOGURU = True
 except ImportError:
     HAS_LOGURU = False
+
+
+P = ParamSpec("P")
+T = TypeVar("T")
 
 
 class StructuredFormatter(logging.Formatter):
@@ -42,7 +58,7 @@ class StructuredFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as JSON"""
-        log_data = {
+        log_data: Dict[str, Any] = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
@@ -55,7 +71,7 @@ class StructuredFormatter(logging.Formatter):
         }
 
         # Add exception info if present
-        if record.exc_info:
+        if record.exc_info and record.exc_info[0] is not None:
             log_data["exception"] = {
                 "type": record.exc_info[0].__name__,
                 "message": str(record.exc_info[1]),
@@ -108,45 +124,46 @@ class ContextLogger:
         self.logger = logger
         self._context = threading.local()
 
-    def set_context(self, **kwargs):
+    def set_context(self, **kwargs: Any) -> None:
         """Set context values for current thread"""
         if not hasattr(self._context, "data"):
             self._context.data = {}
         self._context.data.update(kwargs)
 
-    def clear_context(self):
+    def clear_context(self) -> None:
         """Clear context for current thread"""
         if hasattr(self._context, "data"):
             self._context.data = {}
 
     def get_context(self) -> Dict[str, Any]:
         """Get current context"""
-        return getattr(self._context, "data", {})
+        data: Dict[str, Any] = getattr(self._context, "data", {})
+        return data
 
-    def _log_with_context(self, level: int, msg: str, *args, **kwargs):
+    def _log_with_context(self, level: int, msg: str, *args: Any, **kwargs: Any) -> None:
         """Log with context injection"""
         extra = kwargs.get("extra", {})
         extra["context"] = self.get_context()
         kwargs["extra"] = extra
         self.logger.log(level, msg, *args, **kwargs)
 
-    def debug(self, msg: str, *args, **kwargs):
+    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log_with_context(logging.DEBUG, msg, *args, **kwargs)
 
-    def info(self, msg: str, *args, **kwargs):
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log_with_context(logging.INFO, msg, *args, **kwargs)
 
-    def warning(self, msg: str, *args, **kwargs):
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log_with_context(logging.WARNING, msg, *args, **kwargs)
 
-    def error(self, msg: str, *args, **kwargs):
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log_with_context(logging.ERROR, msg, *args, **kwargs)
 
-    def critical(self, msg: str, *args, **kwargs):
+    def critical(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log_with_context(logging.CRITICAL, msg, *args, **kwargs)
 
     @contextmanager
-    def context(self, **kwargs):
+    def context(self, **kwargs: Any) -> Iterator[None]:
         """Context manager for temporary context"""
         old_context = self.get_context().copy()
         self.set_context(**kwargs)
@@ -202,6 +219,7 @@ class LoggingConfig:
             console_handler = logging.StreamHandler(sys.stdout)
             console_handler.setLevel(level)
 
+            console_formatter: logging.Formatter
             if use_json:
                 console_formatter = StructuredFormatter(service_name)
             else:
@@ -222,6 +240,7 @@ class LoggingConfig:
             file_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8")
             file_handler.setLevel(level)
 
+            file_formatter: logging.Formatter
             if use_json:
                 file_formatter = StructuredFormatter(service_name)
             else:
@@ -236,6 +255,18 @@ class LoggingConfig:
         logging.getLogger("requests").setLevel(logging.WARNING)
         logging.getLogger("haystack").setLevel(logging.WARNING)
         logging.getLogger("transformers").setLevel(logging.WARNING)
+
+    @staticmethod
+    @overload
+    def get_logger(name: str, with_context: Literal[True]) -> ContextLogger: ...
+
+    @staticmethod
+    @overload
+    def get_logger(name: str, with_context: Literal[False] = False) -> logging.Logger: ...
+
+    @staticmethod
+    @overload
+    def get_logger(name: str, with_context: bool) -> Union[logging.Logger, ContextLogger]: ...
 
     @staticmethod
     def get_logger(name: str, with_context: bool = False) -> Union[logging.Logger, ContextLogger]:
@@ -255,11 +286,11 @@ class LoggingConfig:
         return logger
 
 
-def log_performance(func):
+def log_performance(func: Callable[P, T]) -> Callable[P, T]:
     """Decorator to log function performance"""
 
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         logger = logging.getLogger(func.__module__)
         start_time = time.time()
 
@@ -269,7 +300,7 @@ def log_performance(func):
 
             logger.info(
                 f"Function {func.__name__} completed",
-                extra={"duration": duration, "function": func.__name__, "module": func.__module__},
+                extra={"duration": duration, "function": func.__name__, "function_module": func.__module__},
             )
             return result
 
@@ -281,7 +312,7 @@ def log_performance(func):
                 extra={
                     "duration": duration,
                     "function": func.__name__,
-                    "module": func.__module__,
+                    "function_module": func.__module__,
                     "error_type": type(e).__name__,
                 },
             )
@@ -290,11 +321,11 @@ def log_performance(func):
     return wrapper
 
 
-def log_async_performance(func):
+def log_async_performance(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
     """Decorator to log async function performance"""
 
     @wraps(func)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         logger = logging.getLogger(func.__module__)
         start_time = time.time()
 
@@ -304,7 +335,12 @@ def log_async_performance(func):
 
             logger.info(
                 f"Async function {func.__name__} completed",
-                extra={"duration": duration, "function": func.__name__, "module": func.__module__, "is_async": True},
+                extra={
+                    "duration": duration,
+                    "function": func.__name__,
+                    "function_module": func.__module__,
+                    "is_async": True,
+                },
             )
             return result
 
@@ -316,7 +352,7 @@ def log_async_performance(func):
                 extra={
                     "duration": duration,
                     "function": func.__name__,
-                    "module": func.__module__,
+                    "function_module": func.__module__,
                     "error_type": type(e).__name__,
                     "is_async": True,
                 },
@@ -335,7 +371,7 @@ class ErrorAggregator:
         self.error_counts: Dict[str, int] = {}
         self._lock = threading.Lock()
 
-    def add_error(self, error: Exception, context: Optional[Dict[str, Any]] = None):
+    def add_error(self, error: Exception, context: Optional[Dict[str, Any]] = None) -> None:
         """Add an error to the aggregator"""
         with self._lock:
             error_type = type(error).__name__
@@ -364,7 +400,7 @@ class ErrorAggregator:
                 "recent_errors": self.errors[-10:],  # Last 10 errors
             }
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all errors"""
         with self._lock:
             self.errors.clear()
@@ -375,7 +411,7 @@ class ErrorAggregator:
 error_aggregator = ErrorAggregator()
 
 
-def setup_default_logging():
+def setup_default_logging() -> None:
     """Setup default logging configuration from environment"""
     LoggingConfig.setup_logging(
         log_level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -411,7 +447,7 @@ if __name__ == "__main__":
 
     # Performance logging
     @log_performance
-    def slow_operation():
+    def slow_operation() -> str:
         time.sleep(0.1)
         return "done"
 

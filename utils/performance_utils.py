@@ -9,21 +9,19 @@ This module provides performance optimization features including:
 - Performance profiling
 """
 
-import asyncio
 import functools
 import gc
 import hashlib
-import json
+import importlib
 import logging
 import pickle
 import threading
 import time
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, Iterator, List, Optional, ParamSpec, Set, Tuple, TypeVar, cast
 
 import psutil
 
@@ -35,7 +33,7 @@ except ImportError:
     HAS_REDIS = False
 
 try:
-    import memcache
+    memcache = importlib.import_module("memcache")
 
     HAS_MEMCACHE = True
 except ImportError:
@@ -43,6 +41,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 class CacheBackend(Enum):
@@ -75,7 +74,7 @@ class LRUCache:
 
     def __init__(self, max_size: int = 1000):
         self.max_size = max_size
-        self.cache = OrderedDict()
+        self.cache: OrderedDict[str, Any] = OrderedDict()
         self.stats = CacheStats()
         self.lock = threading.RLock()
 
@@ -185,11 +184,11 @@ class TTLCache:
 class CacheManager:
     """Unified cache manager supporting multiple backends"""
 
-    def __init__(self, backend: CacheBackend = CacheBackend.MEMORY, **kwargs):
+    def __init__(self, backend: CacheBackend = CacheBackend.MEMORY, **kwargs: Any) -> None:
         self.backend = backend
         self._cache = self._init_backend(**kwargs)
 
-    def _init_backend(self, **kwargs):
+    def _init_backend(self, **kwargs: Any) -> Any:
         """Initialize cache backend"""
         if self.backend == CacheBackend.MEMORY:
             max_size = kwargs.get("max_size", 1000)
@@ -203,7 +202,7 @@ class CacheManager:
                 host=kwargs.get("host", "localhost"),
                 port=kwargs.get("port", 6379),
                 db=kwargs.get("db", 0),
-                decode_responses=True,
+                decode_responses=False,
             )
 
         elif self.backend == CacheBackend.MEMCACHE and HAS_MEMCACHE:
@@ -218,42 +217,39 @@ class CacheManager:
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache"""
         try:
-            if hasattr(self._cache, "get"):
-                return self._cache.get(key)
-            else:
-                # Redis/Memcache
-                value = self._cache.get(key)
-                if value and isinstance(value, bytes):
-                    return pickle.loads(value)
+            value = self._cache.get(key)
+            if isinstance(self._cache, (LRUCache, TTLCache)):
                 return value
-        except Exception as e:
-            logger.error(f"Cache get error: {e}")
+            return pickle.loads(value) if value is not None else None
+        except Exception as error:
+            logger.error(f"Cache get error: {error}")
             return None
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
-        """Set value in cache"""
+        """Keep memory values intact and serialize values at the remote boundary."""
         try:
-            if hasattr(self._cache, "set"):
-                if isinstance(self._cache, TTLCache):
-                    self._cache.set(key, value, ttl)
-                else:
-                    self._cache.set(key, value)
+            if isinstance(self._cache, TTLCache):
+                self._cache.set(key, value, ttl)
                 return True
-            else:
-                # Redis/Memcache
-                serialized = pickle.dumps(value)
-                if ttl:
-                    return self._cache.setex(key, ttl, serialized)
-                else:
-                    return self._cache.set(key, serialized)
-        except Exception as e:
-            logger.error(f"Cache set error: {e}")
+            if isinstance(self._cache, LRUCache):
+                self._cache.set(key, value)
+                return True
+            serialized = pickle.dumps(value)
+            if self.backend == CacheBackend.REDIS and ttl is not None:
+                return bool(self._cache.setex(key, ttl, serialized))
+            if self.backend == CacheBackend.MEMCACHE and ttl is not None:
+                return bool(self._cache.set(key, serialized, time=ttl))
+            return bool(self._cache.set(key, serialized))
+        except Exception as error:
+            logger.error(f"Cache set error: {error}")
             return False
 
 
 def cached(
-    cache_manager: Optional[CacheManager] = None, key_func: Optional[Callable] = None, ttl: Optional[int] = None
-):
+    cache_manager: Optional[CacheManager] = None,
+    key_func: Optional[Callable[..., str]] = None,
+    ttl: Optional[int] = None,
+) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """
     Decorator for caching function results
 
@@ -263,12 +259,12 @@ def cached(
         ttl: Time to live in seconds
     """
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
         # Use default cache if not provided
         _cache = cache_manager or CacheManager()
 
         @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> T:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             # Generate cache key
             if key_func:
                 cache_key = key_func(func, *args, **kwargs)
@@ -283,7 +279,7 @@ def cached(
             cached_value = _cache.get(cache_key)
             if cached_value is not None:
                 logger.debug(f"Cache hit for {func.__name__}")
-                return cached_value
+                return cast(T, cached_value)
 
             # Execute function
             result = func(*args, **kwargs)
@@ -300,15 +296,17 @@ def cached(
 
 
 def async_cached(
-    cache_manager: Optional[CacheManager] = None, key_func: Optional[Callable] = None, ttl: Optional[int] = None
-):
+    cache_manager: Optional[CacheManager] = None,
+    key_func: Optional[Callable[..., str]] = None,
+    ttl: Optional[int] = None,
+) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
     """Async version of cached decorator"""
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
         _cache = cache_manager or CacheManager()
 
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             # Generate cache key
             if key_func:
                 cache_key = key_func(func, *args, **kwargs)
@@ -321,7 +319,7 @@ def async_cached(
             # Try to get from cache
             cached_value = _cache.get(cache_key)
             if cached_value is not None:
-                return cached_value
+                return cast(T, cached_value)
 
             # Execute async function
             result = await func(*args, **kwargs)
@@ -389,7 +387,7 @@ class ConnectionPool:
                 self._condition.notify()
 
     @contextmanager
-    def connection(self):
+    def connection(self) -> Iterator[Any]:
         """Context manager for connection"""
         conn = self.acquire()
         try:
@@ -413,38 +411,31 @@ class BatchProcessor:
         self._timer: Optional[threading.Timer] = None
 
     def add(self, item: Any) -> None:
-        """Add item to batch"""
+        """Queue work; process a full batch after releasing the queue lock."""
         with self._lock:
             self._batch.append(item)
-
-            # Process if batch is full
-            if len(self._batch) >= self.batch_size:
-                self._process_batch()
-            else:
-                # Start timer if not already running
-                if not self._timer or not self._timer.is_alive():
-                    self._timer = threading.Timer(self.timeout, self._process_batch)
-                    self._timer.start()
+            full = len(self._batch) >= self.batch_size
+            if not full and (not self._timer or not self._timer.is_alive()):
+                self._timer = threading.Timer(self.timeout, self._process_batch)
+                self._timer.start()
+        if full:
+            self._process_batch()
 
     def _process_batch(self) -> None:
-        """Process current batch"""
+        """Detach the batch under lock and invoke callbacks outside it."""
         with self._lock:
             if not self._batch:
                 return
-
-            # Cancel timer if running
             if self._timer and self._timer.is_alive():
                 self._timer.cancel()
-
-            # Process batch
-            if self.process_func:
-                try:
-                    self.process_func(self._batch.copy())
-                except Exception as e:
-                    logger.error(f"Batch processing error: {e}")
-
-            # Clear batch
-            self._batch.clear()
+            self._timer = None
+            batch = self._batch
+            self._batch = []
+        if self.process_func:
+            try:
+                self.process_func(batch)
+            except Exception as e:
+                logger.error(f"Batch processing error: {e}")
 
     def flush(self) -> None:
         """Force process remaining items"""
@@ -471,10 +462,10 @@ class MemoryManager:
     def check_memory_threshold(threshold_percent: float = 80.0) -> bool:
         """Check if memory usage exceeds threshold"""
         usage = MemoryManager.get_memory_usage()
-        return usage["percent"] > threshold_percent
+        return bool(usage["percent"] > threshold_percent)
 
     @staticmethod
-    def collect_garbage() -> Dict[str, int]:
+    def collect_garbage() -> Dict[str, Any]:
         """Force garbage collection and return statistics"""
         before = MemoryManager.get_memory_usage()
 
@@ -487,7 +478,7 @@ class MemoryManager:
 
 
 @contextmanager
-def profile_performance(name: str = "Operation"):
+def profile_performance(name: str = "Operation") -> Iterator[None]:
     """Context manager for performance profiling"""
     start_time = time.time()
     start_memory = MemoryManager.get_memory_usage()
@@ -583,8 +574,8 @@ if __name__ == "__main__":
     assert result1 == result2
 
     # Test connection pool
-    def create_connection():
-        return {"id": time.time()}
+    def create_connection() -> object:
+        return object()
 
     pool = ConnectionPool(create_connection, max_size=5)
 

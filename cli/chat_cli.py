@@ -8,27 +8,28 @@ import argparse
 import json
 import logging
 import os
-import readline  # 用于命令行历史记录和编辑功能
+import readline  # noqa: F401 - enables terminal history and editing
 import sys
 import time
 import uuid
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING
 
 # 添加项目根目录到系统路径，确保能够导入其他模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from connectors.haystack_llm_connector import HaystackLLMConnector, HaystackLLMFactory
-from core.config_manager import ConfigManager
-from rag.chat_session import ChatSession, ChatSessionManager
-from rag.haystack_pipeline import RAGPipeline, RAGPipelineFactory
+from core.config_manager import ConfigManager  # noqa: E402 - direct script entry point
+from core.server_context import ServerContext  # noqa: E402 - direct script entry point
+from rag.chat_session import ChatSession  # noqa: E402 - direct script entry point
+
+if TYPE_CHECKING:
+    from rag.haystack_pipeline import RAGPipeline
 
 
 class ChatCLI:
     """聊天对话命令行界面类"""
 
-    def __init__(self):
+    def __init__(self, config_path: str | None = None, verbose: bool = False) -> None:
         """初始化聊天对话CLI"""
         try:
             # 设置日志
@@ -38,7 +39,16 @@ class ChatCLI:
             self.session_id = str(uuid.uuid4())
 
             # 解析命令行参数
-            self.args = self._parse_args()
+            self.args = (
+                self._parse_args()
+                if config_path is None
+                else argparse.Namespace(
+                    config=config_path, verbose=verbose, session=None, list=False, export=None, replay=None
+                )
+            )
+            self.config_path = self.args.config
+            self.verbose = self.args.verbose
+            self.config_manager = ConfigManager(self.config_path)
 
             # 如果提供了会话ID参数，使用它
             if hasattr(self.args, "session") and self.args.session:
@@ -51,10 +61,11 @@ class ChatCLI:
             self.logger.info(f"聊天对话CLI初始化完成，会话ID：{self.session_id}")
 
             # 初始化组件
-            self.config_manager = ConfigManager()
-            self.session_manager = ChatSessionManager()
-            self.rag_pipeline = None
-            self.session = None
+            self.context = ServerContext()
+            self.context._config_manager = self.config_manager
+            self.session_manager = self.context.session_manager
+            self.rag_pipeline: RAGPipeline | None = None
+            self.session: ChatSession | None = None
 
             # 初始化RAG管道
             self._initialize_rag_pipeline()
@@ -66,7 +77,7 @@ class ChatCLI:
             print(f"初始化聊天对话CLI失败: {str(e)}")
             sys.exit(1)
 
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """设置日志系统"""
         logging.basicConfig(
             level=logging.INFO,
@@ -75,10 +86,10 @@ class ChatCLI:
         )
         self.logger = logging.getLogger("ChatCLI")
 
-    def _create_data_dirs(self):
+    def _create_data_dirs(self) -> None:
         """创建必要的数据目录"""
         # 创建会话目录
-        base_dir = os.path.join(os.getcwd(), "data", "sessions")
+        base_dir = os.path.join(self.config_manager.get_value("storage.base_path", "./data"), "sessions")
         self.sessions_dir = base_dir
 
         # 当前会话目录
@@ -86,20 +97,13 @@ class ChatCLI:
         os.makedirs(session_dir, exist_ok=True)
         self.session_dir = session_dir
 
-    def _initialize_rag_pipeline(self):
+    def _initialize_rag_pipeline(self) -> None:
         """
         初始化RAG管道
         """
         try:
-            # 从配置中获取LLM设置
-            llm_config = self.config_manager.get_value("llm", {})
-
-            # 创建LLM连接器
-            llm_connector = HaystackLLMConnector(config=llm_config)
-
-            # 创建RAG管道
-            rag_config = self.config_manager.get_value("rag_settings", {})
-            self.rag_pipeline = RAGPipelineFactory.create_pipeline(llm_connector=llm_connector, config=rag_config)
+            self.context.initialize()
+            self.rag_pipeline = self.context.rag_pipeline
 
             self.logger.info("成功初始化RAG管道")
 
@@ -126,7 +130,7 @@ class ChatCLI:
         self.logger.info(f"已创建聊天会话: {self.session_id}")
         return session
 
-    def _parse_args(self):
+    def _parse_args(self) -> argparse.Namespace:
         """解析命令行参数"""
         parser = argparse.ArgumentParser(
             description="聊天对话命令行界面 - 提供基于文档内容的自然语言对话",
@@ -160,20 +164,26 @@ class ChatCLI:
         # 其他参数
         parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
+        parser.add_argument(
+            "--config", default=getattr(self, "config_path", "./config/config.json"), help="配置文件路径"
+        )
         return parser.parse_args()
 
-    def run(self):
+    def run(self) -> None:
         """运行聊天对话CLI"""
+        self.args = self._parse_args()
         try:
             # 根据参数执行相应操作
             if self.args.list:
                 self._list_sessions()
+                return
             elif self.args.export:
                 self._export_session(self.args.export)
-            elif self.args.session:
-                self.session_id = self.args.session
-                # 加载现有会话
-                self._load_session(self.args.session)
+                return
+            elif self.args.session or self.args.replay:
+                identity = self.args.session or self.args.replay
+                self.session_id = identity
+                self._load_session(identity)
 
             # 如果是回放模式
             if self.args.replay:
@@ -189,7 +199,7 @@ class ChatCLI:
             self.logger.error(f"程序运行错误: {str(e)}")
             print(f"错误: {str(e)}")
 
-    def _list_sessions(self):
+    def _list_sessions(self) -> None:
         """列出所有会话"""
         sessions = []
 
@@ -243,7 +253,7 @@ class ChatCLI:
             self.logger.error(f"列出会话时出错: {str(e)}")
             print(f"错误：列出会话时出错：{str(e)}")
 
-    def _export_session(self, session_id: str):
+    def _export_session(self, session_id: str) -> None:
         """导出会话记录"""
         session_dir = os.path.join(self.sessions_dir, session_id)
         session_file = os.path.join(session_dir, "session.json")
@@ -297,10 +307,16 @@ class ChatCLI:
             self.logger.error(f"导出会话失败: {str(e)}")
             print(f"错误：导出会话失败：{str(e)}")
 
-    def _load_session(self, session_id: str):
+    def _load_session(self, session_id: str) -> None:
         """加载现有会话"""
         # 使用会话管理器加载会话
         try:
+            session_file = os.path.join(self.sessions_dir, session_id, "session.json")
+            if os.path.exists(session_file):
+                with open(session_file, encoding="utf-8") as saved:
+                    self.session_manager.sessions[session_id] = ChatSession.from_dict(
+                        json.load(saved), self.rag_pipeline
+                    )
             self.session = self.session_manager.get_session(session_id)
             if self.session:
                 # 设置RAG管道
@@ -315,7 +331,7 @@ class ChatCLI:
             print(f"错误：加载会话失败：{str(e)}")
             return
 
-    def _replay_session(self):
+    def _replay_session(self) -> None:
         """回放会话记录"""
         if not self.session:
             print("错误：没有可回放的会话")
@@ -334,7 +350,7 @@ class ChatCLI:
             print(msg.content)
 
             # 如果有引用，显示引用信息
-            citations = self.session.get_citations(msg.message_id)
+            citations = self.session.citations.get(msg.message_id, [])
             if citations:
                 print("\n参考文献:")
                 for citation in citations:
@@ -346,7 +362,7 @@ class ChatCLI:
         print("\n" + "=" * 60)
         print("会话回放完成")
 
-    def _start_interactive_chat(self):
+    def _start_interactive_chat(self) -> None:
         """开始交互式聊天"""
         print("\n欢迎使用学术文献智能问答系统！")
         print("=" * 50)
@@ -387,12 +403,12 @@ class ChatCLI:
             # 保存会话
             self._save_session()
 
-    def _process_user_input(self, user_input: str):
+    def _process_user_input(self, user_input: str) -> None:
         """处理用户输入并生成回答"""
         try:
             # 使用RAG管道生成回答
             try:
-                if self.rag_pipeline:
+                if self.rag_pipeline and self.session is not None:
                     response = self.session.query(user_input)
                     answer = response.get("answer", "无法生成回答")
                     documents = response.get("documents", [])
@@ -404,15 +420,17 @@ class ChatCLI:
                     if documents:
                         print("\n参考文献:")
                         for i, doc in enumerate(documents[:3], 1):  # 显示前3个相关文档
-                            print(f"{i}. {doc.get('metadata', {}).get('file_name', '未知文档')}")
-                            print(f"   内容片段: {doc.get('content', '')[:100]}...")
+                            print(
+                                f"{i}. {doc.get('metadata', {}).get('file_name', doc.get('metadata', {}).get('title', '未知文档'))}"
+                            )
+                            print(f"   内容片段: {(doc.get('content') or '')[:100]}...")
                 else:
-                    response = self._generate_fallback_response(user_input)
-                    print(f"\n助手: {response}")
+                    fallback = self._generate_fallback_response(user_input)
+                    print(f"\n助手: {fallback}")
             except Exception as e:
                 self.logger.error(f"生成回答失败: {str(e)}")
-                response = f"抱歉，处理您的问题时发生错误: {str(e)}"
-                print(f"\n助手: {response}")
+                error_response = f"抱歉，处理您的问题时发生错误: {str(e)}"
+                print(f"\n助手: {error_response}")
 
         except Exception as e:
             self.logger.error(f"处理用户输入时出错: {str(e)}")
@@ -430,19 +448,19 @@ class ChatCLI:
         """
         return f"抱歉，RAG系统当前不可用。请确保已正确配置并上传了文档。您的问题是: {query}"
 
-    def _show_help(self):
+    def _show_help(self) -> None:
         """显示帮助信息"""
         help_text = """
 可用命令:
   help    - 显示此帮助信息
   save    - 保存当前会话
   exit    - 退出程序
-  
+
 使用说明:
   1. 直接输入您的问题，系统会基于已上传的文献回答
   2. 系统会显示相关的文献引用信息
   3. 会话会自动保存，下次可以通过 --session 参数继续
-  
+
 示例问题:
   - "这篇论文的主要贡献是什么？"
   - "请总结关于机器学习的内容"
@@ -450,17 +468,24 @@ class ChatCLI:
         """
         print(help_text)
 
-    def _save_session(self):
+    def _save_session(self) -> None:
         """保存会话"""
         try:
-            self.session_manager.save_sessions()
+            if self.session is None:
+                return
+            session_dir = os.path.join(self.sessions_dir, self.session.session_id)
+            os.makedirs(session_dir, exist_ok=True)
+            with open(os.path.join(session_dir, "session.json"), "w", encoding="utf-8") as saved:
+                json.dump(self.session.to_dict(), saved, ensure_ascii=False, indent=2)
+            if not self.session_manager.save_sessions(os.path.join(self.sessions_dir, "sessions.json")):
+                raise OSError("Session manager could not persist sessions")
             print("会话已保存")
             self.logger.info(f"会话 {self.session_id} 已保存")
         except Exception as e:
             self.logger.error(f"保存会话失败: {str(e)}")
             print(f"保存会话失败: {str(e)}")
 
-    def _format_timestamp(self, timestamp):
+    def _format_timestamp(self, timestamp: object) -> str:
         """格式化时间戳"""
         try:
             if isinstance(timestamp, (int, float)):
@@ -480,7 +505,7 @@ class ChatCLI:
             return str(timestamp)
 
 
-def main():
+def main() -> None:
     """主函数"""
     try:
         # 创建并运行CLI

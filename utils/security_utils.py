@@ -19,19 +19,26 @@ import secrets
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from types import ModuleType
+from typing import Any, Callable, Dict, Optional, ParamSpec, Tuple
 
-try:
-    import magic
-except ImportError:
-    magic = None
-from flask import current_app, jsonify, request
+from flask import Response, jsonify, request
+from flask.typing import ResponseReturnValue
 from werkzeug.utils import secure_filename
 
+magic: ModuleType | None
+try:
+    import magic as magic_module
+
+    magic = magic_module
+except ImportError:
+    magic = None
+
+
 logger = logging.getLogger(__name__)
+P = ParamSpec("P")
 
 
 class SecurityConfig:
@@ -257,8 +264,8 @@ class APIKeyManager:
 class RateLimiter:
     """Simple in-memory rate limiter"""
 
-    def __init__(self):
-        self.requests = defaultdict(list)
+    def __init__(self) -> None:
+        self.requests: defaultdict[str, list[float]] = defaultdict(list)
         self.lock = threading.Lock()
 
     def is_allowed(self, identifier: str, max_requests: int, window_seconds: int) -> Tuple[bool, Optional[int]]:
@@ -291,7 +298,7 @@ class RateLimiter:
             self.requests[identifier].append(now)
             return True, None
 
-    def reset(self, identifier: str):
+    def reset(self, identifier: str) -> None:
         """Reset rate limit for identifier"""
         with self.lock:
             self.requests.pop(identifier, None)
@@ -301,7 +308,9 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
-def require_api_key(check_permission: Optional[Callable] = None):
+def require_api_key(
+    check_permission: Optional[Callable[[str], bool]] = None,
+) -> Callable[[Callable[P, ResponseReturnValue]], Callable[P, ResponseReturnValue]]:
     """
     Decorator to require API key authentication
 
@@ -309,9 +318,9 @@ def require_api_key(check_permission: Optional[Callable] = None):
         check_permission: Optional function to check specific permissions
     """
 
-    def decorator(func):
+    def decorator(func: Callable[P, ResponseReturnValue]) -> Callable[P, ResponseReturnValue]:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> ResponseReturnValue:
             # Get API key from header
             api_key = request.headers.get("X-API-Key")
             if not api_key:
@@ -332,7 +341,7 @@ def require_api_key(check_permission: Optional[Callable] = None):
                 return jsonify({"error": "Insufficient permissions", "code": "FORBIDDEN"}), 403
 
             # Add API key to request context
-            request.api_key = api_key
+            setattr(request, "api_key", api_key)
 
             return func(*args, **kwargs)
 
@@ -341,7 +350,9 @@ def require_api_key(check_permission: Optional[Callable] = None):
     return decorator
 
 
-def rate_limit(max_requests: int = 60, window_seconds: int = 60):
+def rate_limit(
+    max_requests: int = 60, window_seconds: int = 60
+) -> Callable[[Callable[P, ResponseReturnValue]], Callable[P, ResponseReturnValue]]:
     """
     Decorator for rate limiting
 
@@ -350,11 +361,11 @@ def rate_limit(max_requests: int = 60, window_seconds: int = 60):
         window_seconds: Time window in seconds
     """
 
-    def decorator(func):
+    def decorator(func: Callable[P, ResponseReturnValue]) -> Callable[P, ResponseReturnValue]:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> ResponseReturnValue:
             # Get identifier (IP address or API key)
-            identifier = request.headers.get("X-API-Key", request.remote_addr)
+            identifier = request.headers.get("X-API-Key") or request.remote_addr or "unknown"
 
             # Check rate limit
             allowed, retry_after = rate_limiter.is_allowed(identifier, max_requests, window_seconds)
@@ -374,7 +385,9 @@ def rate_limit(max_requests: int = 60, window_seconds: int = 60):
     return decorator
 
 
-def validate_content_type(*allowed_types: str):
+def validate_content_type(
+    *allowed_types: str,
+) -> Callable[[Callable[P, ResponseReturnValue]], Callable[P, ResponseReturnValue]]:
     """
     Decorator to validate request content type
 
@@ -382,9 +395,9 @@ def validate_content_type(*allowed_types: str):
         allowed_types: Allowed content types
     """
 
-    def decorator(func):
+    def decorator(func: Callable[P, ResponseReturnValue]) -> Callable[P, ResponseReturnValue]:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> ResponseReturnValue:
             content_type = request.content_type
 
             if not content_type:
@@ -426,7 +439,7 @@ class SecurityHeaders:
     }
 
     @staticmethod
-    def add_security_headers(response):
+    def add_security_headers(response: Response) -> Response:
         """Add security headers to response"""
         for header, value in SecurityHeaders.HEADERS.items():
             response.headers[header] = value

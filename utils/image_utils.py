@@ -2,10 +2,11 @@
 图像处理工具模块 - 提供学术文献OCR流水线所需的图像处理功能
 """
 
+import importlib
 import logging
 import os
+from typing import cast
 
-import cv2
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
@@ -17,7 +18,7 @@ class ImageUtils:
     """图像处理工具类，提供图像增强、校正和预处理功能"""
 
     @staticmethod
-    def load_image(file_path):
+    def load_image(file_path: str) -> Image.Image:
         """
         加载图像文件
 
@@ -43,7 +44,7 @@ class ImageUtils:
             raise
 
     @staticmethod
-    def save_image(image, output_path, format=None, quality=95):
+    def save_image(image: Image.Image, output_path: str, format: str | None = None, quality: int = 95) -> bool:
         """
         保存图像到文件
 
@@ -57,7 +58,9 @@ class ImageUtils:
             bool: 保存成功返回True
         """
         try:
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            directory = os.path.dirname(output_path)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
             image.save(output_path, format=format, quality=quality)
             logger.debug(f"图像已保存至: {output_path}")
             return True
@@ -66,7 +69,9 @@ class ImageUtils:
             return False
 
     @staticmethod
-    def enhance_image(image, brightness=1.0, contrast=1.0, sharpness=1.0):
+    def enhance_image(
+        image: Image.Image, brightness: float = 1.0, contrast: float = 1.0, sharpness: float = 1.0
+    ) -> Image.Image:
         """
         增强图像质量
 
@@ -87,13 +92,13 @@ class ImageUtils:
 
             # 对比度增强
             if contrast != 1.0:
-                enhancer = ImageEnhance.Contrast(image)
-                image = enhancer.enhance(contrast)
+                contrast_enhancer = ImageEnhance.Contrast(image)
+                image = contrast_enhancer.enhance(contrast)
 
             # 锐度增强
             if sharpness != 1.0:
-                enhancer = ImageEnhance.Sharpness(image)
-                image = enhancer.enhance(sharpness)
+                sharpness_enhancer = ImageEnhance.Sharpness(image)
+                image = sharpness_enhancer.enhance(sharpness)
 
             logger.debug("图像增强完成")
             return image
@@ -102,7 +107,7 @@ class ImageUtils:
             return image  # 出错时返回原始图像
 
     @staticmethod
-    def remove_noise(image, method="median"):
+    def remove_noise(image: Image.Image, method: str = "median") -> Image.Image:
         """
         去除图像噪点
 
@@ -126,7 +131,7 @@ class ImageUtils:
             return image
 
     @staticmethod
-    def correct_skew(image, delta=1, limit=5):
+    def correct_skew(image: Image.Image, delta: float = 1, limit: float = 5) -> Image.Image:
         """
         校正图像倾斜
 
@@ -139,6 +144,8 @@ class ImageUtils:
             PIL.Image: 校正后的图像，失败时返回原始图像
         """
         try:
+            import cv2
+
             # 转换为OpenCV格式
             img_cv = np.array(image.convert("RGB"))
             img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
@@ -195,7 +202,7 @@ class ImageUtils:
             return image  # 出错时返回原始图像
 
     @staticmethod
-    def detect_orientation(image):
+    def detect_orientation(image: Image.Image) -> tuple[Image.Image, int]:
         """
         检测图像方向并自动旋转为正向
         适用于检测文档是否需要旋转90/180/270度
@@ -217,7 +224,7 @@ class ImageUtils:
             return image, 0
 
     @staticmethod
-    def binarize(image, method="adaptive"):
+    def binarize(image: Image.Image, method: str = "adaptive") -> Image.Image:
         """
         图像二值化处理，提高OCR文本识别率
 
@@ -229,6 +236,8 @@ class ImageUtils:
             PIL.Image: 二值化后的图像
         """
         try:
+            import cv2
+
             # 转为灰度图
             if image.mode != "L":
                 gray = image.convert("L")
@@ -258,7 +267,7 @@ class ImageUtils:
             return image
 
     @staticmethod
-    def segment_page(image):
+    def segment_page(image: Image.Image) -> dict[str, list[tuple[int, int, int, int]]]:
         """
         页面分割，识别文档中的文本区域、图像区域和表格区域
 
@@ -274,6 +283,8 @@ class ImageUtils:
                 }
         """
         try:
+            import cv2
+
             # 转换为OpenCV格式
             img_cv = np.array(image.convert("RGB"))
             img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
@@ -284,7 +295,11 @@ class ImageUtils:
             # 简单区域分割示例 - 实际应用需要更复杂的算法
             # 此处仅做简单演示，返回整个页面为文本区域
             height, width = gray.shape
-            regions = {"text_regions": [(0, 0, width, height)], "image_regions": [], "table_regions": []}
+            regions: dict[str, list[tuple[int, int, int, int]]] = {
+                "text_regions": [(0, 0, width, height)],
+                "image_regions": [],
+                "table_regions": [],
+            }
 
             logger.debug("页面区域分割完成")
             return regions
@@ -296,7 +311,7 @@ class ImageUtils:
             return {"text_regions": [(0, 0, width, height)], "image_regions": [], "table_regions": []}
 
     @staticmethod
-    def convert_to_grayscale(image):
+    def convert_to_grayscale(image: Image.Image) -> Image.Image:
         """
         将图像转换为灰度图
 
@@ -317,7 +332,7 @@ class ImageUtils:
             return image
 
     @staticmethod
-    def pdf_to_images(pdf_path, dpi=300, output_format="JPEG"):
+    def pdf_to_images(pdf_path: str, dpi: int = 300, output_format: str = "JPEG") -> list[Image.Image]:
         """
         将PDF文件转换为图像列表
         需要安装：pip install pdf2image poppler
@@ -331,12 +346,12 @@ class ImageUtils:
             list: PIL.Image对象列表，每个元素对应PDF的一页
         """
         try:
-            from pdf2image import convert_from_path
+            convert_from_path = importlib.import_module("pdf2image").convert_from_path
 
             logger.info(f"开始将PDF转换为图像: {pdf_path}")
             images = convert_from_path(pdf_path, dpi=dpi, fmt=output_format)
             logger.info(f"PDF转换完成，共{len(images)}页")
-            return images
+            return cast(list[Image.Image], images)
         except ImportError:
             logger.error("未安装pdf2image库，无法进行PDF转换")
             raise ImportError("请安装依赖: pip install pdf2image poppler")
@@ -345,7 +360,7 @@ class ImageUtils:
             raise
 
     @staticmethod
-    def crop_image(image, box):
+    def crop_image(image: Image.Image, box: tuple[int, int, int, int]) -> Image.Image:
         """
         裁剪图像指定区域
 

@@ -8,7 +8,7 @@
 import logging
 import math
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -42,7 +42,7 @@ def chunk_text(text: str, chunk_size: int = 500, chunk_overlap: int = 50, respec
         sentences = re.split(r"(?<=[.!?。！？])\s+", text)
 
         current_chunk = ""
-        current_chunk_sentences = []
+        current_chunk_sentences: List[str] = []
 
         for sentence in sentences:
             # 如果当前句子加上当前块的长度超过块大小，则保存当前块并开始新块
@@ -51,7 +51,7 @@ def chunk_text(text: str, chunk_size: int = 500, chunk_overlap: int = 50, respec
 
                 # 保留部分句子以实现重叠
                 overlap_text = ""
-                overlap_sentences = []
+                overlap_sentences: List[str] = []
                 remaining_overlap = chunk_overlap
 
                 for s in reversed(current_chunk_sentences):
@@ -149,7 +149,7 @@ def average_vectors(vectors: List[List[float]]) -> List[float]:
     # 计算平均值
     avg_vector = np.mean(np_vectors, axis=0)
 
-    return avg_vector.tolist()
+    return [float(value) for value in avg_vector]
 
 
 def normalize_vector(vector: List[float]) -> List[float]:
@@ -175,7 +175,7 @@ def normalize_vector(vector: List[float]) -> List[float]:
     # 标准化向量
     normalized = np_vector / norm
 
-    return normalized.tolist()
+    return [float(value) for value in normalized]
 
 
 def find_nearest_neighbors(
@@ -241,91 +241,34 @@ def evaluate_embeddings(
     if len(embeddings) != len(labels):
         raise ValueError(f"嵌入向量数量 ({len(embeddings)}) 与标签数量 ({len(labels)}) 不匹配")
 
-    # 按标签分组
-    label_groups = {}
-    for i, label in enumerate(labels):
-        if label not in label_groups:
-            label_groups[label] = []
-        label_groups[label].append(i)
-
-    results = {}
-
-    if evaluation_method == "cluster_coherence" or evaluation_method == "intra_class_similarity":
-        # 计算每个簇的内部一致性（类内相似度）
-        intra_similarities = []
-
-        for label, indices in label_groups.items():
-            if len(indices) <= 1:
-                continue
-
-            # 提取该簇的所有向量
-            group_vectors = [embeddings[i] for i in indices]
-
-            # 计算簇内所有向量对之间的平均相似度
-            similarity_sum = 0
-            count = 0
-
-            for i in range(len(group_vectors)):
-                for j in range(i + 1, len(group_vectors)):
-                    similarity = calculate_vector_similarity(group_vectors[i], group_vectors[j], "cosine")
-                    similarity_sum += similarity
-                    count += 1
-
-            if count > 0:
-                avg_similarity = similarity_sum / count
-                intra_similarities.append(avg_similarity)
-
-        if intra_similarities:
-            results["intra_class_similarity"] = sum(intra_similarities) / len(intra_similarities)
-        else:
-            results["intra_class_similarity"] = 0.0
-
-    if evaluation_method == "cluster_coherence" or evaluation_method == "inter_class_distance":
-        # 计算簇间平均距离
-        inter_distances = []
-
-        # 计算每个簇的中心点
-        centroids = {}
-        for label, indices in label_groups.items():
-            if not indices:
-                continue
-
-            # 提取该簇的所有向量
-            group_vectors = [embeddings[i] for i in indices]
-
-            # 计算簇中心点
-            centroids[label] = average_vectors(group_vectors)
-
-        # 计算簇间距离
-        labels_list = list(centroids.keys())
-        for i in range(len(labels_list)):
-            for j in range(i + 1, len(labels_list)):
-                label1 = labels_list[i]
-                label2 = labels_list[j]
-
-                # 使用1-相似度作为距离
-                similarity = calculate_vector_similarity(centroids[label1], centroids[label2], "cosine")
-                distance = 1 - similarity
-
-                inter_distances.append(distance)
-
-        if inter_distances:
-            results["inter_class_distance"] = sum(inter_distances) / len(inter_distances)
-        else:
-            results["inter_class_distance"] = 0.0
-
-    # 如果是综合评估，计算分离度（类间距离与类内相似度之比）
-    if (
-        evaluation_method == "cluster_coherence"
-        and "intra_class_similarity" in results
-        and "inter_class_distance" in results
-    ):
-        if results["intra_class_similarity"] > 0:
-            results["separation_ratio"] = results["inter_class_distance"] / results["intra_class_similarity"]
-        else:
-            results["separation_ratio"] = 0.0
-
+    groups: Dict[Any, List[List[float]]] = {}
+    for vector, label in zip(embeddings, labels):
+        groups.setdefault(label, []).append(vector)
+    results: Dict[str, float] = {}
+    if evaluation_method in {"cluster_coherence", "intra_class_similarity"}:
+        values = [_mean_pair_similarity(vectors) for vectors in groups.values() if len(vectors) > 1]
+        results["intra_class_similarity"] = sum(values) / len(values) if values else 0.0
+    if evaluation_method in {"cluster_coherence", "inter_class_distance"}:
+        centroids = [average_vectors(vectors) for vectors in groups.values()]
+        distances = [
+            1 - calculate_vector_similarity(left, right, "cosine")
+            for index, left in enumerate(centroids)
+            for right in centroids[index + 1 :]
+        ]
+        results["inter_class_distance"] = sum(distances) / len(distances) if distances else 0.0
+    if evaluation_method == "cluster_coherence":
+        intra = results["intra_class_similarity"]
+        results["separation_ratio"] = results["inter_class_distance"] / intra if intra > 0 else 0.0
     return results
+
+
+def _mean_pair_similarity(vectors: List[List[float]]) -> float:
+    values = [
+        calculate_vector_similarity(left, right, "cosine")
+        for index, left in enumerate(vectors)
+        for right in vectors[index + 1 :]
+    ]
+    return sum(values) / len(values) if values else 0.0
 
 
 def reduce_dimensionality(vectors: List[List[float]], dim: int = 2, method: str = "pca") -> List[List[float]]:
@@ -350,18 +293,16 @@ def reduce_dimensionality(vectors: List[List[float]], dim: int = 2, method: str 
         if method == "pca":
             from sklearn.decomposition import PCA
 
-            reducer = PCA(n_components=dim)
+            reduced_vectors = PCA(n_components=dim).fit_transform(np_vectors)
         elif method == "tsne":
             from sklearn.manifold import TSNE
 
-            reducer = TSNE(n_components=dim, random_state=42)
+            reduced_vectors = TSNE(n_components=dim, random_state=42).fit_transform(np_vectors)
         else:
             raise ValueError(f"不支持的降维方法: {method}")
 
         # 执行降维
-        reduced_vectors = reducer.fit_transform(np_vectors)
-
-        return reduced_vectors.tolist()
+        return [[float(value) for value in row] for row in reduced_vectors]
 
     except Exception as e:
         logger.error(f"降维失败: {str(e)}")
@@ -373,7 +314,7 @@ def optimize_chunk_size(
     min_size: int = 100,
     max_size: int = 1000,
     step: int = 100,
-    embedding_fn: Callable[[str], List[float]] = None,
+    embedding_fn: Optional[Callable[[str], List[float]]] = None,
 ) -> Tuple[int, float]:
     """
     通过评估不同块大小的嵌入质量，确定最佳的文本分块大小。
@@ -400,43 +341,13 @@ def optimize_chunk_size(
         chunks = chunk_text(text, chunk_size=size, chunk_overlap=int(size * 0.1))
 
         # 如果提供了嵌入函数，则评估嵌入质量
-        if embedding_fn:
+        if embedding_fn is not None:
             try:
-                # 为每个块生成嵌入
-                embeddings = [embedding_fn(chunk) for chunk in chunks]
-
-                # 评估嵌入质量（使用簇内一致性）
-                # 假设相邻的块应该在语义上相似
-                labels = list(range(len(chunks)))
-
-                # 计算相邻块之间的平均相似度
-                similarities = []
-                for i in range(len(embeddings) - 1):
-                    sim = calculate_vector_similarity(embeddings[i], embeddings[i + 1], "cosine")
-                    similarities.append(sim)
-
-                if similarities:
-                    avg_similarity = sum(similarities) / len(similarities)
-                else:
-                    avg_similarity = 0.0
-
-                # 计算块数量平衡因子（不希望块太多或太少）
-                chunk_count = len(chunks)
-                count_factor = 1.0
-                if chunk_count < 3:
-                    count_factor = chunk_count / 3
-                elif chunk_count > 20:
-                    count_factor = 20 / chunk_count
-
-                # 综合评分
-                score = avg_similarity * count_factor
-
+                score = _chunk_embedding_score(chunks, embedding_fn)
                 if score > best_score:
-                    best_score = score
-                    best_size = size
-
-            except Exception as e:
-                logger.error(f"评估块大小 {size} 时发生错误: {str(e)}")
+                    best_score, best_size = score, size
+            except Exception as error:
+                logger.error(f"评估块大小 {size} 时发生错误: {error}")
                 continue
         else:
             # 如果没有提供嵌入函数，则仅基于块数量评估
@@ -455,8 +366,19 @@ def optimize_chunk_size(
     return (best_size, best_score)
 
 
+def _chunk_embedding_score(chunks: List[str], embedding_fn: Callable[[str], List[float]]) -> float:
+    embeddings = [embedding_fn(chunk) for chunk in chunks]
+    values = [calculate_vector_similarity(left, right, "cosine") for left, right in zip(embeddings, embeddings[1:])]
+    average = sum(values) / len(values) if values else 0.0
+    count = len(chunks)
+    count_factor = count / 3 if count < 3 else 20 / count if count > 20 else 1.0
+    return average * count_factor
+
+
 def get_academic_citation_embeddings(
-    text: str, citation_pattern: str = r"\[\d+\]|\(\w+,\s+\d{4}\)", embedding_fn: Callable[[str], List[float]] = None
+    text: str,
+    citation_pattern: str = r"\[\d+\]|\(\w+,\s+\d{4}\)",
+    embedding_fn: Optional[Callable[[str], List[float]]] = None,
 ) -> Tuple[List[str], List[List[float]]]:
     """
     提取学术文献中的引用及其上下文，并为每个引用上下文生成嵌入向量。
@@ -517,7 +439,7 @@ def analyze_embedding_distribution(embeddings: List[List[float]]) -> Dict[str, A
         return {}
 
     # 转换为numpy数组
-    np_embeddings = np.array(embeddings)
+    np_embeddings = np.array(embeddings, dtype=float)
 
     # 计算基本统计量
     mean_vector = np.mean(np_embeddings, axis=0)
@@ -577,51 +499,11 @@ def filter_embeddings(
     if not embeddings or not texts or len(embeddings) != len(texts):
         return ([], [], [])
 
-    # 转换为numpy数组
-    np_embeddings = np.array(embeddings)
-
-    # 要保留的索引
-    keep_indices = []
-
     if filter_method == "outlier":
-        # 计算每个向量到平均向量的距离
-        mean_vector = np.mean(np_embeddings, axis=0)
-        distances = []
-
-        for vec in np_embeddings:
-            dist = np.linalg.norm(vec - mean_vector)
-            distances.append(dist)
-
-        # 计算距离的平均值和标准差
-        mean_dist = np.mean(distances)
-        std_dist = np.std(distances)
-
-        # 保留距离在阈值范围内的向量
-        for i, dist in enumerate(distances):
-            if abs(dist - mean_dist) <= threshold * std_dist:
-                keep_indices.append(i)
-
+        keep_indices = _outlier_indices(embeddings, threshold)
     elif filter_method == "noise":
-        # 计算每个向量与其他向量的平均相似度
-        avg_similarities = []
-
-        for i, vec1 in enumerate(np_embeddings):
-            similarities = []
-            for j, vec2 in enumerate(np_embeddings):
-                if i != j:
-                    sim = calculate_vector_similarity(vec1.tolist(), vec2.tolist(), "cosine")
-                    similarities.append(sim)
-
-            avg_sim = np.mean(similarities) if similarities else 0.0
-            avg_similarities.append(avg_sim)
-
-        # 保留相似度高于阈值的向量
-        for i, sim in enumerate(avg_similarities):
-            if sim >= threshold:
-                keep_indices.append(i)
-
+        keep_indices = _noise_indices(embeddings, threshold)
     else:
-        # 未知的过滤方法，保留所有向量
         keep_indices = list(range(len(embeddings)))
 
     # 筛选向量和文本
@@ -629,6 +511,28 @@ def filter_embeddings(
     filtered_texts = [texts[i] for i in keep_indices]
 
     return (filtered_embeddings, filtered_texts, keep_indices)
+
+
+def _outlier_indices(embeddings: List[List[float]], threshold: float) -> List[int]:
+    vectors = np.array(embeddings, dtype=float)
+    mean = np.mean(vectors, axis=0)
+    distances = [float(np.linalg.norm(vector - mean)) for vector in vectors]
+    average, deviation = float(np.mean(distances)), float(np.std(distances))
+    return [index for index, distance in enumerate(distances) if abs(distance - average) <= threshold * deviation]
+
+
+def _noise_indices(embeddings: List[List[float]], threshold: float) -> List[int]:
+    keep = []
+    for index, vector in enumerate(embeddings):
+        values = [
+            calculate_vector_similarity(vector, other, "cosine")
+            for other_index, other in enumerate(embeddings)
+            if index != other_index
+        ]
+        average = sum(values) / len(values) if values else 0.0
+        if average >= threshold:
+            keep.append(index)
+    return keep
 
 
 def combine_embeddings(embeddings: List[List[float]], method: str = "average") -> List[float]:
@@ -646,7 +550,7 @@ def combine_embeddings(embeddings: List[List[float]], method: str = "average") -
         return []
 
     # 转换为numpy数组
-    np_embeddings = np.array(embeddings)
+    np_embeddings = np.array(embeddings, dtype=float)
 
     if method == "average":
         # 计算平均值
@@ -673,10 +577,10 @@ def combine_embeddings(embeddings: List[List[float]], method: str = "average") -
         # 未知的合并方法，使用平均值
         combined = np.mean(np_embeddings, axis=0)
 
-    return combined.tolist()
+    return [float(value) for value in combined]
 
 
-def extract_academic_entities(text: str, entity_patterns: Dict[str, str] = None) -> Dict[str, List[str]]:
+def extract_academic_entities(text: str, entity_patterns: Optional[Dict[str, str]] = None) -> Dict[str, List[str]]:
     """
     从学术文献中提取实体。
 
@@ -705,7 +609,7 @@ def extract_academic_entities(text: str, entity_patterns: Dict[str, str] = None)
     patterns = entity_patterns or default_patterns
 
     # 提取实体
-    entities = {}
+    entities: Dict[str, List[str]] = {}
 
     for entity_type, pattern in patterns.items():
         entities[entity_type] = []

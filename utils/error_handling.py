@@ -13,16 +13,16 @@ import asyncio
 import threading
 import time
 import traceback
-from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional, ParamSpec, Protocol, Type, TypeVar
 
 from loguru import logger
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 class ErrorSeverity(Enum):
@@ -111,7 +111,7 @@ class BaseRAGException(Exception):
 class ConfigurationError(BaseRAGException):
     """Configuration related errors"""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
             message,
             error_code="CONFIG_ERROR",
@@ -124,7 +124,7 @@ class ConfigurationError(BaseRAGException):
 class ProcessingError(BaseRAGException):
     """Document processing errors"""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
             message,
             error_code="PROCESSING_ERROR",
@@ -137,7 +137,7 @@ class ProcessingError(BaseRAGException):
 class StorageError(BaseRAGException):
     """Storage related errors"""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
             message, error_code="STORAGE_ERROR", severity=ErrorSeverity.HIGH, category=ErrorCategory.STORAGE, **kwargs
         )
@@ -146,7 +146,7 @@ class StorageError(BaseRAGException):
 class NetworkError(BaseRAGException):
     """Network related errors"""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
             message, error_code="NETWORK_ERROR", severity=ErrorSeverity.MEDIUM, category=ErrorCategory.NETWORK, **kwargs
         )
@@ -155,7 +155,7 @@ class NetworkError(BaseRAGException):
 class ValidationError(BaseRAGException):
     """Validation errors"""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
             message,
             error_code="VALIDATION_ERROR",
@@ -168,7 +168,7 @@ class ValidationError(BaseRAGException):
 class AuthenticationError(BaseRAGException):
     """Authentication errors"""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
             message,
             error_code="AUTH_ERROR",
@@ -181,7 +181,7 @@ class AuthenticationError(BaseRAGException):
 class RateLimitError(BaseRAGException):
     """Rate limiting errors"""
 
-    def __init__(self, message: str, retry_after: Optional[int] = None, **kwargs):
+    def __init__(self, message: str, retry_after: Optional[int] = None, **kwargs: Any) -> None:
         super().__init__(
             message,
             error_code="RATE_LIMIT_ERROR",
@@ -195,7 +195,7 @@ class RateLimitError(BaseRAGException):
 class ResourceError(BaseRAGException):
     """Resource exhaustion errors"""
 
-    def __init__(self, message: str, resource_type: str, **kwargs):
+    def __init__(self, message: str, resource_type: str, **kwargs: Any) -> None:
         super().__init__(
             message, error_code="RESOURCE_ERROR", severity=ErrorSeverity.HIGH, category=ErrorCategory.RESOURCE, **kwargs
         )
@@ -222,62 +222,45 @@ class RetryConfig:
         self.retry_exceptions = retry_exceptions or [NetworkError, RateLimitError, TimeoutError, ConnectionError]
 
 
+def _retry_delay(config: RetryConfig, error: Exception, attempt: int) -> float:
+    delay = min(config.initial_delay * config.exponential_base**attempt, config.max_delay)
+    if config.jitter:
+        import random
+
+        delay *= 0.5 + random.random()
+    if isinstance(error, RateLimitError) and error.retry_after:
+        delay = max(delay, error.retry_after)
+    return delay
+
+
 def retry_with_backoff(
     config: Optional[RetryConfig] = None, on_retry: Optional[Callable[[Exception, int], None]] = None
-):
-    """
-    Decorator for retrying functions with exponential backoff
+) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    """Retry configured exceptions while preserving the callable's parameter contract."""
+    retry_config = config if config is not None else RetryConfig()
+    if retry_config.max_attempts < 1:
+        raise ValueError("max_attempts must be at least one")
 
-    Args:
-        config: Retry configuration
-        on_retry: Callback function called on each retry
-    """
-    if config is None:
-        config = RetryConfig()
-
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> T:
-            last_exception = None
-
-            for attempt in range(config.max_attempts):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            for attempt in range(retry_config.max_attempts):
                 try:
                     return func(*args, **kwargs)
-                except Exception as e:
-                    last_exception = e
-
-                    # Check if we should retry this exception
-                    should_retry = any(isinstance(e, exc_type) for exc_type in config.retry_exceptions)
-
-                    if not should_retry or attempt == config.max_attempts - 1:
+                except Exception as error:
+                    if (
+                        not isinstance(error, tuple(retry_config.retry_exceptions))
+                        or attempt == retry_config.max_attempts - 1
+                    ):
                         raise
-
-                    # Calculate delay
-                    delay = min(config.initial_delay * (config.exponential_base**attempt), config.max_delay)
-
-                    # Add jitter
-                    if config.jitter:
-                        import random
-
-                        delay *= 0.5 + random.random()
-
-                    # Handle rate limit errors
-                    if isinstance(e, RateLimitError) and e.retry_after:
-                        delay = max(delay, e.retry_after)
-
-                    # Call retry callback
+                    delay = _retry_delay(retry_config, error, attempt)
                     if on_retry:
-                        on_retry(e, attempt + 1)
-
+                        on_retry(error, attempt + 1)
                     logger.warning(
-                        f"Retry attempt {attempt + 1}/{config.max_attempts} "
-                        f"for {func.__name__} after {delay:.2f}s delay. "
-                        f"Error: {str(e)}"
+                        f"Retry attempt {attempt + 1}/{retry_config.max_attempts} for {func.__name__} after {delay:.2f}s delay. Error: {error}"
                     )
-
                     time.sleep(delay)
-
-            raise last_exception
+            raise RuntimeError("Retry attempt configuration changed during execution")
 
         return wrapper
 
@@ -286,49 +269,32 @@ def retry_with_backoff(
 
 def async_retry_with_backoff(
     config: Optional[RetryConfig] = None, on_retry: Optional[Callable[[Exception, int], None]] = None
-):
-    """Async version of retry_with_backoff"""
-    if config is None:
-        config = RetryConfig()
+) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
+    """Async retry with the same exception and delay contract as synchronous retry."""
+    retry_config = config if config is not None else RetryConfig()
+    if retry_config.max_attempts < 1:
+        raise ValueError("max_attempts must be at least one")
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
         @wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
-            last_exception = None
-
-            for attempt in range(config.max_attempts):
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            for attempt in range(retry_config.max_attempts):
                 try:
                     return await func(*args, **kwargs)
-                except Exception as e:
-                    last_exception = e
-
-                    should_retry = any(isinstance(e, exc_type) for exc_type in config.retry_exceptions)
-
-                    if not should_retry or attempt == config.max_attempts - 1:
+                except Exception as error:
+                    if (
+                        not isinstance(error, tuple(retry_config.retry_exceptions))
+                        or attempt == retry_config.max_attempts - 1
+                    ):
                         raise
-
-                    delay = min(config.initial_delay * (config.exponential_base**attempt), config.max_delay)
-
-                    if config.jitter:
-                        import random
-
-                        delay *= 0.5 + random.random()
-
-                    if isinstance(e, RateLimitError) and e.retry_after:
-                        delay = max(delay, e.retry_after)
-
+                    delay = _retry_delay(retry_config, error, attempt)
                     if on_retry:
-                        on_retry(e, attempt + 1)
-
+                        on_retry(error, attempt + 1)
                     logger.warning(
-                        f"Async retry attempt {attempt + 1}/{config.max_attempts} "
-                        f"for {func.__name__} after {delay:.2f}s delay. "
-                        f"Error: {str(e)}"
+                        f"Async retry attempt {attempt + 1}/{retry_config.max_attempts} for {func.__name__} after {delay:.2f}s delay. Error: {error}"
                     )
-
                     await asyncio.sleep(delay)
-
-            raise last_exception
+            raise RuntimeError("Retry attempt configuration changed during execution")
 
         return wrapper
 
@@ -376,7 +342,7 @@ class CircuitBreaker:
                     self._state = CircuitBreakerState.HALF_OPEN
             return self._state
 
-    def call(self, func: Callable[..., T], *args, **kwargs) -> T:
+    def call(self, func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
         """Call function through circuit breaker"""
         if self.state == CircuitBreakerState.OPEN:
             raise NetworkError("Circuit breaker is OPEN")
@@ -385,11 +351,11 @@ class CircuitBreaker:
             result = func(*args, **kwargs)
             self._on_success()
             return result
-        except self.expected_exception as e:
+        except self.expected_exception:
             self._on_failure()
             raise
 
-    async def async_call(self, func: Callable[..., T], *args, **kwargs) -> T:
+    async def async_call(self, func: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> T:
         """Async call through circuit breaker"""
         if self.state == CircuitBreakerState.OPEN:
             raise NetworkError("Circuit breaker is OPEN")
@@ -398,17 +364,17 @@ class CircuitBreaker:
             result = await func(*args, **kwargs)
             self._on_success()
             return result
-        except self.expected_exception as e:
+        except self.expected_exception:
             self._on_failure()
             raise
 
-    def _on_success(self):
+    def _on_success(self) -> None:
         """Handle successful call"""
         with self._lock:
             self._failure_count = 0
             self._state = CircuitBreakerState.CLOSED
 
-    def _on_failure(self):
+    def _on_failure(self) -> None:
         """Handle failed call"""
         with self._lock:
             self._failure_count += 1
@@ -420,11 +386,11 @@ class CircuitBreaker:
 
 
 def handle_errors(
-    default_return: Any = None,
+    default_return: object = None,
     log_errors: bool = True,
     reraise: bool = False,
-    error_handler: Optional[Callable[[Exception], Any]] = None,
-):
+    error_handler: Optional[Callable[[Exception], object]] = None,
+) -> Callable[[Callable[P, T]], Callable[P, object]]:
     """
     Decorator for graceful error handling
 
@@ -435,9 +401,9 @@ def handle_errors(
         error_handler: Custom error handler function
     """
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[P, T]) -> Callable[P, object]:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> T:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> object:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
@@ -470,7 +436,7 @@ class ErrorRecoveryStrategy:
         """Check if recovery is possible for this error"""
         raise NotImplementedError
 
-    def recover(self, error: Exception, context: Dict[str, Any]) -> Any:
+    def recover(self, error: Exception, context: Dict[str, Any]) -> object:
         """Attempt to recover from error"""
         raise NotImplementedError
 
@@ -478,42 +444,48 @@ class ErrorRecoveryStrategy:
 class FallbackRecovery(ErrorRecoveryStrategy):
     """Fallback to alternative service/method"""
 
-    def __init__(self, fallback_func: Callable):
+    def __init__(self, fallback_func: Callable[..., object]):
         self.fallback_func = fallback_func
 
     def can_recover(self, error: Exception) -> bool:
         return isinstance(error, (NetworkError, TimeoutError))
 
-    def recover(self, error: Exception, context: Dict[str, Any]) -> Any:
+    def recover(self, error: Exception, context: Dict[str, Any]) -> object:
         logger.info(f"Using fallback for {error}")
         return self.fallback_func(**context)
+
+
+class RecoveryCache(Protocol):
+    """The cache boundary used by error recovery."""
+
+    def get(self, key: str) -> object: ...
 
 
 class CacheRecovery(ErrorRecoveryStrategy):
     """Recover using cached data"""
 
-    def __init__(self, cache_provider):
+    def __init__(self, cache_provider: RecoveryCache) -> None:
         self.cache = cache_provider
 
     def can_recover(self, error: Exception) -> bool:
         return isinstance(error, (NetworkError, RateLimitError))
 
-    def recover(self, error: Exception, context: Dict[str, Any]) -> Any:
+    def recover(self, error: Exception, context: Dict[str, Any]) -> object:
         cache_key = context.get("cache_key")
-        if cache_key:
+        if isinstance(cache_key, str) and cache_key:
             cached_value = self.cache.get(cache_key)
-            if cached_value:
+            if cached_value is not None:
                 logger.info(f"Recovered from cache for key: {cache_key}")
                 return cached_value
         raise error
 
 
-def with_recovery(strategies: List[ErrorRecoveryStrategy]):
+def with_recovery(strategies: List[ErrorRecoveryStrategy]) -> Callable[[Callable[P, T]], Callable[P, object]]:
     """Decorator to apply recovery strategies on error"""
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[P, T]) -> Callable[P, object]:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> T:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> object:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
@@ -541,7 +513,7 @@ def with_recovery(strategies: List[ErrorRecoveryStrategy]):
 if __name__ == "__main__":
     # Example with retry
     @retry_with_backoff(config=RetryConfig(max_attempts=3, initial_delay=1.0))
-    def unreliable_api_call():
+    def unreliable_api_call() -> str:
         import random
 
         if random.random() < 0.7:
@@ -551,18 +523,18 @@ if __name__ == "__main__":
     # Example with circuit breaker
     circuit_breaker = CircuitBreaker(failure_threshold=3)
 
-    def api_call():
+    def api_call() -> None:
         # Simulate API call
         raise NetworkError("Service unavailable")
 
     try:
         result = circuit_breaker.call(api_call)
-    except NetworkError as e:
+    except NetworkError:
         print(f"Circuit breaker state: {circuit_breaker.state}")
 
     # Example with error handling
     @handle_errors(default_return=[], log_errors=True)
-    def get_documents():
+    def get_documents() -> List[object]:
         raise StorageError("Database connection failed")
 
     docs = get_documents()  # Returns [] instead of raising

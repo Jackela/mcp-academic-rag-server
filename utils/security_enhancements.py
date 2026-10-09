@@ -10,22 +10,21 @@ This module provides production-ready security enhancements including:
 - Rate limiting with Redis backend
 """
 
-import hashlib
-import hmac
 import logging
 import os
 import secrets
 import time
-from datetime import datetime, timedelta
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any, BinaryIO, Callable, Dict, Optional, ParamSpec
 
 import magic
 import redis
 from cryptography.fernet import Fernet
-from flask import current_app, g, jsonify, request
+from flask import Flask, Response, jsonify, request
+from flask.typing import ResponseReturnValue
 
 logger = logging.getLogger(__name__)
+P = ParamSpec("P")
 
 
 class SecretKeyManager:
@@ -89,7 +88,7 @@ class SecretKeyManager:
 class EnhancedFileUploadValidator:
     """Enhanced file upload security validation"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.allowed_extensions = {"pdf", "png", "jpg", "jpeg", "tif", "tiff", "txt", "docx"}
         self.allowed_mime_types = {
             "application/pdf",
@@ -103,16 +102,18 @@ class EnhancedFileUploadValidator:
         self.blocked_extensions = {"exe", "bat", "cmd", "com", "scr", "vbs", "js", "jar", "zip"}
 
         # Initialize magic for file type detection
+        self.magic_mime: magic.Magic | None
         try:
             self.magic_mime = magic.Magic(mime=True)
         except Exception as e:
             logger.warning(f"Could not initialize python-magic: {e}")
             self.magic_mime = None
 
-    def validate_file(self, file, filename: str) -> Dict[str, Any]:
+    def validate_file(self, file: BinaryIO, filename: str) -> Dict[str, Any]:
         """Comprehensive file validation"""
-        errors = []
-        warnings = []
+        errors: list[str] = []
+        warnings: list[str] = []
+        detected_mime: str | None = None
 
         try:
             # 1. Filename validation
@@ -140,32 +141,9 @@ class EnhancedFileUploadValidator:
                     f"File size ({file_size} bytes) exceeds maximum allowed size ({self.max_file_size} bytes)"
                 )
 
-            # 4. MIME type validation
-            if self.magic_mime:
-                try:
-                    file_content = file.read(1024)  # Read first 1KB for MIME detection
-                    file.seek(0)  # Reset file pointer
+            detected_mime = self._detect_mime(file, errors, warnings)
 
-                    detected_mime = self.magic_mime.from_buffer(file_content)
-                    if detected_mime not in self.allowed_mime_types:
-                        errors.append(f"File content type '{detected_mime}' does not match allowed types")
-
-                except Exception as e:
-                    warnings.append(f"Could not verify file content type: {e}")
-
-            # 5. Filename security validation
-            dangerous_patterns = ["..", "/", "\\", ":", "*", "?", '"', "<", ">", "|"]
-            for pattern in dangerous_patterns:
-                if pattern in filename:
-                    errors.append(f"Filename contains dangerous character: {pattern}")
-
-            # 6. Length validation
-            if len(filename) > 255:
-                errors.append("Filename is too long (maximum 255 characters)")
-
-            # 7. Hidden file detection
-            if filename.startswith("."):
-                warnings.append("Uploading hidden files is discouraged")
+            self._validate_filename(filename, errors, warnings)
 
             return {
                 "valid": len(errors) == 0,
@@ -180,15 +158,39 @@ class EnhancedFileUploadValidator:
             logger.error(f"Error during file validation: {e}")
             return {"valid": False, "errors": [f"File validation failed: {str(e)}"], "warnings": warnings}
 
+    def _detect_mime(self, file: BinaryIO, errors: list[str], warnings: list[str]) -> str | None:
+        if self.magic_mime is None:
+            return None
+        try:
+            file_content = file.read(1024)
+            file.seek(0)
+            detected_mime = self.magic_mime.from_buffer(file_content)
+            if detected_mime not in self.allowed_mime_types:
+                errors.append(f"File content type '{detected_mime}' does not match allowed types")
+            return str(detected_mime)
+        except Exception as error:
+            warnings.append(f"Could not verify file content type: {error}")
+            return None
+
+    @staticmethod
+    def _validate_filename(filename: str, errors: list[str], warnings: list[str]) -> None:
+        for pattern in ["..", "/", "\\", ":", "*", "?", '"', "<", ">", "|"]:
+            if pattern in filename:
+                errors.append(f"Filename contains dangerous character: {pattern}")
+        if len(filename) > 255:
+            errors.append("Filename is too long (maximum 255 characters)")
+        if filename.startswith("."):
+            warnings.append("Uploading hidden files is discouraged")
+
 
 class EnhancedRateLimit:
     """Enhanced rate limiting with Redis backend and multiple strategies"""
 
-    def __init__(self, redis_client=None):
+    def __init__(self, redis_client: redis.Redis | None = None) -> None:
         self.redis_client = redis_client or self._create_redis_client()
         self.default_limits = {"per_minute": 60, "per_hour": 600, "per_day": 5000}
 
-    def _create_redis_client(self):
+    def _create_redis_client(self) -> redis.Redis | None:
         """Create Redis client for rate limiting"""
         try:
             redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/1")
@@ -241,12 +243,14 @@ class EnhancedRateLimit:
             # Fail open for availability
             return {"allowed": True, "remaining": limit, "reset_time": time.time() + window}
 
-    def rate_limit(self, per_minute: int = None, per_hour: int = None, per_day: int = None):
+    def rate_limit(
+        self, per_minute: int | None = None, per_hour: int | None = None, per_day: int | None = None
+    ) -> Callable[[Callable[P, ResponseReturnValue]], Callable[P, ResponseReturnValue]]:
         """Rate limiting decorator"""
 
-        def decorator(f):
+        def decorator(f: Callable[P, ResponseReturnValue]) -> Callable[P, ResponseReturnValue]:
             @wraps(f)
-            def decorated_function(*args, **kwargs):
+            def decorated_function(*args: P.args, **kwargs: P.kwargs) -> ResponseReturnValue:
                 # Get client IP
                 client_ip = request.environ.get("HTTP_X_FORWARDED_FOR", request.remote_addr)
                 if not client_ip:
@@ -287,16 +291,16 @@ class EnhancedRateLimit:
 class SecurityHeadersMiddleware:
     """Add security headers to all responses"""
 
-    def __init__(self, app=None):
+    def __init__(self, app: Flask | None = None) -> None:
         self.app = app
         if app:
             self.init_app(app)
 
-    def init_app(self, app):
+    def init_app(self, app: Flask) -> None:
         """Initialize security headers middleware"""
         app.after_request(self.add_security_headers)
 
-    def add_security_headers(self, response):
+    def add_security_headers(self, response: Response) -> Response:
         """Add security headers to response"""
         # Content Security Policy
         csp = (
@@ -374,7 +378,7 @@ class APIKeyManager:
         return {"valid": True}
 
 
-def init_security_enhancements(app):
+def init_security_enhancements(app: Flask) -> Dict[str, Any]:
     """Initialize all security enhancements for the Flask app"""
 
     # 1. Initialize secure secret key management
@@ -382,24 +386,24 @@ def init_security_enhancements(app):
     app.secret_key = secret_manager.get_or_create_secret_key()
 
     # 2. Initialize security headers middleware
-    security_headers = SecurityHeadersMiddleware(app)
+    SecurityHeadersMiddleware(app)
 
     # 3. Initialize rate limiting
     rate_limiter = EnhancedRateLimit()
 
     # Store instances in app context for access in routes
-    app.secret_manager = secret_manager
-    app.file_validator = EnhancedFileUploadValidator()
-    app.rate_limiter = rate_limiter
-    app.api_key_manager = APIKeyManager()
+    setattr(app, "secret_manager", secret_manager)
+    setattr(app, "file_validator", EnhancedFileUploadValidator())
+    setattr(app, "rate_limiter", rate_limiter)
+    setattr(app, "api_key_manager", APIKeyManager())
 
     logger.info("Security enhancements initialized successfully")
 
     return {
         "secret_manager": secret_manager,
-        "file_validator": app.file_validator,
+        "file_validator": getattr(app, "file_validator"),
         "rate_limiter": rate_limiter,
-        "api_key_manager": app.api_key_manager,
+        "api_key_manager": getattr(app, "api_key_manager"),
     }
 
 
@@ -409,7 +413,7 @@ def get_secure_secret_key() -> str:
     return SecretKeyManager().get_or_create_secret_key()
 
 
-def validate_uploaded_file(file, filename: str) -> Dict[str, Any]:
+def validate_uploaded_file(file: BinaryIO, filename: str) -> Dict[str, Any]:
     """Validate uploaded file with comprehensive security checks"""
     validator = EnhancedFileUploadValidator()
     return validator.validate_file(file, filename)

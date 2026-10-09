@@ -5,27 +5,29 @@
 """
 
 import argparse
+import asyncio
 import glob
 import json
 import logging
 import os
 import sys
-import time
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 # 添加项目根目录到系统路径，确保能够导入其他模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.config_manager import ConfigManager
-from core.pipeline import Pipeline
-from models.document import Document
-from models.process_result import ProcessResult
-from processors.base_processor import IProcessor
+from core.config_manager import ConfigManager  # noqa: E402 - direct script entry point
+from core.pipeline import Pipeline  # noqa: E402 - direct script entry point
+from core.processor_loader import ProcessorLoader  # noqa: E402 - direct script entry point
+from models.document import Document  # noqa: E402 - direct script entry point
 
 
 class DocumentCLI:
     """文档处理命令行界面类"""
 
-    def __init__(self, config_path: str = "./config/config.json", verbose: bool = False):
+    def __init__(self, config_path: str = "./config/config.json", verbose: bool = False) -> None:
         """
         初始化文档处理命令行界面
 
@@ -42,7 +44,7 @@ class DocumentCLI:
         # 初始化组件
         self._init_components()
 
-    def _init_components(self):
+    def _init_components(self) -> None:
         """初始化组件：配置管理器、处理流水线等"""
         try:
             # 初始化配置管理器
@@ -58,7 +60,7 @@ class DocumentCLI:
             self.logger.info(f"文档处理CLI初始化完成，配置文件：{self.config_path}")
 
             # 加载处理器（实际应用中应实现动态加载）
-            self.processors = {}
+            self.processors_loaded = False
 
             # 初始化处理流水线
             self.pipeline = Pipeline("DocumentCLI_Pipeline")
@@ -67,7 +69,7 @@ class DocumentCLI:
             print(f"初始化文档处理CLI失败: {str(e)}")
             sys.exit(1)
 
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """设置日志系统"""
         log_config = self.config_manager.get_value("logging", {})
         log_level_name = log_config.get("level", "INFO")
@@ -81,7 +83,7 @@ class DocumentCLI:
 
         # 创建日志目录
         if log_file:
-            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            Path(log_file).parent.mkdir(parents=True, exist_ok=True)
 
         # 配置根日志记录器
         logging.basicConfig(
@@ -96,7 +98,7 @@ class DocumentCLI:
         # 获取日志记录器
         self.logger = logging.getLogger("document_cli")
 
-    def _create_storage_dirs(self):
+    def _create_storage_dirs(self) -> None:
         """创建存储目录"""
         storage_base_path = self.config_manager.get_value("storage.base_path", "./data")
         storage_output_path = self.config_manager.get_value("storage.output_path", "./output")
@@ -107,7 +109,7 @@ class DocumentCLI:
         self.storage_base_path = storage_base_path
         self.storage_output_path = storage_output_path
 
-    def _parse_args(self):
+    def _parse_args(self) -> argparse.Namespace:
         """解析命令行参数"""
         parser = argparse.ArgumentParser(
             description="文档处理命令行界面 - 提供文档上传、处理和查询功能",
@@ -116,19 +118,19 @@ class DocumentCLI:
 示例用法:
   # 上传并处理单个文档
   python document_cli.py upload --file path/to/document.pdf
-  
+
   # 批量上传并处理文档
   python document_cli.py upload --directory path/to/documents
-  
+
   # 使用特定处理器处理文档
   python document_cli.py process --id document_id --processors OCRProcessor,StructureProcessor
-  
+
   # 查询文档信息
   python document_cli.py info --id document_id
-  
+
   # 列出所有已处理的文档
   python document_cli.py list
-  
+
   # 导出处理后的文档
   python document_cli.py export --id document_id --format markdown
             """,
@@ -179,7 +181,7 @@ class DocumentCLI:
 
         return parser.parse_args()
 
-    def run(self):
+    def run(self) -> None:
         """运行命令行界面"""
         args = self._parse_args()
 
@@ -187,6 +189,9 @@ class DocumentCLI:
         if args.config != self.config_path:
             self.config_path = args.config
             self.config_manager = ConfigManager(self.config_path)
+            self._create_storage_dirs()
+            self.processors_loaded = False
+            self.pipeline.clear_processors()
 
         # 更新日志级别
         if args.verbose:
@@ -212,93 +217,79 @@ class DocumentCLI:
             # 没有提供子命令，显示帮助
             self._print_usage()
 
-    def _handle_upload(self, args):
+    def _handle_upload(self, args: argparse.Namespace) -> None:
         """处理上传命令"""
         self.logger.info(f"处理上传命令: {args}")
 
-        # 准备要处理的文件列表
-        file_paths = []
-
-        if args.file:
-            # 处理单个文件
-            if os.path.isfile(args.file):
-                file_paths.append(args.file)
-                self.logger.info(f"添加文件：{args.file}")
-            else:
-                self.logger.error(f"文件不存在：{args.file}")
-                return
-
-        elif args.directory:
-            # 处理目录中的文件
-            if not os.path.isdir(args.directory):
-                self.logger.error(f"目录不存在：{args.directory}")
-                return
-
-            # 确定文件扩展名过滤
-            extensions = [".pdf", ".jpg", ".png", ".tiff", ".jpeg", ".bmp"]  # 默认扩展名
-            if args.extensions:
-                extensions = ["." + ext.lower().strip() for ext in args.extensions.split(",")]
-
-            # 查找文件
-            if args.recursive:
-                pattern = os.path.join(args.directory, "**", "*")
-                for file_path in glob.glob(pattern, recursive=True):
-                    if os.path.isfile(file_path) and os.path.splitext(file_path)[1].lower() in extensions:
-                        file_paths.append(file_path)
-                        self.logger.debug(f"添加文件：{file_path}")
-            else:
-                pattern = os.path.join(args.directory, "*")
-                for file_path in glob.glob(pattern):
-                    if os.path.isfile(file_path) and os.path.splitext(file_path)[1].lower() in extensions:
-                        file_paths.append(file_path)
-                        self.logger.debug(f"添加文件：{file_path}")
-
-            self.logger.info(f"从目录 {args.directory} 中找到 {len(file_paths)} 个文件")
-
-        # 处理文件
-        if not file_paths:
-            self.logger.warning("没有找到要处理的文件")
-            return
-
-        # 在实际应用中，这里应调用Pipeline处理文件
-        # 由于处理器尚未实现，这里模拟处理过程
-        for file_path in file_paths:
-            print(f"处理文件：{file_path}")
-
-            # 创建Document对象
+        for file_path in self._upload_paths(args):
             document = Document(file_path)
+            self._process_document(document)
 
-            # 模拟存储路径
-            document_dir = os.path.join(self.storage_base_path, document.document_id)
-            os.makedirs(document_dir, exist_ok=True)
+    def _upload_paths(self, args: argparse.Namespace) -> list[str]:
+        if args.file:
+            if os.path.isfile(args.file):
+                return [args.file]
+            self.logger.error(f"文件不存在：{args.file}")
+            return []
+        if not args.directory or not os.path.isdir(args.directory):
+            self.logger.error(f"目录不存在：{args.directory}")
+            return []
+        extensions = [".pdf", ".jpg", ".png", ".tiff", ".jpeg", ".bmp"]
+        if args.extensions:
+            extensions = ["." + extension.lower().strip() for extension in args.extensions.split(",")]
+        pattern = os.path.join(args.directory, "**", "*") if args.recursive else os.path.join(args.directory, "*")
+        return [
+            path
+            for path in glob.glob(pattern, recursive=bool(args.recursive))
+            if os.path.isfile(path) and os.path.splitext(path)[1].lower() in extensions
+        ]
 
-            # 模拟处理流程
-            start_time = time.time()
+    def _process_document(self, document: Document, processor_names: list[str] | None = None) -> None:
+        """Run the configured pipeline and persist its actual result and content."""
+        if not self.processors_loaded:
+            for processor in ProcessorLoader(self.config_manager).load_processors():
+                self.pipeline.add_processor(processor)
+            self.processors_loaded = True
+        original = self.pipeline.get_processors()
+        try:
+            if processor_names:
+                if not self.pipeline.reorder_processors(processor_names):
+                    raise ValueError("Requested processors are unavailable")
+            result = asyncio.run(self.pipeline.process_document(document))
+            if not result.is_successful():
+                document.update_status("error")
+                print(f"处理失败：{result.get_message()}")
+            else:
+                print(f"文档ID：{document.document_id}，状态：{document.status}")
+        except Exception as error:
+            document.update_status("error")
+            print(f"处理失败：{error}")
+        finally:
+            self.pipeline.clear_processors()
+            for processor in original:
+                self.pipeline.add_processor(processor)
+            directory = Path(self.storage_base_path) / document.document_id
+            directory.mkdir(parents=True, exist_ok=True)
+            data = document.to_dict()
+            data["content"] = document.content
+            with (directory / "document.json").open("w", encoding="utf-8") as saved:
+                json.dump(data, saved, ensure_ascii=False, indent=2, default=self._serialize_document_value)
 
-            # 这里应调用Pipeline.process_document
-            # 目前我们模拟一个成功的处理结果
-            print(f"  文档ID：{document.document_id}")
-            print(f"  状态：处理中...")
-            time.sleep(1)  # 模拟处理时间
+    @staticmethod
+    def _serialize_document_value(value: object) -> str:
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, Path):
+            return str(value)
+        raise TypeError(f"Cannot persist document value of type {type(value).__name__}")
 
-            # 更新状态
-            document.update_status("completed")
+    @staticmethod
+    def _restore_document(data: dict[str, Any]) -> Document:
+        document = Document.from_dict(data)
+        document.content = data.get("content", {})
+        return document
 
-            # 计算处理时间
-            elapsed_time = time.time() - start_time
-
-            print(f"  状态：已完成")
-            print(f"  用时：{elapsed_time:.2f}秒")
-            print(f"  输出目录：{document_dir}")
-
-            # 将文档信息保存到JSON文件中
-            document_info_path = os.path.join(document_dir, "document.json")
-            with open(document_info_path, "w", encoding="utf-8") as f:
-                json.dump(document.to_dict(), f, ensure_ascii=False, indent=2)
-
-            self.logger.info(f"文件 {file_path} 处理完成，ID：{document.document_id}")
-
-    def _handle_process(self, args):
+    def _handle_process(self, args: argparse.Namespace) -> None:
         """处理process命令"""
         self.logger.info(f"处理process命令: {args}")
 
@@ -318,45 +309,17 @@ class DocumentCLI:
                 document_data = json.load(f)
 
             # 创建Document对象
-            document = Document.from_dict(document_data)
+            document = self._restore_document(document_data)
             self.logger.info(f"已加载文档：{document_id}")
 
-            # 获取要使用的处理器
-            if args.processors:
-                processor_names = [name.strip() for name in args.processors.split(",")]
-                self.logger.info(f"将使用处理器：{processor_names}")
-
-                # 在实际应用中，这里应根据名称获取处理器对象
-                # 并按指定顺序执行处理
-
-            # 模拟处理流程
-            print(f"重新处理文档：{document_id}")
-            print(f"  文件名：{document.file_name}")
-            print(f"  状态：处理中...")
-
-            start_time = time.time()
-            time.sleep(1)  # 模拟处理时间
-
-            # 更新状态
-            document.update_status("completed")
-
-            # 计算处理时间
-            elapsed_time = time.time() - start_time
-
-            # 保存更新后的文档信息
-            with open(document_info_path, "w", encoding="utf-8") as f:
-                json.dump(document.to_dict(), f, ensure_ascii=False, indent=2)
-
-            print(f"  状态：已完成")
-            print(f"  用时：{elapsed_time:.2f}秒")
-
-            self.logger.info(f"文档 {document_id} 重新处理完成")
+            names = [name.strip() for name in args.processors.split(",")] if args.processors else None
+            self._process_document(document, names)
 
         except Exception as e:
             self.logger.error(f"处理文档 {document_id} 时出错: {str(e)}")
             print(f"错误：处理文档时出错：{str(e)}")
 
-    def _handle_info(self, args):
+    def _handle_info(self, args: argparse.Namespace) -> None:
         """处理info命令"""
         self.logger.info(f"处理info命令: {args}")
 
@@ -376,7 +339,7 @@ class DocumentCLI:
                 document_data = json.load(f)
 
             # 创建Document对象
-            document = Document.from_dict(document_data)
+            document = self._restore_document(document_data)
 
             # 显示文档信息
             print(f"文档ID: {document.document_id}")
@@ -394,7 +357,7 @@ class DocumentCLI:
             self.logger.error(f"获取文档 {document_id} 信息时出错: {str(e)}")
             print(f"错误：获取文档信息时出错：{str(e)}")
 
-    def _handle_list(self, args):
+    def _handle_list(self, args: argparse.Namespace) -> None:
         """处理list命令"""
         self.logger.info(f"处理list命令: {args}")
 
@@ -413,16 +376,12 @@ class DocumentCLI:
                 document_info_path = os.path.join(document_dir, "document.json")
 
                 # 检查是否是有效的文档目录
-                if os.path.isdir(document_dir) and os.path.exists(document_info_path):
+                if os.path.isfile(document_info_path):
                     try:
                         with open(document_info_path, "r", encoding="utf-8") as f:
                             document_data = json.load(f)
 
-                        # 应用过滤器
-                        if status_filter and document_data.get("status") not in status_filter:
-                            continue
-
-                        if tag_filter and tag_filter not in document_data.get("tags", []):
+                        if not self._matches_document(document_data, status_filter, tag_filter):
                             continue
 
                         documents.append(document_data)
@@ -440,18 +399,7 @@ class DocumentCLI:
                     print("没有找到文档")
                     return
 
-                # 打印表头
-                print(f"{'文档ID':<36} | {'文件名':<20} | {'状态':<10} | {'创建时间':<20} | {'标签':<20}")
-                print("-" * 120)
-
-                # 打印每个文档
-                for doc in documents:
-                    tags = ", ".join(doc.get("tags", []))[:20] if doc.get("tags") else "[]"
-                    document_id = doc.get("document_id", "N/A")
-                    file_name = doc.get("file_name", "N/A")[:20]
-                    status = doc.get("status", "N/A")
-                    creation_time = doc.get("creation_time", "N/A")[:20]
-                    print(f"{document_id:<36} | {file_name:<20} | {status:<10} | {creation_time:<20} | {tags:<20}")
+                self._print_document_rows(documents)
 
             self.logger.info(f"列出了 {len(documents)} 个文档")
 
@@ -459,7 +407,26 @@ class DocumentCLI:
             self.logger.error(f"列出文档时出错: {str(e)}")
             print(f"错误：列出文档时出错：{str(e)}")
 
-    def _handle_export(self, args):
+    @staticmethod
+    def _matches_document(data: dict[str, Any], statuses: list[str] | None, tag: str | None) -> bool:
+        return (not statuses or data.get("status") in statuses) and (not tag or tag in data.get("tags", []))
+
+    @staticmethod
+    def _print_document_rows(documents: list[dict[str, Any]]) -> None:
+        # 打印表头
+        print(f"{'文档ID':<36} | {'文件名':<20} | {'状态':<10} | {'创建时间':<20} | {'标签':<20}")
+        print("-" * 120)
+
+        # 打印每个文档
+        for doc in documents:
+            tags = ", ".join(doc.get("tags", []))[:20] if doc.get("tags") else "[]"
+            document_id = doc.get("document_id", "N/A")
+            file_name = doc.get("file_name", "N/A")[:20]
+            status = doc.get("status", "N/A")
+            creation_time = doc.get("creation_time", "N/A")[:20]
+            print(f"{document_id:<36} | {file_name:<20} | {status:<10} | {creation_time:<20} | {tags:<20}")
+
+    def _handle_export(self, args: argparse.Namespace) -> None:
         """处理export命令"""
         self.logger.info(f"处理export命令: {args}")
 
@@ -480,7 +447,7 @@ class DocumentCLI:
                 document_data = json.load(f)
 
             # 创建Document对象
-            document = Document.from_dict(document_data)
+            document = self._restore_document(document_data)
 
             # 确定输出文件路径
             output_path = args.output
@@ -490,22 +457,21 @@ class DocumentCLI:
                 output_path = os.path.join(self.storage_output_path, filename)
 
             # 检查输出目录是否存在
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
             # 导出文档
             print(f"导出文档：{document_id}")
             print(f"  格式：{export_format}")
             print(f"  输出路径：{output_path}")
 
-            # 模拟导出过程
-            # 在实际应用中，应从文档内容中获取对应格式的内容
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write(f"# 文档：{document.file_name}\n\n")
-                f.write(f"ID: {document.document_id}\n")
-                f.write(f"创建时间: {document.creation_time}\n\n")
-                f.write("这是一个示例导出文件，实际应用中应包含文档的真实内容。\n")
-
-            print(f"  导出完成！")
+            text = document.get_text_content()
+            if not text:
+                raise ValueError("文档没有可导出的实际文本内容")
+            if export_format == "pdf":
+                raise ValueError("PDF导出尚未实现，请选择markdown或text")
+            with open(output_path, "w", encoding="utf-8") as exported:
+                exported.write(text)
+            print("  导出完成！")
 
             self.logger.info(f"已将文档 {document_id} 导出为 {export_format} 格式：{output_path}")
 
@@ -513,7 +479,7 @@ class DocumentCLI:
             self.logger.error(f"导出文档 {document_id} 时出错: {str(e)}")
             print(f"错误：导出文档时出错：{str(e)}")
 
-    def _handle_delete(self, args):
+    def _handle_delete(self, args: argparse.Namespace) -> None:
         """处理delete命令"""
         self.logger.info(f"处理delete命令: {args}")
 
@@ -546,29 +512,29 @@ class DocumentCLI:
             self.logger.error(f"删除文档 {document_id} 时出错: {str(e)}")
             print(f"错误：删除文档时出错：{str(e)}")
 
-    def _print_usage(self):
+    def _print_usage(self) -> None:
         """打印使用说明"""
         # 通过创建解析器并打印帮助来显示使用说明
         parser = argparse.ArgumentParser(description="文档处理命令行界面 - 提供文档上传、处理和查询功能")
         subparsers = parser.add_subparsers(dest="command", help="子命令")
 
         # upload命令
-        upload_parser = subparsers.add_parser("upload", help="上传并处理文档")
+        subparsers.add_parser("upload", help="上传并处理文档")
 
         # process命令
-        process_parser = subparsers.add_parser("process", help="处理已上传的文档")
+        subparsers.add_parser("process", help="处理已上传的文档")
 
         # info命令
-        info_parser = subparsers.add_parser("info", help="查询文档信息")
+        subparsers.add_parser("info", help="查询文档信息")
 
         # list命令
-        list_parser = subparsers.add_parser("list", help="列出所有已处理的文档")
+        subparsers.add_parser("list", help="列出所有已处理的文档")
 
         # export命令
-        export_parser = subparsers.add_parser("export", help="导出处理后的文档")
+        subparsers.add_parser("export", help="导出处理后的文档")
 
         # delete命令
-        delete_parser = subparsers.add_parser("delete", help="删除文档")
+        subparsers.add_parser("delete", help="删除文档")
 
         # 全局选项
         parser.add_argument("--config", help="配置文件路径")
@@ -578,7 +544,7 @@ class DocumentCLI:
         parser.print_help()
 
 
-def main():
+def main() -> None:
     """主入口函数"""
     try:
         cli = DocumentCLI()
