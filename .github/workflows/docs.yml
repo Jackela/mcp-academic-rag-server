@@ -4,6 +4,7 @@ on:
   push:
     branches: [ main, develop ]
     paths: 
+      - '.github/workflows/docs.yml'
       - 'docs/**'
       - 'core/**'
       - 'connectors/**'
@@ -14,6 +15,7 @@ on:
   pull_request:
     branches: [ main ]
     paths:
+      - '.github/workflows/docs.yml'
       - 'docs/**'
       - '*.py'
   workflow_dispatch:
@@ -70,12 +72,11 @@ jobs:
         sphinx-build -b html . _build/html -W --keep-going
     
     - name: Build PDF documentation
-      if: github.ref == 'refs/heads/main'
       run: |
         cd docs
         # Install LaTeX dependencies
         sudo apt-get update
-        sudo apt-get install -y texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra
+        sudo apt-get install -y latexmk texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra
         
         # Build PDF
         sphinx-build -b latex . _build/latex
