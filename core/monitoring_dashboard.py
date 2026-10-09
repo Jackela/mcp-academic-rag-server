@@ -5,20 +5,21 @@ Web-based monitoring dashboard for the MCP Academic RAG Server providing
 real-time visualization of performance metrics, alerts, and system health.
 """
 
-import json
 import asyncio
+import json
 import logging
-from typing import Dict, Any, List, Optional
+import weakref
 from datetime import datetime, timedelta
 from pathlib import Path
-import weakref
+from typing import Any, Dict, List, Optional
 
 try:
-    from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+    import uvicorn
+    from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
     from fastapi.responses import HTMLResponse, JSONResponse
     from fastapi.staticfiles import StaticFiles
     from fastapi.templating import Jinja2Templates
-    import uvicorn
+
     FASTAPI_AVAILABLE = True
 except ImportError:
     FASTAPI_AVAILABLE = False
@@ -30,132 +31,124 @@ except ImportError:
     JSONResponse = None
 
 from core.performance_monitor import PerformanceMonitor, get_performance_monitor
-from core.telemetry_integration import get_telemetry, get_rag_instrumentation
+from core.telemetry_integration import get_rag_instrumentation, get_telemetry
 
 
 class DashboardConfig:
     """Configuration for monitoring dashboard"""
-    
+
     def __init__(self, config: Dict[str, Any] = None):
         self.config = config or {}
-        
-        self.host = self.config.get('host', '127.0.0.1')
-        self.port = self.config.get('port', 8080)
-        self.debug = self.config.get('debug', False)
-        
+
+        self.host = self.config.get("host", "127.0.0.1")
+        self.port = self.config.get("port", 8080)
+        self.debug = self.config.get("debug", False)
+
         # Authentication (basic implementation)
-        self.auth_enabled = self.config.get('auth', {}).get('enabled', False)
-        self.auth_token = self.config.get('auth', {}).get('token')
-        
+        self.auth_enabled = self.config.get("auth", {}).get("enabled", False)
+        self.auth_token = self.config.get("auth", {}).get("token")
+
         # Dashboard features
-        self.real_time_updates = self.config.get('real_time_updates', True)
-        self.update_interval = self.config.get('update_interval', 5)  # seconds
-        self.metrics_history_hours = self.config.get('metrics_history_hours', 24)
-        
+        self.real_time_updates = self.config.get("real_time_updates", True)
+        self.update_interval = self.config.get("update_interval", 5)  # seconds
+        self.metrics_history_hours = self.config.get("metrics_history_hours", 24)
+
         # Visualization settings
-        self.chart_points_limit = self.config.get('chart_points_limit', 100)
-        self.refresh_rate_ms = self.config.get('refresh_rate_ms', 5000)
+        self.chart_points_limit = self.config.get("chart_points_limit", 100)
+        self.refresh_rate_ms = self.config.get("refresh_rate_ms", 5000)
 
 
 class WebSocketManager:
     """Manage WebSocket connections for real-time updates"""
-    
+
     def __init__(self):
         self.active_connections: List[WebSocket] = []
         self.logger = logging.getLogger("dashboard.websocket")
-    
+
     async def connect(self, websocket: WebSocket):
         """Accept WebSocket connection"""
         await websocket.accept()
         self.active_connections.append(websocket)
         self.logger.info(f"WebSocket connected. Total connections: {len(self.active_connections)}")
-    
+
     def disconnect(self, websocket: WebSocket):
         """Remove WebSocket connection"""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
             self.logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
-    
+
     async def send_to_all(self, data: Dict[str, Any]):
         """Send data to all connected WebSocket clients"""
         if not self.active_connections:
             return
-        
+
         message = json.dumps(data, default=str)
         disconnected = []
-        
+
         for connection in self.active_connections:
             try:
                 await connection.send_text(message)
             except Exception as e:
                 self.logger.warning(f"Failed to send message to WebSocket: {e}")
                 disconnected.append(connection)
-        
+
         # Remove disconnected connections
         for connection in disconnected:
             self.disconnect(connection)
-    
+
     async def broadcast_metrics(self, metrics: Dict[str, Any]):
         """Broadcast metrics update to all clients"""
-        await self.send_to_all({
-            'type': 'metrics_update',
-            'data': metrics,
-            'timestamp': datetime.now().isoformat()
-        })
-    
+        await self.send_to_all({"type": "metrics_update", "data": metrics, "timestamp": datetime.now().isoformat()})
+
     async def broadcast_alert(self, alert: Dict[str, Any]):
         """Broadcast alert to all clients"""
-        await self.send_to_all({
-            'type': 'alert',
-            'data': alert,
-            'timestamp': datetime.now().isoformat()
-        })
+        await self.send_to_all({"type": "alert", "data": alert, "timestamp": datetime.now().isoformat()})
 
 
 class MonitoringDashboard:
     """Main monitoring dashboard class"""
-    
+
     def __init__(self, config: DashboardConfig = None):
         self.config = config or DashboardConfig()
         self.logger = logging.getLogger("dashboard.main")
-        
+
         self.performance_monitor: Optional[PerformanceMonitor] = None
         self.websocket_manager = WebSocketManager()
-        
+
         self.app: Optional[FastAPI] = None
         self.templates: Optional[Any] = None
-        
+
         self._update_task: Optional[asyncio.Task] = None
         self._running = False
-        
+
         if not FASTAPI_AVAILABLE:
             self.logger.error("FastAPI not available. Install with: pip install fastapi uvicorn jinja2")
-    
+
     def initialize(self, performance_monitor: PerformanceMonitor = None):
         """Initialize dashboard with performance monitor"""
         if not FASTAPI_AVAILABLE:
             raise RuntimeError("FastAPI not available for dashboard")
-        
+
         self.performance_monitor = performance_monitor or get_performance_monitor()
-        
+
         # Create FastAPI app
         self.app = FastAPI(
             title="MCP RAG Server Monitoring Dashboard",
             description="Real-time monitoring and metrics for MCP Academic RAG Server",
-            version="1.0.0"
+            version="1.0.0",
         )
-        
+
         # Setup templates
         self._setup_templates()
-        
+
         # Setup routes
         self._setup_routes()
-        
+
         # Setup alert callbacks
         self._setup_alert_callbacks()
-        
+
         self.logger.info("Dashboard initialized")
-    
+
     def _setup_templates(self):
         """Setup Jinja2 templates"""
         template_dir = Path(__file__).parent / "templates"
@@ -163,13 +156,13 @@ class MonitoringDashboard:
             # Create basic template directory and files
             template_dir.mkdir(exist_ok=True)
             self._create_default_templates(template_dir)
-        
+
         self.templates = Jinja2Templates(directory=str(template_dir))
-    
+
     def _create_default_templates(self, template_dir: Path):
         """Create default HTML templates"""
         # Main dashboard template
-        dashboard_html = '''
+        dashboard_html = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -388,39 +381,41 @@ class MonitoringDashboard:
     </script>
 </body>
 </html>
-        '''
-        
+        """
+
         (template_dir / "dashboard.html").write_text(dashboard_html)
-    
+
     def _setup_routes(self):
         """Setup FastAPI routes"""
-        
+
         @self.app.get("/", response_class=HTMLResponse)
         async def dashboard(request: Request):
             """Main dashboard page"""
             return self.templates.TemplateResponse("dashboard.html", {"request": request})
-        
+
         @self.app.get("/api/metrics")
         async def get_metrics():
             """API endpoint for current metrics"""
             return JSONResponse(self._get_current_metrics())
-        
+
         @self.app.get("/api/alerts")
         async def get_alerts():
             """API endpoint for current alerts"""
             alerts = self.performance_monitor.alert_manager.get_active_alerts()
             return JSONResponse([alert.to_dict() for alert in alerts])
-        
+
         @self.app.get("/api/health")
         async def health_check():
             """Health check endpoint"""
-            return JSONResponse({
-                "status": "healthy" if self._running else "stopped",
-                "timestamp": datetime.now().isoformat(),
-                "performance_monitor": self.performance_monitor.is_running if self.performance_monitor else False,
-                "websocket_connections": len(self.websocket_manager.active_connections)
-            })
-        
+            return JSONResponse(
+                {
+                    "status": "healthy" if self._running else "stopped",
+                    "timestamp": datetime.now().isoformat(),
+                    "performance_monitor": self.performance_monitor.is_running if self.performance_monitor else False,
+                    "websocket_connections": len(self.websocket_manager.active_connections),
+                }
+            )
+
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
             """WebSocket endpoint for real-time updates"""
@@ -431,21 +426,21 @@ class MonitoringDashboard:
                     await websocket.receive_text()
             except WebSocketDisconnect:
                 self.websocket_manager.disconnect(websocket)
-    
+
     def _setup_alert_callbacks(self):
         """Setup alert notification callbacks"""
         if self.performance_monitor:
             self.performance_monitor.alert_manager.add_alert_callback(self._handle_alert)
-    
+
     def _handle_alert(self, alert):
         """Handle new alert notification"""
         asyncio.create_task(self.websocket_manager.broadcast_alert(alert.to_dict()))
-    
+
     def _get_current_metrics(self) -> Dict[str, Any]:
         """Get current metrics for dashboard"""
         if not self.performance_monitor:
             return {}
-        
+
         # Get system metrics
         system_metrics = {}
         if self.performance_monitor.system_monitor.is_running:
@@ -454,10 +449,10 @@ class MonitoringDashboard:
                 system_metrics = current_system.to_dict()
             except Exception as e:
                 self.logger.error(f"Error collecting system metrics: {e}")
-        
+
         # Get aggregated metrics
         aggregated = self.performance_monitor.metrics_collector.get_aggregated_metrics()
-        
+
         # Get RAG-specific metrics
         rag_metrics = {}
         try:
@@ -465,24 +460,22 @@ class MonitoringDashboard:
             # Add RAG-specific metric collection here
         except Exception as e:
             self.logger.debug(f"Error getting RAG metrics: {e}")
-        
+
         return {
             "system": system_metrics,
             "aggregated": aggregated,
             "rag": rag_metrics,
-            "performance": {
-                "avg_response_time": aggregated.get("rag_query_duration_seconds", {}).get("avg", 0) * 1000
-            }
+            "performance": {"avg_response_time": aggregated.get("rag_query_duration_seconds", {}).get("avg", 0) * 1000},
         }
-    
+
     async def start_real_time_updates(self):
         """Start real-time metrics updates"""
         if not self.config.real_time_updates:
             return
-        
+
         self._update_task = asyncio.create_task(self._update_loop())
         self.logger.info("Real-time updates started")
-    
+
     async def _update_loop(self):
         """Main update loop for real-time metrics"""
         while self._running:
@@ -493,53 +486,51 @@ class MonitoringDashboard:
             except Exception as e:
                 self.logger.error(f"Error in update loop: {e}")
                 await asyncio.sleep(self.config.update_interval)
-    
+
     async def start(self):
         """Start the dashboard server"""
         if not FASTAPI_AVAILABLE:
             raise RuntimeError("FastAPI not available")
-        
+
         if not self.app:
             raise RuntimeError("Dashboard not initialized")
-        
+
         self._running = True
-        
+
         # Start real-time updates
         await self.start_real_time_updates()
-        
+
         # Start the FastAPI server
         config = uvicorn.Config(
-            self.app,
-            host=self.config.host,
-            port=self.config.port,
-            log_level="info" if self.config.debug else "warning"
+            self.app, host=self.config.host, port=self.config.port, log_level="info" if self.config.debug else "warning"
         )
         server = uvicorn.Server(config)
-        
+
         self.logger.info(f"Dashboard starting on http://{self.config.host}:{self.config.port}")
         await server.serve()
-    
+
     def run(self):
         """Run dashboard in blocking mode"""
         if not FASTAPI_AVAILABLE:
             self.logger.error("Cannot run dashboard: FastAPI not available")
             return
-        
+
         asyncio.run(self.start())
-    
+
     def stop(self):
         """Stop the dashboard"""
         self._running = False
-        
+
         if self._update_task:
             self._update_task.cancel()
-        
+
         self.logger.info("Dashboard stopped")
 
 
 # Convenience functions
-def create_dashboard(config: Dict[str, Any] = None, 
-                    performance_monitor: PerformanceMonitor = None) -> MonitoringDashboard:
+def create_dashboard(
+    config: Dict[str, Any] = None, performance_monitor: PerformanceMonitor = None
+) -> MonitoringDashboard:
     """Create and initialize monitoring dashboard"""
     dashboard_config = DashboardConfig(config)
     dashboard = MonitoringDashboard(dashboard_config)
@@ -547,8 +538,7 @@ def create_dashboard(config: Dict[str, Any] = None,
     return dashboard
 
 
-def run_dashboard(config: Dict[str, Any] = None, 
-                 performance_monitor: PerformanceMonitor = None):
+def run_dashboard(config: Dict[str, Any] = None, performance_monitor: PerformanceMonitor = None):
     """Create and run monitoring dashboard"""
     dashboard = create_dashboard(config, performance_monitor)
     dashboard.run()

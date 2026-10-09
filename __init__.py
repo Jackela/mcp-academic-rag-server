@@ -16,23 +16,23 @@ __license__ = "MIT"
 __copyright__ = "Copyright 2024 MCP Academic RAG Team"
 
 # Version info
-__version_info__ = tuple(int(i) for i in __version__.split('.'))
+__version_info__ = tuple(int(i) for i in __version__.split("."))
 
 # Import main components for easy access
 try:
-    from .mcp_server_secure import cli_main, validate_environment, main
-    from .core.server_context import ServerContext
     from .core.config_manager import ConfigManager
+    from .core.server_context import ServerContext
+    from .mcp_server_secure import cli_main, main, validate_environment
 except ImportError:
     # Handle case where dependencies are not yet installed
     pass
 
 __all__ = [
-    '__version__',
-    '__version_info__',
-    'cli_main',
-    'validate_environment', 
-    'main',
-    'ServerContext',
-    'ConfigManager'
+    "__version__",
+    "__version_info__",
+    "cli_main",
+    "validate_environment",
+    "main",
+    "ServerContext",
+    "ConfigManager",
 ]

@@ -8,9 +8,10 @@
 import json
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from loguru import logger
+
 from .config_validator import ConfigValidator, generate_default_config
 
 
@@ -184,7 +185,7 @@ class ConfigManager:
                 logger.error(
                     "Cannot set configuration item - parent is not a dict",
                     key_path=key_path,
-                    parent_path=".".join(keys[:i+1])
+                    parent_path=".".join(keys[: i + 1]),
                 )
                 return False
             config = config[key]

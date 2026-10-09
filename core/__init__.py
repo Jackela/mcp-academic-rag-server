@@ -16,9 +16,14 @@ Core Module for MCP Academic RAG Server
 from importlib import import_module
 
 _EXPORTS = {
-    "ConfigCenter": "config_center", "get_config_center": "config_center", "init_config_center": "config_center",
-    "ConfigManager": "config_manager", "ConfigValidator": "config_validator", "ServerContext": "server_context",
-    "Pipeline": "pipeline", "ProcessorLoader": "processor_loader",
+    "ConfigCenter": "config_center",
+    "get_config_center": "config_center",
+    "init_config_center": "config_center",
+    "ConfigManager": "config_manager",
+    "ConfigValidator": "config_validator",
+    "ServerContext": "server_context",
+    "Pipeline": "pipeline",
+    "ProcessorLoader": "processor_loader",
 }
 __all__ = list(_EXPORTS)
 

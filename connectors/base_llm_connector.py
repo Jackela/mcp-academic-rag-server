@@ -3,7 +3,7 @@ Base LLM Connector - Abstract base class for all LLM providers
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from loguru import logger
 

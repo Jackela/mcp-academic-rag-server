@@ -17,28 +17,29 @@ def test_integration_placeholder():
 def test_environment_variables():
     """Test environment variable access."""
     import os
+
     # Test that we can access environment variables
-    python_path = os.environ.get('PYTHONPATH', '')
+    python_path = os.environ.get("PYTHONPATH", "")
     assert isinstance(python_path, str)
 
 
 @pytest.mark.integration
 def test_file_system_access():
     """Test basic file system operations."""
-    import tempfile
     import os
-    
+    import tempfile
+
     # Test that we can create and access temporary files
-    with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
         temp_file.write("test content")
         temp_path = temp_file.name
-    
+
     # Verify file exists and has content
     assert os.path.exists(temp_path)
-    
-    with open(temp_path, 'r') as f:
+
+    with open(temp_path, "r") as f:
         content = f.read()
         assert content == "test content"
-    
+
     # Clean up
     os.unlink(temp_path)

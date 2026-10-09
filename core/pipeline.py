@@ -6,8 +6,8 @@ document processing workflows in sequence.
 """
 
 import asyncio
-from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Optional
 
 from loguru import logger
 

@@ -8,7 +8,7 @@ information, processing status, metadata, and results from various processing st
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
+from typing import Any, Dict, List, Optional, Union
 
 
 class Document:

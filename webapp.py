@@ -4,29 +4,29 @@ Academic RAG Server Web Application
 Provides a web interface for document upload, processing, retrieval, and intelligent chat.
 """
 
+import json
 import os
+import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash
+from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from loguru import logger
 from werkzeug.utils import secure_filename
 
 from core.config_manager import ConfigManager
 from core.pipeline import Pipeline
 from models.document import Document
-from rag.chat_session import ChatSession, ChatSessionManager
-from rag.haystack_pipeline import RAGPipeline
-from processors.pre_processor import PreProcessor
-from processors.ocr_processor import OCRProcessor
-from processors.structure_processor import StructureProcessor
 from processors.classification_processor import ClassificationProcessor
 from processors.format_converter import FormatConverter
 from processors.haystack_embedding_processor import HaystackEmbeddingProcessor
-import threading
-import json
+from processors.ocr_processor import OCRProcessor
+from processors.pre_processor import PreProcessor
+from processors.structure_processor import StructureProcessor
+from rag.chat_session import ChatSession, ChatSessionManager
+from rag.haystack_pipeline import RAGPipeline
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -64,9 +64,10 @@ session_manager = ChatSessionManager()
 # 初始化处理流水线
 processing_pipeline = None
 rag_pipeline = None
+import threading
+
 # 使用线程安全的状态管理
 from threading import Lock
-import threading
 
 document_status = {}  # 存储文档处理状态
 document_status_lock = Lock()  # 保护文档状态的线程锁
