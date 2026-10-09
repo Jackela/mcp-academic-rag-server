@@ -50,6 +50,13 @@ in the repository. Document processing and queries also require the applicable
 processor, model and storage configuration; use [config/config.json.example](config/config.json.example)
 as a source reference rather than treating an environment check as full setup.
 
+Optional Windows Web development uses the standalone libmagic wheel declared
+by the `web`/`dev` extras. Install into an isolated environment; older
+`python-magic`/`python-magic-bin` distributions must not share that environment.
+The maintained Windows adapter uses only the wheel's owned native DLL and
+database and reports unavailable validation explicitly. Other platforms retain
+their existing libmagic setup.
+
 ## Current MCP tools
 
 The tool list is defined in [servers/mcp_server_sdk.py](servers/mcp_server_sdk.py).

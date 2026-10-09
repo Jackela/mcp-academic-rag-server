@@ -15,6 +15,10 @@ from typing import Dict, Mapping, Optional, Set
 _EXEC_MARKER = "MCP_NATIVE_RUNTIME_EXEC"
 
 
+def _is_darwin() -> bool:
+    return sys.platform == "darwin"
+
+
 def _parse_startup_native_environment(data: bytes) -> Dict[str, str]:
     """Read only two native keys after the executable and counted argv fields."""
     if len(data) <= 4:
@@ -99,7 +103,7 @@ def _torch_library_directory() -> Path:
 def native_subprocess_environment(environ: Optional[Mapping[str, str]] = None) -> Dict[str, str]:
     """Return startup environment for a new Python process; leave the host untouched."""
     environment = dict(os.environ if environ is None else environ)
-    if sys.platform != "darwin":
+    if not _is_darwin():
         return environment
     directory = str(_torch_library_directory())
     existing = environment.get("DYLD_LIBRARY_PATH", "").split(os.pathsep)
@@ -129,7 +133,7 @@ def _loaded_openmp_paths() -> Set[Path]:
 
 def require_native_runtime() -> None:
     """Validate explicit Darwin SDK startup without changing or reexecuting its host."""
-    if sys.platform != "darwin":
+    if not _is_darwin():
         return
     directory = _torch_library_directory()
     startup = _startup_native_environment()
@@ -150,7 +154,7 @@ def require_native_runtime() -> None:
 
 def prepare_cli_native_runtime() -> None:
     """Replace only an explicitly invoked Darwin CLI once, retaining argv and stdio."""
-    if sys.platform != "darwin":
+    if not _is_darwin():
         return
     directory = str(_torch_library_directory())
     marker = os.environ.get(_EXEC_MARKER)

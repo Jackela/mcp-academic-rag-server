@@ -16,25 +16,33 @@ import logging
 import os
 import re
 import secrets
+import sys
 import threading
 import time
 from collections import defaultdict
 from functools import wraps
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Dict, Optional, ParamSpec, Tuple
+from typing import Any, Callable, Dict, Optional, ParamSpec, Tuple, Union
 
 from flask import Response, jsonify, request
 from flask.typing import ResponseReturnValue
 from werkzeug.utils import secure_filename
 
-magic: ModuleType | None
-try:
-    import magic as magic_module
+from utils.windows_mime import WindowsMimeBackend
 
-    magic = magic_module
-except ImportError:
+magic: Union[ModuleType, WindowsMimeBackend, None]
+mime_backend_error: Optional[str] = None
+try:
+    if sys.platform == "win32":
+        magic = WindowsMimeBackend()
+    else:
+        import magic as magic_module
+
+        magic = magic_module
+except (ImportError, OSError, AttributeError) as exc:
     magic = None
+    mime_backend_error = str(exc)
 
 
 logger = logging.getLogger(__name__)
@@ -146,8 +154,11 @@ class InputValidator:
             # Check MIME type
             try:
                 if magic is None:
-                    return False, "MIME validation unavailable: install libmagic"
-                mime = magic.from_file(file_path, mime=True)
+                    return False, f"MIME validation unavailable: {mime_backend_error or 'install libmagic'}"
+                if isinstance(magic, WindowsMimeBackend):
+                    mime = magic.from_file(file_path, mime=True, max_bytes=SecurityConfig.MAX_FILE_SIZE)
+                else:
+                    mime = magic.from_file(file_path, mime=True)
                 if mime not in SecurityConfig.ALLOWED_MIME_TYPES:
                     return False, f"File type not allowed: {mime}"
             except Exception as exc:

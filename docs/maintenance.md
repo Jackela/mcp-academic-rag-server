@@ -40,7 +40,8 @@ not certify remote models, vector services, full RAG quality or a production rel
 
 ## Full-suite recovery evidence
 
-On 2026-10-09, the frozen Python 3.11 candidate passed all default unit, contract,
+On 2026-10-09, before the Windows MIME/platform-type follow-up, the frozen
+`bf4ba464` Python 3.11 candidate passed all default unit, contract,
 integration, component, E2E and performance suites: 668 tests and 22 subtests.
 All 197 Python source hashes were unchanged between the run's start and end.
 Native startup used the selected Torch OpenMP library with the bypass disabled.
@@ -245,6 +246,36 @@ library is loaded. This check is separate from MCP initialization/discovery and
 from external model or OCR requests.
 
 ## Security checks
+
+Windows CPython's actual matrix crashed during `python-magic 0.4.27` import in
+`magic.compat`, before collecting any test node. Both Windows native numerical
+checks had passed. The upstream [Git Bash/MSYS report](https://github.com/ahupp/python-magic/issues/288)
+describes the same hang/access-violation pattern; the failing run did not record
+which DLL it selected, so that path is not asserted as a measured fact.
+
+Windows development/Web extras select [python-magic-standalone 0.4.28](https://pypi.org/project/python-magic-standalone/0.4.28/),
+an explicitly unofficial distribution of the [maintainer-contributed wheel branch](https://github.com/ahupp/python-magic/pull/294).
+The wrapper retains its upstream MIT license; bundled native components retain
+their upstream licenses. Project version and license metadata are unchanged.
+Other platforms retain `python-magic` and their existing libmagic installation.
+The Windows adapter binds only the distribution-owned native DLL and database
+through absolute paths, verifies pointer architecture and library version,
+and searches dependencies only in the owned DLL directory and System32. It does
+not import the fork's compatibility/fallback loader or search PATH/CWD for
+Cygwin/MSYS libraries. Competing magic distributions, missing files, wrong ABI
+and identification errors fail closed. Each request owns and closes its native
+handle; Python opens Unicode filenames and supplies bounded content bytes to
+the native MIME API. The existing size limit and allowed MIME types remain the
+authority. No extension-based acceptance or new MIME inference engine is added.
+
+The real Windows matrix checks seven generated content cases (PDF, PNG, JPEG,
+TIFF, UTF-8 text, UTF-16 text and DOCX), Unicode filenames, 21 threaded inspections
+and rejection of unknown bytes, a disguised executable, HTML, JSON and shell
+content. It emits the actual owned DLL path/hash/version only after assertions
+pass. Non-Windows runs explicitly skip that platform acceptance case; local
+negative fixtures do not establish Windows compatibility. The subsequent
+source-type repair preserves the runtime platform checks while allowing strict
+mypy to check the Darwin helper from Linux, Darwin and Windows targets.
 
 The old Safety command passed a filename to an output-format enum and failed before scanning.
 The current Safety CLI also requires account-backed service initialization. CI audits the actually

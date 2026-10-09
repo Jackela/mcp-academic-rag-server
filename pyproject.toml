@@ -77,7 +77,8 @@ dev = [
     "pytest-benchmark>=5,<6",
     "playwright>=1.63,<2",
     "flask>=3.0.0",
-    "python-magic>=0.4.27",
+    "python-magic>=0.4.27; sys_platform != 'win32'",
+    "python-magic-standalone>=0.4.28,<0.5; sys_platform == 'win32'",
     "black>=23.0.0",
     "isort>=5.12.0",
     "mypy>=1.5.0",
@@ -124,7 +125,8 @@ enhanced = [
 # Web interface (optional)
 web = [
     "flask>=3.0.0",
-    "python-magic>=0.4.27",
+    "python-magic>=0.4.27; sys_platform != 'win32'",
+    "python-magic-standalone>=0.4.28,<0.5; sys_platform == 'win32'",
     "flask-cors>=4.0.0",
 ]
 

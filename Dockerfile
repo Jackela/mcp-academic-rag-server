@@ -9,7 +9,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip
 RUN python -m pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 RUN python -m pip install --no-cache-dir --upgrade setuptools wheel
 WORKDIR /build
-COPY pyproject.toml README.md ./
+COPY pyproject.toml ./
 # Derive runtime dependencies from the sole declaration before copying changing sources.
 RUN python -c 'import pathlib, tomllib; spec = tomllib.loads(pathlib.Path("pyproject.toml").read_text()); pathlib.Path("/tmp/runtime-requirements.txt").write_text("\n".join(spec["project"]["dependencies"]))'
 RUN python -m pip install --no-cache-dir -r /tmp/runtime-requirements.txt
