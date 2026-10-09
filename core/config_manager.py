@@ -5,8 +5,8 @@
 它支持多级嵌套配置项的访问和修改，并集成了配置验证功能。
 """
 
+import copy
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -25,7 +25,7 @@ class ConfigManager:
     例如，可以通过"storage.base_path"访问配置中的嵌套项。
     """
 
-    def __init__(self, config_path: str = "./config/config.json"):
+    def __init__(self, config_path: str = "./config/config.json") -> None:
         """
         Initialize ConfigManager object.
 
@@ -37,6 +37,7 @@ class ConfigManager:
         self.config: Dict[str, Any] = {}
         self.validator = ConfigValidator()
         self._is_validated = False
+        self._load_error: Optional[str] = None
 
         # Attempt to load configuration file
         self.load_config()
@@ -48,6 +49,7 @@ class ConfigManager:
         Returns:
             如果成功加载配置则返回True，否则返回False
         """
+        self._load_error = None
         try:
             if self.config_path.exists():
                 with self.config_path.open("r", encoding="utf-8") as f:
@@ -106,8 +108,19 @@ class ConfigManager:
             logger.error("Failed to load configuration file", config_path=str(self.config_path), error=str(e))
             # Use default configuration as fallback
             self.config = generate_default_config()
-            self._is_validated = True
+            self._is_validated = False
+            self._load_error = str(e)
             return False
+
+    def apply_config(self, config: Dict[str, Any]) -> bool:
+        """Install a validated effective snapshot without writing its source file."""
+        candidate = self.validator.normalize_processor_config(copy.deepcopy(config))
+        if not self.validator.validate_config(candidate):
+            return False
+        self.config = candidate
+        self._is_validated = True
+        self._load_error = None
+        return True
 
     def save_config(self) -> bool:
         """
@@ -136,7 +149,7 @@ class ConfigManager:
         Returns:
             配置字典
         """
-        return self.config.copy()
+        return copy.deepcopy(self.config)
 
     def get_value(self, key_path: str, default: Any = None) -> Any:
         """
@@ -229,7 +242,10 @@ class ConfigManager:
         Returns:
             处理器配置字典，如果不存在则返回空字典
         """
-        return self.get_value(f"processors.{processor_name}", {})
+        value = self.get_value(f"processors.{processor_name}", {})
+        if not isinstance(value, dict):
+            raise TypeError(f"Processor configuration must be an object: {processor_name}")
+        return value
 
     def get_connector_config(self, connector_name: str) -> Dict[str, Any]:
         """
@@ -241,7 +257,10 @@ class ConfigManager:
         Returns:
             连接器配置字典，如果不存在则返回空字典
         """
-        return self.get_value(f"connectors.{connector_name}", {})
+        value = self.get_value(f"connectors.{connector_name}", {})
+        if not isinstance(value, dict):
+            raise TypeError(f"Connector configuration must be an object: {connector_name}")
+        return value
 
     def reload_config(self) -> bool:
         """
@@ -259,7 +278,9 @@ class ConfigManager:
         Returns:
             如果配置有效则返回True，否则返回False
         """
-        return self.validator.validate_config(self.config)
+        valid = self.validator.validate_config(self.config)
+        self._is_validated = valid and self._load_error is None
+        return self._is_validated
 
     def get_validation_report(self) -> Dict[str, Any]:
         """
@@ -270,7 +291,12 @@ class ConfigManager:
         """
         if not self._is_validated:
             self.validate_current_config()
-        return self.validator.get_validation_report()
+        report = self.validator.get_validation_report()
+        if self._load_error is not None:
+            report = copy.deepcopy(report)
+            report["is_valid"] = False
+            report["errors"].append(f"Configuration could not be loaded: {self._load_error}")
+        return report
 
     def is_config_valid(self) -> bool:
         """

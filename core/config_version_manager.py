@@ -8,11 +8,9 @@
 import hashlib
 import json
 import logging
-import os
-import shutil
 import time
-from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -86,7 +84,7 @@ class ConfigVersion:
 class ConfigVersionManager:
     """配置版本管理器"""
 
-    def __init__(self, config_path: str, versions_dir: str = None, max_versions: int = 100):
+    def __init__(self, config_path: str, versions_dir: Optional[str] = None, max_versions: int = 100) -> None:
         self.config_path = Path(config_path)
         self.versions_dir = Path(versions_dir) if versions_dir else self.config_path.parent / "versions"
         self.max_versions = max_versions
@@ -101,7 +99,7 @@ class ConfigVersionManager:
         # 初始化历史记录
         self._ensure_history_files()
 
-    def _ensure_history_files(self):
+    def _ensure_history_files(self) -> None:
         """确保历史文件存在"""
         if not self.history_file.exists():
             self._save_json(self.history_file, [])
@@ -109,7 +107,7 @@ class ConfigVersionManager:
         if not self.metadata_file.exists():
             self._save_json(self.metadata_file, {})
 
-    def _save_json(self, file_path: Path, data: Any):
+    def _save_json(self, file_path: Path, data: Any) -> None:
         """安全保存JSON文件"""
         try:
             temp_path = file_path.with_suffix(".tmp")
@@ -144,7 +142,7 @@ class ConfigVersionManager:
     def _generate_version_id(self) -> str:
         """生成版本ID"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        random_suffix = hashlib.md5(str(time.time()).encode()).hexdigest()[:6]
+        random_suffix = hashlib.md5(str(time.time()).encode(), usedforsecurity=False).hexdigest()[:6]
         return f"v{timestamp}_{random_suffix}"
 
     def _detect_changes(self, old_config: Dict[str, Any], new_config: Dict[str, Any]) -> List[ConfigChange]:
@@ -153,7 +151,7 @@ class ConfigVersionManager:
         version = self._generate_version_id()
         timestamp = datetime.now().isoformat()
 
-        def compare_recursive(old_dict: Dict[str, Any], new_dict: Dict[str, Any], path: str = ""):
+        def compare_recursive(old_dict: Dict[str, Any], new_dict: Dict[str, Any], path: str = "") -> None:
             # 检查新增和修改
             for key, new_value in new_dict.items():
                 current_path = f"{path}.{key}" if path else key
@@ -206,7 +204,11 @@ class ConfigVersionManager:
         return changes
 
     def create_version(
-        self, config_data: Dict[str, Any], description: str = None, user: str = None, tags: List[str] = None
+        self,
+        config_data: Dict[str, Any],
+        description: Optional[str] = None,
+        user: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> str:
         """创建新版本"""
         try:
@@ -254,7 +256,11 @@ class ConfigVersionManager:
             raise
 
     def save_config_with_version(
-        self, config_data: Dict[str, Any], description: str = None, user: str = None, tags: List[str] = None
+        self,
+        config_data: Dict[str, Any],
+        description: Optional[str] = None,
+        user: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> Tuple[str, List[ConfigChange]]:
         """保存配置并创建版本"""
         try:
@@ -272,6 +278,9 @@ class ConfigVersionManager:
             # 创建版本
             version_id = self.create_version(config_data, description, user, tags)
 
+            # Bind audit records to the actual saved snapshot.
+            for change in changes:
+                change.version = version_id
             # 记录变更历史
             if changes:
                 self._record_changes(changes)
@@ -283,7 +292,7 @@ class ConfigVersionManager:
             logger.error(f"保存配置失败: {e}")
             raise
 
-    def _record_changes(self, changes: List[ConfigChange]):
+    def _record_changes(self, changes: List[ConfigChange]) -> None:
         """记录变更历史"""
         try:
             history = self._load_json(self.history_file, [])
@@ -313,7 +322,7 @@ class ConfigVersionManager:
             logger.error(f"获取版本失败 {version_id}: {e}")
             return None
 
-    def list_versions(self, limit: int = None, tags: List[str] = None) -> List[Dict[str, Any]]:
+    def list_versions(self, limit: Optional[int] = None, tags: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """列出版本"""
         try:
             metadata = self._load_json(self.metadata_file, {})
@@ -348,7 +357,7 @@ class ConfigVersionManager:
             logger.error(f"列出版本失败: {e}")
             return []
 
-    def restore_version(self, version_id: str, user: str = None, reason: str = None) -> bool:
+    def restore_version(self, version_id: str, user: Optional[str] = None, reason: Optional[str] = None) -> bool:
         """恢复到指定版本"""
         try:
             version = self.get_version(version_id)
@@ -387,7 +396,10 @@ class ConfigVersionManager:
             return False
 
     def get_change_history(
-        self, limit: int = None, path_filter: str = None, change_type_filter: ChangeType = None
+        self,
+        limit: Optional[int] = None,
+        path_filter: Optional[str] = None,
+        change_type_filter: Optional[ChangeType] = None,
     ) -> List[Dict[str, Any]]:
         """获取变更历史"""
         try:
@@ -445,7 +457,7 @@ class ConfigVersionManager:
             logger.error(f"比较版本失败 {version1_id} vs {version2_id}: {e}")
             return {"error": str(e)}
 
-    def _cleanup_old_versions(self):
+    def _cleanup_old_versions(self) -> None:
         """清理旧版本"""
         try:
             metadata = self._load_json(self.metadata_file, {})
@@ -455,7 +467,6 @@ class ConfigVersionManager:
 
             # 按时间排序，保留最新的版本
             versions = sorted(metadata.items(), key=lambda x: x[1]["timestamp"], reverse=True)
-            versions_to_keep = versions[: self.max_versions]
             versions_to_delete = versions[self.max_versions :]
 
             # 删除旧版本文件
@@ -501,7 +512,7 @@ class ConfigVersionManager:
             logger.error(f"导出版本失败 {version_id}: {e}")
             return False
 
-    def import_version(self, import_path: str, user: str = None) -> Optional[str]:
+    def import_version(self, import_path: str, user: Optional[str] = None) -> Optional[str]:
         """导入版本"""
         try:
             with open(import_path, "r", encoding="utf-8") as f:
@@ -557,13 +568,13 @@ class ConfigVersionManager:
                 latest_version = max(metadata.items(), key=lambda x: x[1]["timestamp"])
 
             # 变更统计
-            change_stats = {}
+            change_stats: Dict[str, int] = {}
             for change in history:
                 change_type = change["change_type"]
                 change_stats[change_type] = change_stats.get(change_type, 0) + 1
 
             # 用户活动统计
-            user_stats = {}
+            user_stats: Dict[Optional[str], int] = {}
             for info in metadata.values():
                 user = info.get("user", "unknown")
                 user_stats[user] = user_stats.get(user, 0) + 1
@@ -585,12 +596,12 @@ class ConfigVersionManager:
 
 
 # 便捷函数
-def create_version_manager(config_path: str, versions_dir: str = None) -> ConfigVersionManager:
+def create_version_manager(config_path: str, versions_dir: Optional[str] = None) -> ConfigVersionManager:
     """创建版本管理器实例"""
     return ConfigVersionManager(config_path, versions_dir)
 
 
-def quick_backup(config_path: str, description: str = None) -> str:
+def quick_backup(config_path: str, description: Optional[str] = None) -> str:
     """快速备份当前配置"""
     manager = ConfigVersionManager(config_path)
 

@@ -15,10 +15,12 @@ from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 try:
-    import requests
+    import requests as requests_library
+
+    requests: Any = requests_library
 
     REQUESTS_AVAILABLE = True
 except ImportError:
@@ -55,9 +57,9 @@ class NotificationConfig:
 
     channel: NotificationChannel
     enabled: bool = True
-    config: Dict[str, Any] = None
+    config: Optional[Dict[str, Any]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.config is None:
             self.config = {}
 
@@ -88,9 +90,9 @@ class AlertCorrelation:
 
     correlation_window_minutes: int = 5
     max_similar_alerts: int = 10
-    correlation_fields: List[str] = None
+    correlation_fields: Optional[List[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.correlation_fields is None:
             self.correlation_fields = ["metric_name", "level"]
 
@@ -103,7 +105,7 @@ class NotificationProvider(ABC):
         self.logger = logging.getLogger(f"alerting.{self.__class__.__name__.lower()}")
 
     @abstractmethod
-    async def send_notification(self, alert: Alert, context: Dict[str, Any] = None) -> bool:
+    async def send_notification(self, alert: Alert, context: Optional[Dict[str, Any]] = None) -> bool:
         """Send notification for an alert"""
         pass
 
@@ -131,8 +133,12 @@ class EmailNotificationProvider(NotificationProvider):
         required_fields = ["smtp_server", "username", "password", "from_email", "to_emails"]
         return all(self.config.get(field) for field in required_fields)
 
-    async def send_notification(self, alert: Alert, context: Dict[str, Any] = None) -> bool:
+    async def send_notification(self, alert: Alert, context: Optional[Dict[str, Any]] = None) -> bool:
         """Send email notification"""
+        if not self.validate_config():
+            self.logger.error("Invalid email notification configuration")
+            return False
+        assert self.from_email is not None
         try:
             subject = f"[{alert.rule.level.value.upper()}] Alert: {alert.rule.metric_name}"
             body = self._create_email_body(alert, context)
@@ -155,15 +161,18 @@ class EmailNotificationProvider(NotificationProvider):
             self.logger.error(f"Failed to send email alert: {e}")
             return False
 
-    def _send_email(self, msg: MIMEMultipart):
+    def _send_email(self, msg: MIMEMultipart) -> None:
         """Send email using SMTP"""
+        if not self.validate_config():
+            raise ValueError("Invalid email notification configuration")
+        assert self.smtp_server is not None and self.username is not None and self.password is not None
         with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
             if self.use_tls:
                 server.starttls()
             server.login(self.username, self.password)
             server.send_message(msg)
 
-    def _create_email_body(self, alert: Alert, context: Dict[str, Any] = None) -> str:
+    def _create_email_body(self, alert: Alert, context: Optional[Dict[str, Any]] = None) -> str:
         """Create HTML email body"""
         context = context or {}
 
@@ -238,7 +247,7 @@ class WebhookNotificationProvider(NotificationProvider):
         """Validate webhook configuration"""
         return bool(self.url and REQUESTS_AVAILABLE)
 
-    async def send_notification(self, alert: Alert, context: Dict[str, Any] = None) -> bool:
+    async def send_notification(self, alert: Alert, context: Optional[Dict[str, Any]] = None) -> bool:
         """Send webhook notification"""
         if not REQUESTS_AVAILABLE:
             self.logger.error("Requests library not available for webhook notifications")
@@ -263,6 +272,9 @@ class WebhookNotificationProvider(NotificationProvider):
 
     def _send_webhook(self, payload: Dict[str, Any]) -> Any:
         """Send webhook request"""
+        if not self.validate_config():
+            raise ValueError("Invalid webhook notification configuration")
+        assert self.url is not None
         return requests.request(
             method=self.method,
             url=self.url,
@@ -272,7 +284,7 @@ class WebhookNotificationProvider(NotificationProvider):
             verify=self.verify_ssl,
         )
 
-    def _create_webhook_payload(self, alert: Alert, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _create_webhook_payload(self, alert: Alert, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Create webhook payload"""
         return {
             "alert": {
@@ -295,7 +307,7 @@ class WebhookNotificationProvider(NotificationProvider):
 class SlackNotificationProvider(WebhookNotificationProvider):
     """Slack notification provider using webhooks"""
 
-    def _create_webhook_payload(self, alert: Alert, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _create_webhook_payload(self, alert: Alert, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Create Slack-formatted payload"""
         color = {
             AlertLevel.INFO: "#36a64f",
@@ -349,7 +361,7 @@ class LogNotificationProvider(NotificationProvider):
         """Log provider always valid"""
         return True
 
-    async def send_notification(self, alert: Alert, context: Dict[str, Any] = None) -> bool:
+    async def send_notification(self, alert: Alert, context: Optional[Dict[str, Any]] = None) -> bool:
         """Log alert notification"""
         try:
             log_message = f"ALERT [{alert.rule.level.value.upper()}] {alert.rule.metric_name}: {alert.message}"
@@ -377,7 +389,7 @@ class ConsoleNotificationProvider(NotificationProvider):
         """Console provider always valid"""
         return True
 
-    async def send_notification(self, alert: Alert, context: Dict[str, Any] = None) -> bool:
+    async def send_notification(self, alert: Alert, context: Optional[Dict[str, Any]] = None) -> bool:
         """Print alert to console"""
         try:
             timestamp = alert.triggered_at.strftime("%H:%M:%S")
@@ -441,7 +453,7 @@ class AlertCorrelationEngine:
     def _get_correlation_key(self, alert: Alert) -> str:
         """Generate correlation key for alert"""
         key_parts = []
-        for field in self.config.correlation_fields:
+        for field in self.config.correlation_fields or []:
             if field == "metric_name":
                 key_parts.append(alert.rule.metric_name)
             elif field == "level":
@@ -462,7 +474,7 @@ class AlertCorrelationEngine:
             if (a.triggered_at > cutoff_time and self._get_correlation_key(a) == correlation_key)
         ]
 
-    def _clean_old_alerts(self):
+    def _clean_old_alerts(self) -> None:
         """Remove old alerts from tracking"""
         cutoff_time = datetime.now() - timedelta(minutes=self.config.correlation_window_minutes * 2)
 
@@ -482,7 +494,7 @@ class AlertCorrelationEngine:
 class AlertingSystem:
     """Main alerting system coordinator"""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
         self.logger = logging.getLogger("alerting.system")
 
@@ -505,7 +517,7 @@ class AlertingSystem:
         # Initialize from config
         self._initialize_from_config()
 
-    def _initialize_from_config(self):
+    def _initialize_from_config(self) -> None:
         """Initialize alerting system from configuration"""
         # Setup notification channels
         channels_config = self.config.get("channels", [])
@@ -524,12 +536,12 @@ class AlertingSystem:
         if correlation_config.pop("enabled", True):
             self.correlation_engine = AlertCorrelationEngine(AlertCorrelation(**correlation_config))
 
-    def _setup_provider(self, config: NotificationConfig):
+    def _setup_provider(self, config: NotificationConfig) -> None:
         """Setup notification provider"""
         if not config.enabled:
             return
 
-        provider_classes = {
+        provider_classes: Dict[NotificationChannel, Callable[[Dict[str, Any]], NotificationProvider]] = {
             NotificationChannel.EMAIL: EmailNotificationProvider,
             NotificationChannel.WEBHOOK: WebhookNotificationProvider,
             NotificationChannel.SLACK: SlackNotificationProvider,
@@ -543,7 +555,7 @@ class AlertingSystem:
             return
 
         try:
-            provider = provider_class(config.config)
+            provider = provider_class(config.config or {})
             if provider.validate_config():
                 self.providers[config.channel] = provider
                 self.logger.info(f"Configured {config.channel.value} notification provider")
@@ -552,7 +564,7 @@ class AlertingSystem:
         except Exception as e:
             self.logger.error(f"Failed to setup {config.channel.value} provider: {e}")
 
-    async def send_alert(self, alert: Alert, context: Dict[str, Any] = None):
+    async def send_alert(self, alert: Alert, context: Optional[Dict[str, Any]] = None) -> None:
         """Send alert through configured notification channels"""
         # Check correlation
         if self.correlation_engine and not self.correlation_engine.correlate_alert(alert):
@@ -585,7 +597,7 @@ class AlertingSystem:
             )
 
     async def _send_notification_safe(
-        self, provider: NotificationProvider, alert: Alert, context: Dict[str, Any] = None
+        self, provider: NotificationProvider, alert: Alert, context: Optional[Dict[str, Any]] = None
     ) -> bool:
         """Send notification with error handling"""
         try:
@@ -594,7 +606,7 @@ class AlertingSystem:
             self.logger.error(f"Error in {provider.__class__.__name__}: {e}")
             return False
 
-    def start_escalation_monitoring(self):
+    def start_escalation_monitoring(self) -> None:
         """Start escalation monitoring task"""
         if self._running:
             return
@@ -603,7 +615,7 @@ class AlertingSystem:
         self.escalation_task = asyncio.create_task(self._escalation_loop())
         self.logger.info("Escalation monitoring started")
 
-    def stop_escalation_monitoring(self):
+    def stop_escalation_monitoring(self) -> None:
         """Stop escalation monitoring"""
         self._running = False
 
@@ -612,7 +624,7 @@ class AlertingSystem:
 
         self.logger.info("Escalation monitoring stopped")
 
-    async def _escalation_loop(self):
+    async def _escalation_loop(self) -> None:
         """Main escalation monitoring loop"""
         while self._running:
             try:
@@ -622,7 +634,7 @@ class AlertingSystem:
                 self.logger.error(f"Error in escalation loop: {e}")
                 await asyncio.sleep(60)
 
-    async def _check_escalations(self):
+    async def _check_escalations(self) -> None:
         """Check for alerts that need escalation"""
         # Implementation would check active alerts and escalate based on policies
         # This is a placeholder for the escalation logic

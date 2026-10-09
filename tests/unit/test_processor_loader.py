@@ -15,7 +15,6 @@ from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
-from core.config_manager import ConfigManager
 from core.processor_loader import ProcessorLoader
 from processors.base_processor import IProcessor
 
@@ -208,7 +207,7 @@ class TestProcessorLoading:
             mock_load.return_value = mock_processor
 
             loader = ProcessorLoader(mock_config_manager)
-            processors = loader.load_processors()
+            loader.load_processors()
 
             # Should not load disabled_processor
             loaded_names = [call[0][0] for call in mock_load.call_args_list]
@@ -238,7 +237,7 @@ class TestProcessorLoading:
             loader = ProcessorLoader(mock_config_manager)
 
             with patch.object(loader.logger, "info") as mock_log:
-                processors = loader.load_processors()
+                loader.load_processors()
 
                 # Should log performance information
                 assert any("load_duration" in str(call) for call in mock_log.call_args_list)
@@ -343,13 +342,8 @@ class TestSingleProcessorLoading:
             loader = ProcessorLoader(mock_config_manager)
             loader._processor_mappings["invalid_processor"] = {"module": "test.module", "class": "InvalidProcessor"}
 
-            with patch.object(loader.logger, "warning") as mock_warning:
-                processor = loader._load_single_processor("invalid_processor", config)
-
-                # Should return processor but log warning
-                assert processor == invalid_processor
-                mock_warning.assert_called_once()
-                assert "does not implement IProcessor interface" in str(mock_warning.call_args)
+            with pytest.raises(TypeError, match="IProcessor"):
+                loader._load_single_processor("invalid_processor", config)
 
 
 class TestProcessorValidation:
@@ -497,7 +491,7 @@ class TestIntegration:
             loader = ProcessorLoader(mock_config_manager)
 
             with patch.object(loader.logger, "info") as mock_log:
-                processors = loader.load_processors()
+                loader.load_processors()
 
                 # Check that performance information was logged
                 log_calls = [str(call) for call in mock_log.call_args_list]

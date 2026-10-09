@@ -7,16 +7,11 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict
 
-# Optional jsonschema dependency for advanced validation
-try:
-    from jsonschema import ValidationError, validate
+from jsonschema import ValidationError, validate
 
-    HAS_JSONSCHEMA = True
-except ImportError:
-    HAS_JSONSCHEMA = False
-    ValidationError = Exception
+HAS_JSONSCHEMA = True
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +96,10 @@ class ConfigValidator:
     # 必需的处理器（按执行顺序）
     REQUIRED_PROCESSORS = ["pre_processor", "ocr_processor", "structure_processor", "embedding_processor"]
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化配置验证器"""
-        self.validation_errors = []
-        self.warnings = []
+        self.validation_errors: list[str] = []
+        self.warnings: list[str] = []
 
     def validate_config(self, config: Dict[str, Any]) -> bool:
         """
@@ -125,14 +120,16 @@ class ConfigValidator:
                 validate(instance=config, schema=self.CONFIG_SCHEMA)
                 logger.info("配置结构验证通过")
             else:
-                logger.warning("jsonschema未安装，跳过高级结构验证")
+                self.validation_errors.append("jsonschema is required for configuration validation")
+                return False
 
         except ValidationError as e:
             self.validation_errors.append(f"配置结构验证失败: {e.message}")
             logger.error(f"配置结构验证失败: {e.message}")
             return False
         except Exception as e:
-            logger.warning(f"配置结构验证时出现警告: {str(e)}")
+            self.validation_errors.append(f"Configuration validation could not run: {e}")
+            return False
 
         # 自定义验证
         self._validate_storage_paths(config.get("storage", {}))

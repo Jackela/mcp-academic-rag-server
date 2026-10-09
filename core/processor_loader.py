@@ -5,7 +5,6 @@ Separates processor mapping from core server logic
 
 import importlib
 import logging
-from pathlib import Path
 from typing import Any, Dict, List
 
 from core.config_manager import ConfigManager
@@ -20,7 +19,7 @@ class ProcessorLoader:
     flexible configuration and easy extension of processing capabilities.
     """
 
-    def __init__(self, config_manager: ConfigManager):
+    def __init__(self, config_manager: ConfigManager) -> None:
         """
         Initialize the processor loader.
 
@@ -52,6 +51,7 @@ class ProcessorLoader:
                     external_mappings = config_data.get("processor_mappings", {})
 
                 if external_mappings:
+                    external_mappings = self._validate_mappings(external_mappings)
                     self.logger.info(
                         "Loaded processor mappings from external file",
                         extra={"config_file": str(config_path), "mappings_count": len(external_mappings)},
@@ -64,6 +64,7 @@ class ProcessorLoader:
         external_mappings = self.config_manager.get_value("processor_mappings", {})
 
         if external_mappings:
+            external_mappings = self._validate_mappings(external_mappings)
             self.logger.info("Loaded processor mappings from main configuration")
             return external_mappings
 
@@ -103,6 +104,21 @@ class ProcessorLoader:
 
         self.logger.info("Using default processor mappings")
         return default_mappings
+
+    @staticmethod
+    def _validate_mappings(value: Any) -> Dict[str, Dict[str, str]]:
+        if not isinstance(value, dict):
+            raise TypeError("Processor mappings must be an object")
+        mappings: Dict[str, Dict[str, str]] = {}
+        for name, mapping in value.items():
+            if not isinstance(name, str) or not isinstance(mapping, dict):
+                raise TypeError("Invalid processor mapping")
+            if not all(isinstance(key, str) and isinstance(item, str) for key, item in mapping.items()):
+                raise TypeError(f"Processor mapping values must be strings: {name}")
+            if not mapping.get("module") or not mapping.get("class"):
+                raise ValueError(f"Processor mapping needs module and class: {name}")
+            mappings[name] = dict(mapping)
+        return mappings
 
     def load_processors(self) -> List[IProcessor]:
         """
@@ -253,10 +269,7 @@ class ProcessorLoader:
             # Ensure the loaded processor implements the IProcessor interface
             # This is critical for maintaining contract compliance across the system
             if not isinstance(processor, IProcessor):
-                self.logger.warning(
-                    f"Processor {processor_name} does not implement IProcessor interface. "
-                    f"This may cause runtime errors during pipeline execution."
-                )
+                raise TypeError(f"Processor {processor_name} does not implement IProcessor interface")
 
             return processor
 

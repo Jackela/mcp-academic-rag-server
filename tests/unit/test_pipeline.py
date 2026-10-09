@@ -290,8 +290,9 @@ class TestSynchronousProcessing:
 
         result = pipeline.process_document_sync(sample_document)
 
-        # Should succeed but skip all processors
-        assert result.is_successful()
+        # A file with no compatible processor has not been processed.
+        assert not result.is_successful()
+        assert sample_document.status == "error"
         assert len([item for item in sample_document.processing_history if "processor" in item]) == 0
         for processor in mock_processors:
             assert processor.process_count == 0
@@ -565,7 +566,6 @@ class TestPerformanceAndThreading:
             pipeline.add_processor(processor)
 
         # Document should start with default status
-        initial_status = sample_document.status
 
         result = await pipeline.process_document(sample_document)
 

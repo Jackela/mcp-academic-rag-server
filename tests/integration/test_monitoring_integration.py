@@ -169,9 +169,20 @@ class TestPerformanceMonitoringIntegration:
             time.sleep(0.2)
 
             # Check for active alerts
-            active_alerts = monitor.alert_manager.get_active_alerts()
+            active_alerts = [
+                alert
+                for alert in monitor.alert_manager.get_active_alerts()
+                if alert.rule.metric_name == "test.high_value"
+            ]
             assert len(active_alerts) == 1
             assert active_alerts[0].rule.metric_name == "test.high_value"
+            monitor.record_metric("test.high_value", 50.0, MetricType.GAUGE)
+            time.sleep(0.2)
+            assert not [
+                alert
+                for alert in monitor.alert_manager.get_active_alerts()
+                if alert.rule.metric_name == "test.high_value"
+            ]
 
         finally:
             monitor.stop()
@@ -193,12 +204,9 @@ class TestTelemetryIntegration:
         """Test telemetry behavior when OpenTelemetry is not available"""
         with patch("core.telemetry_integration.OTEL_AVAILABLE", False):
             telemetry = TelemetryIntegration()
-            telemetry.initialize()
-
-            assert telemetry._initialized
-            # Should use mock implementations
-            assert telemetry.tracer is not None
-            assert telemetry.meter is not None
+            with pytest.raises(ImportError, match="OpenTelemetry"):
+                telemetry.initialize()
+            assert telemetry._initialized is False
 
     def test_trace_span_context_manager(self, telemetry_config):
         """Test trace span context manager"""
@@ -306,6 +314,26 @@ class TestAlertingSystemIntegration:
         )
         email_provider = EmailNotificationProvider(email_config.config)
         assert not email_provider.validate_config()
+
+    @pytest.mark.asyncio
+    async def test_invalid_email_configuration_never_connects(self):
+        from core.performance_monitor import Alert
+
+        rule = AlertRule(metric_name="fixture", condition="greater_than", threshold=1, level=AlertLevel.WARNING)
+        alert = Alert(rule=rule, triggered_at=datetime.now(), current_value=2, message="Controlled fixture")
+        provider = EmailNotificationProvider({"smtp_server": "localhost"})
+        with patch("core.alerting_system.smtplib.SMTP") as smtp:
+            assert await provider.send_notification(alert) is False
+            smtp.assert_not_called()
+
+    def test_invalid_webhook_configuration_never_connects(self):
+        from core.alerting_system import WebhookNotificationProvider
+
+        provider = WebhookNotificationProvider({})
+        with patch("core.alerting_system.requests.request") as request:
+            with pytest.raises(ValueError, match="Invalid webhook"):
+                provider._send_webhook({"fixture": True})
+            request.assert_not_called()
 
     def test_alert_correlation(self, alerting_config):
         """Test alert correlation and deduplication"""

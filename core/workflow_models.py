@@ -7,8 +7,8 @@
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple, Union
+from enum import Enum
+from typing import Any, Dict, List, Mapping, Optional
 
 
 class WorkflowStrategy(Enum):
@@ -231,7 +231,7 @@ class EffortEstimation:
     """工作量估算"""
 
     total_hours: int = 0
-    breakdown_by_persona: Dict[PersonaType, int] = field(default_factory=dict)
+    breakdown_by_persona: Mapping[PersonaType, float] = field(default_factory=dict)
     breakdown_by_phase: Dict[str, int] = field(default_factory=dict)  # phase_id -> hours
     confidence_level: float = 0.8  # 0.0 to 1.0
     estimation_method: str = "expert_judgment"  # expert_judgment, historical_data, planning_poker

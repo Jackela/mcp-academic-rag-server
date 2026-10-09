@@ -6,7 +6,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 try:
-    import google.generativeai as genai
+    import google.generativeai as genai  # type: ignore[import-untyped]  # SDK has no type declarations.
 
     GOOGLE_AVAILABLE = True
 except ImportError:
@@ -44,7 +44,7 @@ class GoogleConnector(BaseLLMConnector):
     def _get_provider_name(self) -> str:
         return "google"
 
-    def _init_generator(self):
+    def _init_generator(self) -> None:
         """Initialize Google Gemini client"""
         try:
             genai.configure(api_key=self.api_key)

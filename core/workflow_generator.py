@@ -4,12 +4,11 @@
 基于PRD和需求描述生成完整的实施工作流。
 """
 
-import asyncio
 import logging
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional
 
 from .workflow_effort_calculator import EffortCalculator, PhaseEffortDistributor
 from .workflow_models import (
@@ -20,7 +19,6 @@ from .workflow_models import (
     Dependency,
     EffortEstimation,
     MCPResults,
-    OutputFormat,
     ParallelStream,
     PersonaType,
     PRDStructure,
@@ -33,7 +31,6 @@ from .workflow_models import (
     WorkflowMilestone,
     WorkflowOptions,
     WorkflowPhase,
-    WorkflowStep,
     WorkflowStrategy,
 )
 
@@ -41,18 +38,18 @@ from .workflow_models import (
 class PRDParser:
     """PRD文档解析器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger("PRDParser")
 
     async def parse_document(self, file_path: str) -> PRDStructure:
         """解析PRD文档文件"""
         try:
-            file_path = Path(file_path)
-            if not file_path.exists():
+            source_path = Path(file_path)
+            if not source_path.exists():
                 raise FileNotFoundError(f"PRD文档不存在: {file_path}")
 
-            content = file_path.read_text(encoding="utf-8")
-            return self.parse_content(content, file_path.name)
+            content = source_path.read_text(encoding="utf-8")
+            return self.parse_content(content, source_path.name)
 
         except Exception as e:
             self.logger.error(f"解析PRD文档失败: {str(e)}")
@@ -301,7 +298,7 @@ class PRDParser:
 class RequirementAnalyzer:
     """需求分析器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger("RequirementAnalyzer")
 
     def analyze_complexity(self, requirements: List[Requirement]) -> ComplexityAnalysis:
@@ -338,14 +335,7 @@ class RequirementAnalyzer:
             else:
                 overall_complexity = ComplexityLevel.ENTERPRISE
 
-            # 分析复杂度因素
-            complexity_factors = []
-            if complexity_counts[ComplexityLevel.ENTERPRISE] > 0:
-                complexity_factors.append("包含企业级需求")
-            if complexity_counts[ComplexityLevel.COMPLEX] > total_reqs * 0.5:
-                complexity_factors.append("复杂需求占比过半")
-            if total_reqs > 20:
-                complexity_factors.append("需求数量较多")
+            complexity_factors = self._complexity_factors(complexity_counts, total_reqs)
 
             # 识别简化机会
             simplification_opportunities = []
@@ -372,6 +362,16 @@ class RequirementAnalyzer:
             self.logger.error(f"复杂度分析失败: {str(e)}")
             return ComplexityAnalysis()
 
+    def _complexity_factors(self, counts: Dict[ComplexityLevel, int], total: int) -> List[str]:
+        factors = []
+        if counts[ComplexityLevel.ENTERPRISE] > 0:
+            factors.append("包含企业级需求")
+        if counts[ComplexityLevel.COMPLEX] > total * 0.5:
+            factors.append("复杂需求占比过半")
+        if total > 20:
+            factors.append("需求数量较多")
+        return factors
+
     def categorize_requirements(self, requirements: List[Requirement]) -> RequirementCategories:
         """需求分类"""
         try:
@@ -388,17 +388,7 @@ class RequirementAnalyzer:
                 elif req.type == "constraint":
                     categories.constraint_requirements.append(req)
 
-                # 进一步细分
-                if self._is_ui_requirement(desc_lower):
-                    categories.ui_requirements.append(req)
-                if self._is_api_requirement(desc_lower):
-                    categories.api_requirements.append(req)
-                if self._is_data_requirement(desc_lower):
-                    categories.data_requirements.append(req)
-                if self._is_security_requirement(desc_lower):
-                    categories.security_requirements.append(req)
-                if self._is_performance_requirement(desc_lower):
-                    categories.performance_requirements.append(req)
+                self._categorize_details(req, desc_lower, categories)
 
             self.logger.info(
                 f"需求分类完成: 功能性({len(categories.functional_requirements)}),"
@@ -410,6 +400,18 @@ class RequirementAnalyzer:
         except Exception as e:
             self.logger.error(f"需求分类失败: {str(e)}")
             return RequirementCategories()
+
+    def _categorize_details(self, req: Requirement, description: str, categories: RequirementCategories) -> None:
+        if self._is_ui_requirement(description):
+            categories.ui_requirements.append(req)
+        if self._is_api_requirement(description):
+            categories.api_requirements.append(req)
+        if self._is_data_requirement(description):
+            categories.data_requirements.append(req)
+        if self._is_security_requirement(description):
+            categories.security_requirements.append(req)
+        if self._is_performance_requirement(description):
+            categories.performance_requirements.append(req)
 
     def estimate_effort(self, requirements: List[Requirement]) -> EffortEstimation:
         """工作量评估"""
@@ -425,8 +427,8 @@ class RequirementAnalyzer:
                 ComplexityLevel.ENTERPRISE: 80,  # 10天
             }
 
-            total_hours = 0
-            breakdown_by_persona = {}
+            total_hours = 0.0
+            breakdown_by_persona: Dict[PersonaType, float] = {}
 
             for req in requirements:
                 base_hours = complexity_hours.get(req.complexity, 12)
@@ -442,7 +444,7 @@ class RequirementAnalyzer:
                     hours = base_hours * 1.5  # 安全需求增加50%
                     persona = PersonaType.SECURITY
                 else:
-                    hours = base_hours
+                    hours = float(base_hours)
                     persona = PersonaType.BACKEND  # 默认后端
 
                 total_hours += hours
@@ -538,14 +540,14 @@ class RequirementAnalyzer:
 class WorkflowGenerator:
     """工作流生成器核心引擎"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger("WorkflowGenerator")
         self.prd_parser = PRDParser()
         self.requirement_analyzer = RequirementAnalyzer()
         self.effort_calculator = EffortCalculator()
         self.phase_distributor = PhaseEffortDistributor()
 
-    async def generate_workflow(self, input_source: str, options: WorkflowOptions = None) -> Workflow:
+    async def generate_workflow(self, input_source: str, options: Optional[WorkflowOptions] = None) -> Workflow:
         """生成完整工作流"""
         try:
             if options is None:
@@ -711,8 +713,9 @@ class WorkflowGenerator:
             phases.append(phase6)
 
             # 为每个阶段生成里程碑
-            for phase in phases:
-                phase.milestones = await self._generate_phase_milestones(phase, workflow, options)
+            if options.enable_milestones:
+                for phase in phases:
+                    phase.milestones = await self._generate_phase_milestones(phase, workflow, options)
 
             self.logger.info(f"系统化策略生成 {len(phases)} 个阶段，总工作量 {base_effort}h")
             return phases
@@ -787,8 +790,9 @@ class WorkflowGenerator:
             phases.append(phase6)
 
             # 为每个阶段生成里程碑
-            for phase in phases:
-                phase.milestones = await self._generate_phase_milestones(phase, workflow, options)
+            if options.enable_milestones:
+                for phase in phases:
+                    phase.milestones = await self._generate_phase_milestones(phase, workflow, options)
 
             self.logger.info(f"敏捷策略生成 {len(phases)} 个阶段，总工作量 {base_effort}h")
             return phases
@@ -863,8 +867,9 @@ class WorkflowGenerator:
             phases.append(phase6)
 
             # 为每个阶段生成里程碑
-            for phase in phases:
-                phase.milestones = await self._generate_phase_milestones(phase, workflow, options)
+            if options.enable_milestones:
+                for phase in phases:
+                    phase.milestones = await self._generate_phase_milestones(phase, workflow, options)
 
             self.logger.info(f"MVP策略生成 {len(phases)} 个阶段，总工作量 {base_effort}h")
             return phases
@@ -880,6 +885,8 @@ class WorkflowGenerator:
         # 这里简化实现，实际应该根据具体阶段内容生成详细的里程碑
         milestones = []
 
+        if phase.estimated_effort is None:
+            raise ValueError("Phase effort is required to generate milestone estimates")
         milestone_count = max(2, min(5, phase.estimated_effort // 8))  # 每8小时一个里程碑
         effort_per_milestone = phase.estimated_effort // milestone_count
 
@@ -1022,16 +1029,14 @@ class WorkflowGenerator:
 
     async def _integrate_mcp_services(self, workflow: Workflow, options: WorkflowOptions) -> MCPResults:
         """集成MCP服务"""
-        # 这里是占位实现 - 实际需要真正的MCP集成
-        results = MCPResults()
-
-        if options.enable_context7 or options.enable_all_mcp:
-            results.context7_results = {"frameworks": "识别的框架模式"}
-
-        if options.enable_sequential or options.enable_all_mcp:
-            results.sequential_results = {"analysis": "复杂分析结果"}
-
-        if options.enable_magic or options.enable_all_mcp:
-            results.magic_results = {"ui_components": "UI组件建议"}
-
-        return results
+        if any(
+            (
+                options.enable_context7,
+                options.enable_sequential,
+                options.enable_magic,
+                options.enable_playwright,
+                options.enable_all_mcp,
+            )
+        ):
+            raise NotImplementedError("External workflow MCP integrations are not implemented")
+        return MCPResults()

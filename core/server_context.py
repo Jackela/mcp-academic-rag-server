@@ -12,6 +12,7 @@ from core.config_manager import ConfigManager
 from core.pipeline import Pipeline
 
 if TYPE_CHECKING:
+    from document_stores.implementations.haystack_store import HaystackDocumentStore
     from rag.haystack_pipeline import RAGPipeline
     from rag.chat_session import ChatSessionManager
 
@@ -26,10 +27,10 @@ class ServerContext:
     pipelines, and session management, eliminating global state.
     """
 
-    def __init__(self):
+    def __init__(self, config_manager: Optional[ConfigManager] = None) -> None:
         """Initialize the server context with default dependencies."""
         self._logger = logging.getLogger("mcp-academic-rag-server")
-        self._config_manager: Optional[ConfigManager] = None
+        self._config_manager: Optional[ConfigManager] = config_manager
         self._document_pipeline: Optional[Pipeline] = None
         self._rag_pipeline: Optional[RAGPipeline] = None
         self._session_manager: Optional[ChatSessionManager] = None
@@ -101,6 +102,8 @@ class ServerContext:
 
         try:
             self._logger.info("Initializing server context components")
+            if not self.config_manager.is_config_valid():
+                raise ValueError("Server configuration is invalid or could not be loaded")
 
             # Phase 2: Core pipeline setup
             # Create the main document processing pipeline that will orchestrate
@@ -168,7 +171,7 @@ class ServerContext:
         try:
             # Get LLM configuration
             llm_config = self.config_manager.get_value("llm", {})
-            provider = llm_config.get("provider", "openai")
+            provider = llm_config.get("provider", llm_config.get("type", "openai"))
 
             api_key = self._resolve_api_key(provider, llm_config)
 
@@ -181,12 +184,14 @@ class ServerContext:
                 "api_key": api_key,
                 "model": llm_config.get("model", "gpt-3.5-turbo"),
                 "timeout": llm_config.get("timeout", 60),
-                "parameters": llm_config.get("parameters", {}),
+                "parameters": llm_config.get("parameters", llm_config.get("settings", {})),
             }
 
             # Add provider-specific configurations
             if provider == "openai":
-                connector_config["api_base_url"] = llm_config.get("api_base_url", "https://api.openai.com/v1")
+                connector_config["api_base_url"] = llm_config.get(
+                    "api_base_url", llm_config.get("api_url", "https://api.openai.com/v1")
+                )
 
             # Validate configuration
             validation = LLMFactory.validate_config(provider, connector_config)
@@ -225,15 +230,17 @@ class ServerContext:
         value = llm_config.get("api_key", "")
         if value.startswith("${") and value.endswith("}"):
             value = os.environ.get(value[2:-1], "")
+        if value.startswith("YOUR_"):
+            value = ""
         return value or os.environ.get(LLMFactory._get_env_var_name(provider), "")
 
-    def _attach_rag_dependencies(self, shared_store: Any) -> None:
+    def _attach_rag_dependencies(self, shared_store: HaystackDocumentStore) -> None:
         from processors.haystack_embedding_processor import HaystackEmbeddingProcessor
 
         for processor in self._processors:
             if isinstance(processor, HaystackEmbeddingProcessor):
                 processor.document_store = shared_store
-        if self._session_manager is not None:
+        if self._session_manager is not None and self._rag_pipeline is not None:
             self._session_manager.rag_pipeline = self._rag_pipeline
             for session in self._session_manager.sessions.values():
                 session.set_rag_pipeline(self._rag_pipeline)

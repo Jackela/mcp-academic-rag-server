@@ -14,6 +14,7 @@ Core Module for MCP Academic RAG Server
 
 # Public exports remain compatible without importing every optional backend.
 from importlib import import_module
+from typing import Any
 
 _EXPORTS = {
     "ConfigCenter": "config_center",
@@ -28,7 +29,7 @@ _EXPORTS = {
 __all__ = list(_EXPORTS)
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     if name not in _EXPORTS:
         raise AttributeError(name)
     value = getattr(import_module(f".{_EXPORTS[name]}", __name__), name)
