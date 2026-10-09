@@ -63,6 +63,21 @@ Missing browsers and unsupported legacy PDF options are explicit errors.
 
 ## Develop and verify
 
+The Docker image runs this same installed MCP stdio entry:
+
+```bash
+docker build -t academic-rag:local .
+docker run --rm -i --network none -e OPENAI_API_KEY academic-rag:local
+```
+
+Connect the container through an MCP stdio client. It has no HTTP listener or port
+8000 health endpoint. `scripts/check_container.py academic-rag:local` verifies the
+installed entry and real protocol with a fixture key and networking disabled. The
+CPU image uses the official PyTorch CPU wheels. Optional PDF rendering requires
+installing Chromium and its system dependencies in a derived image; missing browsers
+fail explicitly. The historical `docker-compose.yml` infrastructure is not the
+maintained MCP client entry; its optional Nginx configuration is absent.
+
 [AGENTS.md](AGENTS.md) defines maintenance boundaries. [docs/maintenance.md](docs/maintenance.md)
 contains the repeatable installation, cleanup, behavior and documentation checks.
 `pyproject.toml` owns package metadata and dependencies, `pytest.ini` owns test

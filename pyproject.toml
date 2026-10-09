@@ -86,6 +86,8 @@ dev = [
     "types-jsonschema>=4.26",
     "types-psutil>=7.2",
     "scikit-learn-stubs>=0.0.3",
+    # Type-check existing optional Redis adapters against the actual typed SDK.
+    "redis>=8,<9",
     "pytest-mock>=3.10.0",
     "anthropic>=0.25.0",
     "arxiv>=2.1.0",
@@ -107,6 +109,11 @@ monitoring = [
     "opentelemetry-instrumentation-logging>=0.66b1,<1",
     "opentelemetry-instrumentation-sqlite3>=0.66b1,<1",
     "opentelemetry-propagator-b3>=1.45,<2",
+]
+
+# Existing CI service client, optional and independent of the application backend.
+storage-tests = [
+    "pymilvus>=2.6,<3",  # CI service protocol only; does not implement the application Milvus store.
 ]
 
 # Enhanced processing (optional for advanced users)

@@ -40,9 +40,10 @@ not certify remote models, vector services, full RAG quality or a production rel
 
 ## Full-suite recovery evidence
 
-On 2026-10-09, Python 3.11 with the declared dependencies passed the complete
-unit suite (364 tests, 4 subtests). The five existing intentionally failing CI
-probe cases remain disabled by their own opt-in fixture. FAISS-unavailable is
+On 2026-10-09, the final Python 3.11 candidate passed all default unit, contract,
+integration, component, E2E and performance suites: 640 tests and 22 subtests.
+The five existing intentionally failing CI probe cases remain disabled by their
+own opt-in fixture. FAISS-unavailable is
 now tested explicitly even when FAISS is installed. Native vector updates use
 new Haystack documents instead of mutating deprecated fields. Context cleanup
 uses the manager's public sessions. MIME validation fails closed when libmagic
@@ -60,13 +61,80 @@ or port scanning command runs. User and other agent processes are never test sub
 HTML documentation builds with warnings as errors; RST checking delegates only
 Sphinx extension directives to that real Sphinx build. Markdown remains editable
 source. Missing guide chapters and deployment materials are marked as missing.
-The old global lint/type debt remains a separate failing check until repaired;
-these behavioral results do not establish a complete CI pass.
+The final local formatting, lint and type checks pass across the declared targets;
+the corresponding remote workflow results remain separate evidence. These behavioral
+results alone do not establish a complete CI pass.
 
 Pytest's default paths match the automated suites actually run in CI. The existing
 `tests/manual` scripts remain separate live-service experiments; they are not
 silently treated as verified research or added to offline CI by discovery tests.
 Explicit manual execution and its service/data requirements remain unverified.
+
+## Container entry and verification
+
+The image installs the package from `pyproject.toml` rather than installing a development
+requirements file outside the checkout. The old builder copied only `requirements.txt`,
+whose editable project reference could not resolve. Its floating Debian image also named
+obsolete system packages, and its runtime referenced missing root `mcp_server.py` and
+`health_check.py` files. `EXPOSE 8000` did not create an HTTP server.
+
+The maintained image uses Python 3.11 on Debian Bookworm, selects official CPU Torch wheels,
+and runs `mcp-academic-rag-server` as a non-root user. No HTTP health check is declared.
+Startup environment validation checks key syntax and creates the configured data directory;
+it does not verify OCR, model availability or answer quality. Default browser rendering is
+not installed in the image: hosts that need PDF rendering install Chromium and system
+dependencies in a derived image. The existing explicit missing-browser error remains active.
+
+```bash
+docker build -t academic-rag:local .
+python scripts/check_container.py academic-rag:local
+```
+
+This check uses an actual MCP `ClientSession` against a unique, owned `docker run -i`
+container with networking disabled. It validates initialization, discovery, echo, native
+missing-file/invalid-arguments errors, non-root execution, native Torch/FAISS operations,
+installed dependency consistency, help and rejected missing credentials. Cleanup only
+addresses that exact test container. CI loads the built image before this check; it no longer
+waits thirty seconds before invoking a nonexistent health script. The historical Compose
+stack remains separate and unverified: it assumes HTTP on port 8000 and references absent
+`config/nginx.conf`. It is not the current MCP stdio client configuration.
+
+Primary installation references: [PyTorch CPU installation](https://pytorch.org/get-started/locally/)
+and [Playwright Docker prerequisites](https://playwright.dev/python/docs/docker).
+
+## Publication is an explicit action
+
+Ordinary pushes and pull requests run checks without publishing images. Manual workflow
+dispatch defaults `publish_target` to `none`; explicit `staging` or `production` selection
+publishes the corresponding image only after the required checks. These jobs publish
+container images and do not claim a running website or deployment; the unsupported example
+domain URLs and run-number version tags are removed. Manual images use the existing commit
+SHA, while an explicitly published GitHub release keeps its actual existing tag.
+
+Release checkout fetches full history. `scripts/release_changelog.py` handles first releases
+with no earlier tag and rejects missing current tags. Git commit subjects remain text in a
+random-delimited environment value and are read with `process.env.CHANGELOG`; they are never
+inserted into JavaScript source. Temporary local Git fixtures check literal shell/JavaScript
+syntax remains data. The conditions test ordinary pushes/PRs, default manual checks, explicit
+manual targets and published/created release events without publishing an artifact.
+
+The retained Docker storage job now starts the same real embedded Milvus service declared
+in `.github/milvus-ci.yml`; its old independent service omitted the standalone command,
+polled the gRPC port with HTTP, and selected a nonexistent `requires_milvus` test set.
+The replacement `scripts/check_milvus_service.py` uses the actual optional `storage-tests`
+SDK declaration in an isolated service environment. Local Linux ARM Milvus 2.3.4 and
+PyMilvus 2.6.17 passed real two-vector insertion, nearest-neighbor ordering, row query and
+owned-collection cleanup. The script rejects non-loopback hosts before connecting; the
+local fixture starts and removes only its own uniquely named container on an ephemeral
+loopback port. This verifies service protocol compatibility, not the unimplemented
+application `MilvusDocumentStore`. SDK deprecation warnings remain visible in its log.
+See [Milvus SDK compatibility](https://milvus.io/api-reference/pymilvus/v2.4.x/About.md).
+
+The MCP `query_documents.top_k` parameter now reaches `ChatSession` and the actual Haystack
+retriever. Previously it only sliced the displayed sources while all retrieved text still
+entered the prompt. Controlled native retrieval checks ranking, returned counts, prompt
+contents, configured-default preservation and invalid limits failing before session/query
+creation; other provider/generation options are unchanged.
 
 A second recovery pass exercises the current Haystack 2.x embedders/retrievers,
 real in-memory and FAISS stores, prompts, sessions and migration without service
@@ -152,8 +220,18 @@ The unpatched [pdfkit advisory](https://github.com/pypa/advisory-database/blob/m
 is addressed by removing that renderer and its dependency. Chromium preserves page size,
 orientation, UTF-8 and margins. Unsupported wkhtmltopdf-specific options fail explicitly.
 NLTK had no source consumer and was removed from the speculative enhanced declaration;
-its unpatched model-artifact advisory is not ignored. A fresh installation of declared
-`.[dev,monitoring]` was audited: 185 distributions, no known vulnerabilities.
+its unpatched model-artifact advisory is not ignored. The final isolated declared
+`.[dev,monitoring]` inventory has 186 distributions: 185 dependencies were audited with no
+known vulnerabilities. The local unpublished project itself has no PyPI advisory record
+and is explicitly marked unauditable in the JSON report; source checks remain separate.
+Redis is installed only in the development extra to check the existing optional adapters
+against its actual typed SDK. MCP-only runtime installation retains missing-Redis fallback.
+
+The hosted runner's preinstalled setuptools 79.0.1 produced the actual remote audit failure.
+An isolated audit of that exact version reproduces the nonzero status; its two report entries
+share `PYSEC-2026-3447`, fixed in setuptools 83. CI now creates a fresh project environment
+and upgrades its build tools before installing the declared dependencies, rather than
+auditing unrelated or stale hosted-toolcache packages. Failed reports are uploaded as well.
 
 `scripts/check_bandit.py` validates and applies the existing medium severity and medium
 confidence configuration with `-ll/-ii`, preserving the existing B101/B601 skips. It also saves

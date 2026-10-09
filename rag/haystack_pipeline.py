@@ -77,6 +77,7 @@ class RAGPipeline:
         chat_history: Optional[List[Dict[str, str]]] = None,
         filters: Optional[Dict[str, Any]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         运行RAG管道
@@ -86,18 +87,23 @@ class RAGPipeline:
             chat_history (list, optional): 聊天历史记录，格式为[{"role": "user", "content": "消息内容"}]
             filters (dict, optional): 检索过滤条件
             generation_kwargs (dict, optional): 生成参数
+            top_k (int, optional): 单次检索数量，省略时保留配置默认值
 
         Returns:
             dict: 包含回答和检索文档的结果
         """
         try:
+            if top_k is not None and (type(top_k) is not int or top_k <= 0):
+                raise ValueError("top_k must be a positive integer")
             # 准备输入
-            inputs = {
+            inputs: Dict[str, Dict[str, Any]] = {
                 "query_embedder": {"text": query},
                 "retriever": {"filters": filters},
                 "llm": {"generation_kwargs": generation_kwargs or {}},
                 "prompt_builder": {"query": query, "chat_history": chat_history or []},
             }
+            if top_k is not None:
+                inputs["retriever"]["top_k"] = top_k
 
             # 运行管道
             logger.info(f"运行RAG管道: 查询='{query}'")

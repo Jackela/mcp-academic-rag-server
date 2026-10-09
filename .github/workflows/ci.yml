@@ -13,6 +13,17 @@ on:
       - 'docs/**'
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      publish_target:
+        description: 'Explicit container publication target; ordinary checks do not publish'
+        type: choice
+        required: true
+        default: none
+        options: [none, staging, production]
+
+permissions:
+  contents: read
 
 env:
   PYTHON_VERSION: '3.11'
@@ -61,9 +72,10 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest-cov pytest-mock pytest-asyncio
+          python -m venv .venv-project
+          .venv-project/bin/python -m pip install --upgrade pip setuptools wheel
+          .venv-project/bin/python -m pip install -r requirements.txt
+          echo "$PWD/.venv-project/bin" >> "$GITHUB_PATH"
 
       - name: Create test configuration
         run: |
@@ -219,21 +231,28 @@ jobs:
         with:
           context: .
           push: false
+          load: true
           tags: ${{ env.IMAGE_NAME }}:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Test Docker image
+      - name: Set up Python for the official MCP client
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Test installed Docker entry and real stdio
         run: |
-          docker run --rm --name test-container -d -p 8000:8000 ${{ env.IMAGE_NAME }}:test
-          sleep 30
-          docker exec test-container python health_check.py
-          docker stop test-container
+          python -m pip install 'mcp>=1,<2'
+          python scripts/check_container.py "${{ env.IMAGE_NAME }}:test"
 
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: docker-build
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - name: Checkout code
@@ -264,14 +283,16 @@ jobs:
           sarif_file: 'trivy-results.sarif'
 
   deploy-staging:
-    name: Deploy to Staging
+    name: Publish Staging Image
     runs-on: ubuntu-latest
     needs: [test, e2e-test, docker-build, security-scan]
-    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_target == 'staging'
+    permissions:
+      contents: read
+      packages: write
 
     environment:
       name: staging
-      url: https://staging.academic-rag.com
 
     steps:
       - name: Checkout code
@@ -298,17 +319,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Add deployment steps here (e.g., update Kubernetes deployment)
-
   deploy-production:
-    name: Deploy to Production
+    name: Publish Production Image
     runs-on: ubuntu-latest
     needs: [test, e2e-test, docker-build, security-scan]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_target == 'production'
+    permissions:
+      contents: read
+      packages: write
 
     environment:
       name: production
-      url: https://academic-rag.com
 
     steps:
       - name: Checkout code
@@ -331,21 +352,24 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v${{ github.run_number }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Add production deployment steps here
-
   release:
-    name: Create Release
+    name: Publish Existing Release Image
     runs-on: ubuntu-latest
     needs: [test, e2e-test, docker-build, security-scan]
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' && github.event.action == 'published'
+    permissions:
+      contents: write
+      packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -357,9 +381,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract version from tag
+      - name: Use existing release tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+        run: echo "VERSION=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Build and push release image
         uses: docker/build-push-action@v5
@@ -373,13 +397,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Generate changelog
-        id: changelog
-        run: |
-          {
-            echo "CHANGELOG<<EOF"
-            git log --pretty=format:"- %s (%h)" "$(git describe --tags --abbrev=0 HEAD~1)..HEAD"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+        run: python scripts/release_changelog.py --tag "$GITHUB_REF_NAME" --github-env "$GITHUB_ENV"
 
       - name: Update release notes
         uses: actions/github-script@v7
@@ -391,8 +409,9 @@ jobs:
               release_id: context.payload.release.id
             });
             
-            const changelog = `${{ steps.changelog.outputs.CHANGELOG }}`;
-            const body = release.data.body + "\n\n## Changes\n" + changelog;
+            const changelog = process.env.CHANGELOG;
+            if (typeof changelog !== 'string') throw new Error('Missing release changelog');
+            const body = (release.data.body || '') + "\n\n## Changes\n" + changelog;
             
             await github.rest.repos.updateRelease({
               owner: context.repo.owner,

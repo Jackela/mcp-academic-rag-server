@@ -109,6 +109,7 @@ async def handle_list_tools() -> List[Tool]:
                     "session_id": {"type": "string", "description": "Optional session ID for conversation context"},
                     "top_k": {
                         "type": "integer",
+                        "minimum": 1,
                         "description": "Number of relevant document chunks to retrieve",
                         "default": 5,
                     },
@@ -308,6 +309,8 @@ async def handle_query_documents(
 
     if not query:
         return _ToolErrorOutput([TextContent(type="text", text="❌ Error: Query is required")])
+    if type(top_k) is not int or top_k <= 0:
+        return _ToolErrorOutput([TextContent(type="text", text="Error: top_k must be a positive integer")])
 
     failed = False
     try:
@@ -327,7 +330,7 @@ async def handle_query_documents(
                 session_id = session.session_id
 
             # Execute query
-            result = session.query(query)
+            result = session.query(query, top_k=top_k)
             failed = bool(result.get("error"))
 
             response_text = _format_query_result(result, query, session_id, top_k)

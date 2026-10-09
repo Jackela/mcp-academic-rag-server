@@ -33,6 +33,7 @@ async def check_protocol(executable, directory):
             assert "installed-wheel-fixture" in result.content[0].text
             bad = await session.call_tool("process_document", {"file_path": "/nonexistent/fixture.pdf"})
             assert "not found" in bad.content[0].text
+            assert bad.isError, "Installed SDK must expose logical failures as native MCP errors"
 
 
 def main():

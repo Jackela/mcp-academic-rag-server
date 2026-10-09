@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from mcp.types import CallToolResult
+
 from connectors.api_connector import MistralAPIConnector
 from models.process_result import ProcessResult
 from servers import mcp_server_sdk as sdk
@@ -19,13 +21,21 @@ class SDKContracts(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_unknown_and_missing_arguments_fail(self):
-        self.assertIn("Unknown tool", (await sdk.handle_call_tool("bad", {}))[0].text)
-        self.assertIn("required", (await sdk.handle_call_tool("process_document", {}))[0].text)
-        self.assertIn("required", (await sdk.handle_call_tool("query_documents", {}))[0].text)
-        self.assertIn(
-            "not found",
-            (await sdk.handle_call_tool("process_document", {"file_path": "/nonexistent/fixture.pdf"}))[0].text,
-        )
+        for name, arguments, expected in [
+            ("bad", {}, "Unknown tool"),
+            ("process_document", {}, "required"),
+            ("query_documents", {}, "required"),
+            ("process_document", {"file_path": "/nonexistent/fixture.pdf"}, "not found"),
+        ]:
+            with self.subTest(tool=name, arguments=arguments):
+                result = await sdk.handle_call_tool(name, arguments)
+                self.assertIsInstance(result, CallToolResult)
+                self.assertTrue(result.isError)
+                self.assertIn(expected, result.content[0].text)
+        # Direct processing helpers retain their historical list interface.
+        helper = await sdk.handle_process_document({})
+        self.assertIsInstance(helper, list)
+        self.assertIn("required", helper[0].text)
 
     async def test_processing_success_and_failure(self):
         context = MagicMock()
@@ -37,9 +47,10 @@ class SDKContracts(unittest.IsolatedAsyncioTestCase):
             result = await sdk.handle_call_tool("process_document", {"file_path": str(path)})
             self.assertIn("文档处理成功", result[0].text)
             context.document_pipeline.process_document.return_value = ProcessResult.error_result("fixture failure")
-            self.assertIn(
-                "fixture failure", (await sdk.handle_call_tool("process_document", {"file_path": str(path)}))[0].text
-            )
+            failed = await sdk.handle_call_tool("process_document", {"file_path": str(path)})
+            self.assertIsInstance(failed, CallToolResult)
+            self.assertTrue(failed.isError)
+            self.assertIn("fixture failure", failed.content[0].text)
 
     async def test_environment_missing_key_fails_without_network(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": ""}):

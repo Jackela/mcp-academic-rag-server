@@ -325,13 +325,16 @@ class ChatSession:
         self.rag_pipeline = rag_pipeline
         logger.info(f"会话{self.session_id}设置了RAG管道")
 
-    def query(self, query: str, generation_kwargs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def query(
+        self, query: str, generation_kwargs: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> Dict[str, Any]:
         """
         执行查询
 
         Args:
             query (str): 用户查询
             generation_kwargs (dict, optional): 生成参数
+            top_k (int, optional): 单次检索数量，省略时保留配置默认值
 
         Returns:
             dict: 查询结果，包含answer和documents
@@ -351,7 +354,14 @@ class ChatSession:
             chat_history = [{"role": msg.role, "content": msg.content} for msg in self.messages[-10:]]  # 最近10条消息
 
             # 执行RAG查询
-            result = self.rag_pipeline.run(query=query, chat_history=chat_history, generation_kwargs=generation_kwargs)
+            arguments: Dict[str, Any] = {
+                "query": query,
+                "chat_history": chat_history,
+                "generation_kwargs": generation_kwargs,
+            }
+            if top_k is not None:
+                arguments["top_k"] = top_k
+            result = self.rag_pipeline.run(**arguments)
 
             # 添加助手回答
             answer = result.get("answer", "No answer generated")
