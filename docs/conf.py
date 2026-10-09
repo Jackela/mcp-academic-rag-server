@@ -212,6 +212,9 @@ latex_elements = {
     # LuaHBTeX shapes the emoji fallback without rewriting those source characters.
     "fontpkg": r"""
 \usepackage{luatexja-fontspec}
+% Symbols use alphabet-font fallback; they do not have Japanese JFM metrics.
+\ltjdefcharrange{100}{"2000-"2BFF,"FE00-"FE0F,"1F000-"1FAFF}
+\ltjsetparameter{jacharrange={-100}}
 \directlua{
   luaotfload.add_fallback("docunicode", {
     "NotoSansMonoCJKSC:mode=node;",
@@ -220,7 +223,6 @@ latex_elements = {
   })
 }
 \defaultfontfeatures{RawFeature={fallback=docunicode}}
-\defaultjfontfeatures+{RawFeature={fallback=docunicode}}
 \setmainfont{XCharter}
 \setsansfont{Lato}
 \setmonofont{Inconsolatazi4}
