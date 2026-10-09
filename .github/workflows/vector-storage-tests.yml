@@ -111,6 +111,14 @@ jobs:
         env:
           KMP_DUPLICATE_LIB_OK: 'FALSE'
 
+      - name: Verify Windows native MIME
+        if: runner.os == 'Windows'
+        timeout-minutes: 5
+        run: |
+          python -u -X faulthandler -c "import faulthandler, os, sys; watchdog_output = os.fdopen(os.dup(sys.stderr.fileno()), 'w'); faulthandler.dump_traceback_later(120, repeat=True, file=watchdog_output); import pytest; raise SystemExit(pytest.main())" tests/unit/test_windows_mime_contracts.py::test_actual_windows_native_mime_and_threaded_handles -v -s 2>&1 | tee windows-mime.log
+        env:
+          KMP_DUPLICATE_LIB_OK: 'FALSE'
+
       - name: Run unit tests
         timeout-minutes: 20
         run: |
@@ -141,6 +149,7 @@ jobs:
             test-results/
             unit-tests.log
             native-runtime.log
+            windows-mime.log
 
   integration-tests:
     name: Integration Tests

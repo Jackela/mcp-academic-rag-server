@@ -6,6 +6,7 @@
 """
 
 import argparse
+import io
 import json
 import os
 import sys
@@ -42,6 +43,10 @@ def _print_validation_result(is_valid, report):
 
 def main():
     """主函数"""
+    # This CLI emits Chinese and symbols through redirected Windows streams too.
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(
         description="MCP Academic RAG Server 配置验证工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,

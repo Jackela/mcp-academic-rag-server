@@ -32,7 +32,7 @@ class ControlledProcessor(BaseProcessor):
 def make_config(directory):
     config = generate_default_config()
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "config.json").write_text(json.dumps(config))
+    (directory / "config.json").write_text(json.dumps(config), encoding="utf-8")
     return config
 
 
@@ -50,7 +50,7 @@ def test_config_set_value_completes_without_recursive_lock_deadlock(tmp_path):
 
 def test_corrupt_config_does_not_claim_validation_success(tmp_path):
     path = tmp_path / "broken.json"
-    path.write_text("not json")
+    path.write_text("not json", encoding="utf-8")
     manager = ConfigManager(str(path))
     assert manager.is_config_valid() is False
 
@@ -60,10 +60,10 @@ def test_corrupt_hot_reload_preserves_last_valid_configuration(tmp_path, monkeyp
     config_dir = tmp_path / "owned-config"
     config = make_config(config_dir)
     config["logging"]["level"] = "DEBUG"
-    (config_dir / "config.json").write_text(json.dumps(config))
+    (config_dir / "config.json").write_text(json.dumps(config), encoding="utf-8")
     center = ConfigCenter(str(config_dir), watch_changes=False)
     before = center.get_config()
-    (config_dir / "config.json").write_text("not json")
+    (config_dir / "config.json").write_text("not json", encoding="utf-8")
     center._reload_config()
     assert center.get_config() == before
     center.close()
@@ -71,7 +71,7 @@ def test_corrupt_hot_reload_preserves_last_valid_configuration(tmp_path, monkeyp
 
 def test_change_history_refers_to_the_actual_saved_version(tmp_path):
     path = tmp_path / "configuration.json"
-    path.write_text('{"value":1}')
+    path.write_text('{"value":1}', encoding="utf-8")
     manager = ConfigVersionManager(str(path))
     version, changes = manager.save_config_with_version({"value": 2})
     assert changes
@@ -117,7 +117,7 @@ def test_effective_environment_config_is_the_injected_server_config(tmp_path):
     from core.server_context import ServerContext
 
     make_config(tmp_path)
-    (tmp_path / "config.production.json").write_text(json.dumps({"logging": {"level": "ERROR"}}))
+    (tmp_path / "config.production.json").write_text(json.dumps({"logging": {"level": "ERROR"}}), encoding="utf-8")
     center = ConfigCenter(str(tmp_path), environment="production", watch_changes=False)
     context = ServerContext(config_manager=center.config_manager)
     assert context.config_manager is center.config_manager
@@ -153,7 +153,7 @@ def test_corrupt_configuration_cannot_initialize_a_server(tmp_path):
     from core.server_context import ServerContext
 
     path = tmp_path / "config.json"
-    path.write_text("not json")
+    path.write_text("not json", encoding="utf-8")
     manager = ConfigManager(str(path))
     report = manager.get_validation_report()
     assert report["is_valid"] is False
@@ -171,7 +171,7 @@ async def test_real_workflow_strategies_respect_milestone_options(tmp_path):
     from core.workflow_models import WorkflowOptions, WorkflowStrategy
 
     path = tmp_path / "PRD.md"
-    path.write_text("# Local tool\n## 需求\n- 实现文件检索接口功能")
+    path.write_text("# Local tool\n## 需求\n- 实现文件检索接口功能", encoding="utf-8")
     generator = WorkflowGenerator()
     for strategy in WorkflowStrategy:
         workflow = await generator.generate_workflow(str(path), WorkflowOptions(strategy=strategy))
@@ -202,13 +202,13 @@ def test_rejected_candidate_keeps_the_previous_config_valid(tmp_path):
 
 def test_repaired_json_has_consistent_saved_and_live_validation(tmp_path):
     path = tmp_path / "config.json"
-    path.write_text("not json")
+    path.write_text("not json", encoding="utf-8")
     manager = ConfigManager(str(path))
     assert not manager.is_config_valid()
     assert manager.fix_config_issues()
     assert manager.is_config_valid()
     assert manager.get_validation_report()["is_valid"]
-    assert manager.get_config() == json.loads(path.read_text())
+    assert manager.get_config() == json.loads(path.read_text(encoding="utf-8"))
 
 
 def test_failed_json_encoding_preserves_the_real_previous_file(tmp_path):
@@ -218,7 +218,7 @@ def test_failed_json_encoding_preserves_the_real_previous_file(tmp_path):
     before = path.read_bytes()
     assert not center.set_value("extension", {"not JSON serializable"})
     assert path.read_bytes() == before
-    assert center.get_config() == json.loads(path.read_text())
+    assert center.get_config() == json.loads(path.read_text(encoding="utf-8"))
     assert not list(tmp_path.glob("*.tmp"))
     center.close()
 

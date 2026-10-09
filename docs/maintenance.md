@@ -277,6 +277,16 @@ negative fixtures do not establish Windows compatibility. The subsequent
 source-type repair preserves the runtime platform checks while allowing strict
 mypy to check the Darwin helper from Linux, Darwin and Windows targets.
 
+The subsequent Windows run collected 496 tests successfully and passed the
+native numerical check, but stopped at the existing maximum of ten failures
+before reaching the MIME content case. Its failures exposed open temporary-file
+handles and default-codepage fixture reads, plus the configuration CLI's Chinese
+output on redirected CP1252 streams. Fixtures now close owned temporary handles
+and use explicit UTF-8; the CLI configures only its own stdout/stderr as UTF-8.
+Controlled CP1252 child processes check real generation, validation and failure
+statuses. Windows now runs the same native MIME content case before the complete
+unit suite; all unit selections, coverage and failure limits remain unchanged.
+
 The old Safety command passed a filename to an output-format enum and failed before scanning.
 The current Safety CLI also requires account-backed service initialization. CI audits the actually
 installed project dependency environment with [PyPA pip-audit](https://github.com/pypa/pip-audit),

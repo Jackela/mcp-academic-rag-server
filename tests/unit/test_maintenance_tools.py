@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -25,12 +26,13 @@ def test_configuration_cli_checks_real_files_from_another_directory(tmp_path, va
     config = generate_default_config()
     config["logging"]["level"] = "DEBUG" if valid else "INVALID"
     path = tmp_path / "configuration.json"
-    path.write_text(json.dumps(config))
+    path.write_text(json.dumps(config), encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(ROOT / "tools/validate_config.py"), "--config", str(path)],
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=20,
     )
     assert result.returncode == (0 if valid else 1), result.stdout + result.stderr
@@ -43,20 +45,57 @@ def test_default_configuration_can_be_written_to_a_plain_filename(tmp_path):
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=20,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert json.loads((tmp_path / "default.json").read_text()) == generate_default_config()
+    assert json.loads((tmp_path / "default.json").read_text(encoding="utf-8")) == generate_default_config()
     (tmp_path / "destination").mkdir()
     failed = subprocess.run(
         [sys.executable, str(ROOT / "tools/validate_config.py"), "--generate-default", "--output", "destination"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=20,
     )
     assert failed.returncode == 1
     assert "生成默认配置失败" in failed.stdout
+
+
+@pytest.mark.parametrize(
+    "case, exit_code, message",
+    [
+        ("generate", 0, "✅ 默认配置已生成:"),
+        ("valid", 0, "✅ 配置验证通过！"),
+        ("invalid", 1, "❌ 配置验证失败！"),
+        ("missing", 1, "❌ 错误: 配置文件不存在:"),
+    ],
+)
+def test_configuration_cli_preserves_unicode_with_cp1252_pipes(tmp_path, case, exit_code, message):
+    path = tmp_path / "configuration.json"
+    if case in {"valid", "invalid"}:
+        config = generate_default_config()
+        config["logging"]["level"] = "DEBUG" if case == "valid" else "INVALID"
+        path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+    args = ["--generate-default", "--output", str(path)] if case == "generate" else ["--config", str(path)]
+    child_env = os.environ.copy()
+    child_env["PYTHONIOENCODING"] = "cp1252"
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools/validate_config.py"), *args],
+        cwd=tmp_path,
+        env=child_env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=20,
+    )
+    assert result.returncode == exit_code, result.stdout + result.stderr
+    assert message in result.stdout
+    if case == "generate":
+        assert json.loads(path.read_text(encoding="utf-8")) == generate_default_config()
+    elif case == "missing":
+        assert not path.exists()
 
 
 def test_health_checker_uses_the_actual_pillow_import_name():

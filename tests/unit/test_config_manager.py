@@ -22,9 +22,8 @@ class TestConfigManager:
         }
 
         # 创建临时配置文件
-        self.temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
-        with open(self.temp_file.name, "w", encoding="utf-8") as f:
-            json.dump(self.test_config, f)
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False, suffix=".json") as self.temp_file:
+            json.dump(self.test_config, self.temp_file)
 
         # 创建ConfigManager实例
         self.config_manager = ConfigManager(self.temp_file.name)
@@ -93,7 +92,8 @@ class TestConfigManager:
         self.config_manager.set_value("app.version", "1.1.0")
 
         # 保存到新文件
-        temp_save_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as temp_file:
+            temp_save_file = temp_file.name
         target_manager = ConfigManager(temp_save_file)
         target_manager.config = self.config_manager.get_config()
         assert target_manager.save_config()
