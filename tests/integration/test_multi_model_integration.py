@@ -7,14 +7,16 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from typing import Any, Dict, List
+from unittest.mock import Mock, patch
 
 import pytest
+from haystack import component
+from haystack.dataclasses import ChatMessage
 
 from connectors.llm_factory import LLMFactory
 from core.config_manager import ConfigManager
 from core.server_context import ServerContext
-from rag.haystack_pipeline import RAGPipelineFactory
 
 
 class TestMultiModelIntegration:
@@ -27,7 +29,7 @@ class TestMultiModelIntegration:
 
         # Create test configuration
         self.test_config = {
-            "storage": {"type": "local", "base_path": "./data"},
+            "storage": {"type": "local", "base_path": self.temp_dir, "output_path": self.temp_dir},
             "llm": {
                 "provider": "openai",
                 "model": "gpt-3.5-turbo",
@@ -35,7 +37,13 @@ class TestMultiModelIntegration:
                 "parameters": {"temperature": 0.1, "max_tokens": 500},
             },
             "rag_settings": {"retriever_top_k": 5, "embedding_model": "sentence-transformers/all-MiniLM-L6-v2"},
-            "processors": {},
+            "processors": {
+                "pre_processor": {"enabled": True},
+                "ocr_processor": {"enabled": False},
+                "structure_processor": {"enabled": False},
+                "format_converter": {"enabled": False},
+                "embedding_processor": {"enabled": False},
+            },
         }
 
         with open(self.config_path, "w") as f:
@@ -130,19 +138,60 @@ class TestMultiModelIntegration:
         # Mock processor loading
         mock_load_processors.return_value = []
 
-        # Mock generator
-        mock_generator_instance = Mock()
-        mock_generator.return_value = mock_generator_instance
+        @component
+        class OfflineGenerator:
+            @component.output_types(replies=List[ChatMessage])
+            def run(self, messages: List[ChatMessage], generation_kwargs: Dict[str, Any] = None):
+                return {"replies": [ChatMessage.from_assistant("offline answer")]}
+
+        mock_generator.return_value = OfflineGenerator()
 
         # Create server context with custom config
         context = ServerContext()
         context._config_manager = ConfigManager(str(self.config_path))
 
-        # Initialize context
+        # A pre-created session manager must also receive the initialized pipeline.
+        manager = context.session_manager
+        earlier_session = manager.create_session()
         context.initialize()
 
         assert context.is_initialized
         assert context.rag_pipeline is not None
+        assert manager.rag_pipeline is context.rag_pipeline
+        assert earlier_session.rag_pipeline is context.rag_pipeline
+        assert manager.create_session().rag_pipeline is context.rag_pipeline
+        context.cleanup()
+        assert not context.is_initialized
+        assert context.rag_pipeline is None
+
+    def test_google_timeout_and_failures_use_the_real_connector_boundary(self):
+        from connectors.google_connector import GoogleConnector
+
+        fake_sdk = Mock()
+        client = fake_sdk.GenerativeModel.return_value
+        client.generate_content.return_value.text = "answer"
+        with (
+            patch("connectors.google_connector.GOOGLE_AVAILABLE", True),
+            patch("connectors.google_connector.genai", fake_sdk),
+        ):
+            connector = GoogleConnector("fixture-only", timeout=7)
+            assert connector.generate([{"role": "user", "content": "question"}])["content"] == "answer"
+            assert client.generate_content.call_args.kwargs["request_options"] == {"timeout": 7}
+            client.start_chat.return_value.send_message.return_value.text = "chat answer"
+            result = connector.generate(
+                [
+                    {"role": "user", "content": "before"},
+                    {"role": "assistant", "content": "reply"},
+                    {"role": "user", "content": "after"},
+                ]
+            )
+            assert result["content"] == "chat answer"
+            assert client.start_chat.return_value.send_message.call_args.kwargs["request_options"] == {"timeout": 7}
+            client.generate_content.side_effect = TimeoutError("controlled timeout")
+            assert "error" in connector.generate([{"role": "user", "content": "question"}])
+        with patch("connectors.google_connector.GOOGLE_AVAILABLE", False):
+            with pytest.raises(ImportError, match="not installed"):
+                GoogleConnector("fixture-only")
 
     def test_config_environment_variable_resolution(self):
         """Test environment variable resolution in config"""

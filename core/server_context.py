@@ -6,8 +6,7 @@ Manages all server dependencies and eliminates global state
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from core.config_manager import ConfigManager
 from core.pipeline import Pipeline
@@ -60,7 +59,7 @@ class ServerContext:
         if self._session_manager is None:
             from rag.chat_session import ChatSessionManager
 
-            self._session_manager = ChatSessionManager()
+            self._session_manager = ChatSessionManager(rag_pipeline=self._rag_pipeline)
         return self._session_manager
 
     @property
@@ -162,9 +161,8 @@ class ServerContext:
 
     def _initialize_rag_pipeline(self) -> None:
         """Initialize the RAG pipeline with multi-provider LLM support."""
-        import os
-
         from connectors.llm_factory import LLMFactory
+        from document_stores.implementations.haystack_store import HaystackDocumentStore
         from rag.haystack_pipeline import RAGPipelineFactory
 
         try:
@@ -172,19 +170,7 @@ class ServerContext:
             llm_config = self.config_manager.get_value("llm", {})
             provider = llm_config.get("provider", "openai")
 
-            # Get API key from config or environment
-            api_key_field = llm_config.get("api_key", "")
-            if api_key_field.startswith("${") and api_key_field.endswith("}"):
-                # Extract environment variable name
-                env_var = api_key_field[2:-1]
-                api_key = os.environ.get(env_var, "")
-            else:
-                api_key = api_key_field
-
-            # Fallback to provider-specific environment variables
-            if not api_key:
-                env_var_name = LLMFactory._get_env_var_name(provider)
-                api_key = os.environ.get(env_var_name, "")
+            api_key = self._resolve_api_key(provider, llm_config)
 
             if not api_key:
                 self._logger.warning(f"No API key found for {provider}, RAG pipeline disabled")
@@ -218,13 +204,39 @@ class ServerContext:
 
             # Create RAG pipeline
             rag_config = self.config_manager.get_value("rag_settings", {})
-            self._rag_pipeline = RAGPipelineFactory.create_pipeline(llm_connector=llm_connector, config=rag_config)
+            shared_store = HaystackDocumentStore(config={"type": "memory"})
+            self._rag_pipeline = RAGPipelineFactory.create_pipeline(
+                llm_connector=llm_connector, document_store=shared_store.document_store, config=rag_config
+            )
+            self._attach_rag_dependencies(shared_store)
 
             self._logger.info(f"RAG pipeline initialized successfully with {provider} ({llm_connector.model})")
 
         except Exception as e:
             self._logger.error(f"Failed to initialize RAG pipeline: {str(e)}")
             # Continue without RAG pipeline - server can still process documents
+
+    @staticmethod
+    def _resolve_api_key(provider: str, llm_config: Dict[str, Any]) -> str:
+        import os
+
+        from connectors.llm_factory import LLMFactory
+
+        value = llm_config.get("api_key", "")
+        if value.startswith("${") and value.endswith("}"):
+            value = os.environ.get(value[2:-1], "")
+        return value or os.environ.get(LLMFactory._get_env_var_name(provider), "")
+
+    def _attach_rag_dependencies(self, shared_store: Any) -> None:
+        from processors.haystack_embedding_processor import HaystackEmbeddingProcessor
+
+        for processor in self._processors:
+            if isinstance(processor, HaystackEmbeddingProcessor):
+                processor.document_store = shared_store
+        if self._session_manager is not None:
+            self._session_manager.rag_pipeline = self._rag_pipeline
+            for session in self._session_manager.sessions.values():
+                session.set_rag_pipeline(self._rag_pipeline)
 
     def cleanup(self) -> None:
         """Clean up resources and reset the context with proper resource management."""

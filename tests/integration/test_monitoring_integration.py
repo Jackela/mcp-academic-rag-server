@@ -6,12 +6,9 @@ dashboard, and alerting systems working together.
 """
 
 import asyncio
-import tempfile
-import threading
 import time
-from datetime import datetime, timedelta
-from typing import Any, Dict
-from unittest.mock import AsyncMock, Mock, patch
+from datetime import datetime
+from unittest.mock import patch
 
 import pytest
 
@@ -27,16 +24,12 @@ from core.performance_monitor import (
     AlertLevel,
     AlertRule,
     MetricType,
-    PerformanceMetric,
     PerformanceMonitor,
-    get_performance_monitor,
 )
 from core.telemetry_integration import (
     RAGTelemetryInstrumentation,
     TelemetryConfig,
     TelemetryIntegration,
-    get_rag_instrumentation,
-    initialize_telemetry,
 )
 
 
@@ -255,6 +248,16 @@ class TestTelemetryIntegration:
 class TestAlertingSystemIntegration:
     """Test alerting system integration"""
 
+    def test_correlation_control_is_separate_and_input_is_unchanged(self):
+        import copy
+
+        config = {"correlation": {"enabled": True, "max_similar_alerts": 3}}
+        before = copy.deepcopy(config)
+        assert AlertingSystem(config).correlation_engine.config.max_similar_alerts == 3
+        assert config == before
+        config["correlation"]["enabled"] = False
+        assert AlertingSystem(config).correlation_engine is None
+
     def test_alerting_system_initialization(self, alerting_config):
         """Test alerting system initialization"""
         alerting = AlertingSystem(alerting_config)
@@ -332,15 +335,12 @@ class TestAlertingSystemIntegration:
         # Alert exceeding max similar alerts might be suppressed
         # (depends on configuration)
         result = alerting.correlation_engine.correlate_alert(alerts[4])
-        # Result depends on max_similar_alerts setting
+        assert result is False
 
 
 class TestDashboardIntegration:
     """Test monitoring dashboard integration"""
 
-    @pytest.mark.skipif(
-        not hasattr(pytest, "_dashboard_available"), reason="FastAPI not available for dashboard testing"
-    )
     def test_dashboard_initialization(self, dashboard_config, performance_monitor_config):
         """Test dashboard initialization"""
         try:

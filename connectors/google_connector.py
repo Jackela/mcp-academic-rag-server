@@ -11,6 +11,7 @@ try:
     GOOGLE_AVAILABLE = True
 except ImportError:
     GOOGLE_AVAILABLE = False
+    genai = None
 
 from .base_llm_connector import BaseLLMConnector
 
@@ -32,7 +33,7 @@ class GoogleConnector(BaseLLMConnector):
             timeout: Request timeout
             parameters: Generation parameters (temperature, max_output_tokens, etc.)
         """
-        if not GOOGLE_AVAILABLE:
+        if not GOOGLE_AVAILABLE or genai is None:
             raise ImportError(
                 "Google generative AI package not installed. Install with: pip install google-generativeai"
             )
@@ -61,47 +62,8 @@ class GoogleConnector(BaseLLMConnector):
             # Normalize messages
             normalized_messages = self.normalize_messages(messages)
 
-            # Convert to Gemini chat format
-            history = []
-            current_message = ""
-
-            for msg in normalized_messages:
-                if msg["role"] == "system":
-                    # Add system message as context to the first user message
-                    if current_message:
-                        current_message = msg["content"] + "\n\n" + current_message
-                    else:
-                        current_message = msg["content"]
-                elif msg["role"] == "user":
-                    if current_message:
-                        current_message += "\n\n" + msg["content"]
-                    else:
-                        current_message = msg["content"]
-                elif msg["role"] == "assistant":
-                    if current_message:
-                        history.append({"role": "user", "parts": [current_message]})
-                        current_message = ""
-                    history.append({"role": "model", "parts": [msg["content"]]})
-
-            # Merge generation parameters
-            params = self.parameters.copy()
-            if generation_kwargs:
-                params.update(generation_kwargs)
-
-            # Configure generation parameters
-            generation_config = {}
-            if "temperature" in params:
-                generation_config["temperature"] = params["temperature"]
-            if "max_tokens" in params:
-                generation_config["max_output_tokens"] = params["max_tokens"]
-            elif "max_output_tokens" in params:
-                generation_config["max_output_tokens"] = params["max_output_tokens"]
-            if "top_p" in params:
-                generation_config["top_p"] = params["top_p"]
-            if "top_k" in params:
-                generation_config["top_k"] = params["top_k"]
-            if "stop_sequences" in params:
-                generation_config["stop_sequences"] = params["stop_sequences"]
+            history, current_message = self._build_chat_history(normalized_messages)
+            generation_config = self._generation_config(generation_kwargs)
 
             # Start chat or generate single response
             if history:
@@ -110,12 +72,14 @@ class GoogleConnector(BaseLLMConnector):
                 response = chat.send_message(
                     current_message,
                     generation_config=genai.types.GenerationConfig(**generation_config) if generation_config else None,
+                    request_options={"timeout": self.timeout},
                 )
             else:
                 logger.debug("Generating Gemini response for single message")
                 response = self.client.generate_content(
                     current_message,
                     generation_config=genai.types.GenerationConfig(**generation_config) if generation_config else None,
+                    request_options={"timeout": self.timeout},
                 )
 
             return {"content": response.text, "role": "assistant", "model": self.model, "provider": "google"}
@@ -129,6 +93,53 @@ class GoogleConnector(BaseLLMConnector):
                 "provider": "google",
                 "error": str(e),
             }
+
+    @staticmethod
+    def _build_chat_history(messages: List[Dict[str, str]]) -> tuple[List[Dict[str, Any]], str]:
+        history = []
+        current_message = ""
+
+        for msg in messages:
+            if msg["role"] == "system":
+                # Add system message as context to the first user message
+                if current_message:
+                    current_message = msg["content"] + "\n\n" + current_message
+                else:
+                    current_message = msg["content"]
+            elif msg["role"] == "user":
+                if current_message:
+                    current_message += "\n\n" + msg["content"]
+                else:
+                    current_message = msg["content"]
+            elif msg["role"] == "assistant":
+                if current_message:
+                    history.append({"role": "user", "parts": [current_message]})
+                    current_message = ""
+                history.append({"role": "model", "parts": [msg["content"]]})
+
+        return history, current_message
+
+    def _generation_config(self, generation_kwargs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        params = self.parameters.copy()
+        if generation_kwargs:
+            params.update(generation_kwargs)
+
+        # Configure generation parameters
+        generation_config = {}
+        if "temperature" in params:
+            generation_config["temperature"] = params["temperature"]
+        if "max_tokens" in params:
+            generation_config["max_output_tokens"] = params["max_tokens"]
+        elif "max_output_tokens" in params:
+            generation_config["max_output_tokens"] = params["max_output_tokens"]
+        if "top_p" in params:
+            generation_config["top_p"] = params["top_p"]
+        if "top_k" in params:
+            generation_config["top_k"] = params["top_k"]
+        if "stop_sequences" in params:
+            generation_config["stop_sequences"] = params["stop_sequences"]
+
+        return generation_config
 
 
 class GoogleConnectorFactory:
