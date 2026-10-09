@@ -18,7 +18,7 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 from watchdog.observers.api import BaseObserver
 
-from .config_manager import ConfigManager
+from .config_manager import ConfigManager, _write_config_file
 from .config_validator import ConfigValidator, generate_default_config
 
 WATCHDOG_AVAILABLE = True
@@ -339,10 +339,7 @@ class ConfigCenter:
         """持久化配置到文件"""
         try:
             config_file = self.base_config_path / "config.json"
-            config_file.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(config_file, "w", encoding="utf-8") as f:
-                json.dump(self._config_cache if config is None else config, f, indent=2, ensure_ascii=False)
+            _write_config_file(config_file, self._config_cache if config is None else config)
 
             self.logger.info("配置已持久化")
             return True

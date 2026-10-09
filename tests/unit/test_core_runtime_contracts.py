@@ -198,3 +198,57 @@ def test_rejected_candidate_keeps_the_previous_config_valid(tmp_path):
     assert manager.set_value("logging.level", "INVALID")
     assert not manager.is_config_valid()
     assert manager.get_validation_report()["is_valid"] is False
+
+
+def test_repaired_json_has_consistent_saved_and_live_validation(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text("not json")
+    manager = ConfigManager(str(path))
+    assert not manager.is_config_valid()
+    assert manager.fix_config_issues()
+    assert manager.is_config_valid()
+    assert manager.get_validation_report()["is_valid"]
+    assert manager.get_config() == json.loads(path.read_text())
+
+
+def test_failed_json_encoding_preserves_the_real_previous_file(tmp_path):
+    make_config(tmp_path)
+    center = ConfigCenter(str(tmp_path), watch_changes=False)
+    path = tmp_path / "config.json"
+    before = path.read_bytes()
+    assert not center.set_value("extension", {"not JSON serializable"})
+    assert path.read_bytes() == before
+    assert center.get_config() == json.loads(path.read_text())
+    assert not list(tmp_path.glob("*.tmp"))
+    center.close()
+
+
+def test_repair_does_not_report_success_when_its_file_cannot_be_saved(tmp_path):
+    path = tmp_path / "config.json"
+    path.mkdir()
+    manager = ConfigManager(str(path))
+    assert not manager.fix_config_issues()
+    assert not manager.is_config_valid()
+    assert path.is_dir()
+
+
+def test_failed_atomic_replace_keeps_disk_and_memory_and_removes_temp(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    make_config(tmp_path)
+    center = ConfigCenter(str(tmp_path), watch_changes=False)
+    path = tmp_path / "config.json"
+    before = path.read_bytes()
+    state = center.get_config()
+
+    def blocked_replace(self, target):
+        raise OSError("controlled filesystem replace failure")
+
+    with monkeypatch.context() as boundary:
+        boundary.setattr(Path, "replace", blocked_replace)
+        assert not center.set_value("logging.level", "DEBUG")
+    assert path.read_bytes() == before
+    assert center.get_config() == state
+    assert center.config_manager.get_config() == state
+    assert not list(tmp_path.glob("*.tmp"))
+    center.close()

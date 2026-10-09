@@ -7,12 +7,42 @@
 
 import copy
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from loguru import logger
 
 from .config_validator import ConfigValidator, generate_default_config
+
+
+def _write_config_file(path: Path, config: Dict[str, Any]) -> None:
+    """Serialize before touching the old file, then replace it atomically."""
+    encoded = json.dumps(config, indent=2, ensure_ascii=False)
+    destination = path.resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    previous_mode = destination.stat().st_mode & 0o777 if destination.exists() else None
+    temporary: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as file:
+            temporary = Path(file.name)
+            file.write(encoded)
+            file.flush()
+            os.fsync(file.fileno())
+        if previous_mode is not None:
+            temporary.chmod(previous_mode)
+        temporary.replace(destination)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 class ConfigManager:
@@ -132,11 +162,7 @@ class ConfigManager:
             如果成功保存配置则返回True，否则返回False
         """
         try:
-            # Ensure directory exists
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-
-            with self.config_path.open("w", encoding="utf-8") as f:
-                json.dump(self.config, f, indent=2, ensure_ascii=False)
+            _write_config_file(self.config_path, self.config)
 
             logger.info("Configuration saved successfully", config_path=str(self.config_path))
             return True
@@ -332,8 +358,12 @@ class ConfigManager:
 
             # 重新验证
             if self.validator.validate_config(self.config):
+                if not self.save_config():
+                    self._is_validated = False
+                    self._load_error = "Repaired configuration could not be saved"
+                    return False
                 self._is_validated = True
-                self.save_config()
+                self._load_error = None
                 logger.info("Configuration issues fixed")
                 return True
             else:
