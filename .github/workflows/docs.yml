@@ -76,7 +76,7 @@ jobs:
         cd docs
         # Install LaTeX dependencies
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=30 latexmk texlive-latex-recommended texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
+        sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=30 latexmk tex-gyre texlive-latex-recommended texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
         
         # Build PDF
         sphinx-build -b latex . _build/latex
