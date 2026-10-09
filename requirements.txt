@@ -11,7 +11,7 @@ Pillow>=10.0.0
 PyMuPDF>=1.23.0
 
 # RAG Pipeline (simplified)
-haystack-ai>=2.0.0
+haystack-ai>=2.0.0,<3
 sentence-transformers>=2.2.0
 openai>=1.0.0
 
@@ -53,3 +53,6 @@ aiofiles>=24.1.0
 psutil>=6.0.0
 pytest-timeout>=2.3.0
 pytest-env>=1.1.0
+
+# Security utility tests exercise the optional web boundary
+flask>=3.0.0

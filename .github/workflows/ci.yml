@@ -77,7 +77,7 @@ jobs:
           python -m flake8 .
 
       - name: Run type checking
-        run: python -m mypy .
+        run: python -m mypy --explicit-package-bases core processors connectors models rag utils servers document_stores retrievers cli
 
       - name: Run security checks
         run: |

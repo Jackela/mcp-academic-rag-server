@@ -16,7 +16,7 @@ from typing import List, Dict, Any
 from haystack import Document as HaystackDocument
 
 from document_stores.implementations.base_vector_store import VectorStoreConnectionError
-from document_stores.faiss_vector_store import FAISSVectorStore
+from document_stores.implementations.faiss_vector_store import FAISSVectorStore
 
 # 模拟FAISS不可用的情况
 try:
