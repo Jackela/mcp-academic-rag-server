@@ -8,7 +8,7 @@ information, processing status, metadata, and results from various processing st
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
+from typing import Any, Dict, List, Optional, Union
 
 
 class Document:
@@ -94,6 +94,30 @@ class Document:
             该阶段的处理内容，如不存在则返回None
         """
         return self.content.get(stage)
+
+    def get_text_content(self, *stages: str) -> str:
+        """Read text from current processor results or historical string stages."""
+        selected = stages or (
+            "HaystackEmbeddingProcessor",
+            "EmbeddingProcessor",
+            "ocr",
+            "structure",
+            "OCRProcessor",
+            "StructureProcessor",
+        )
+        for stage in selected:
+            value = self.get_content(stage)
+            if isinstance(value, str) and value:
+                return value
+            if isinstance(value, dict):
+                text = value.get("text")
+                if isinstance(text, str) and text:
+                    return text
+            if isinstance(value, list) and all(part is None or isinstance(part, str) for part in value):
+                text = "\n".join(part for part in value if isinstance(part, str))
+                if text:
+                    return text
+        return ""
 
     def to_dict(self) -> Dict:
         """

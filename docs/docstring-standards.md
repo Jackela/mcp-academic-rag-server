@@ -205,7 +205,7 @@ Configuration:
     - PROCESSOR_EMBEDDING_MODEL: Embedding model name
 
 Dependencies:
-    - PyPDF2: PDF processing
+    - pypdf: PDF processing
     - python-docx: Word document processing
     - pytesseract: OCR functionality (optional)
     - numpy: Numerical computations

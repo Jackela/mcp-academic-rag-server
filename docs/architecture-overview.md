@@ -107,7 +107,7 @@ The system is built using a microservices-inspired architecture with clear separ
 
 ### Document Processing Pipeline
 
-```python
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                Document Processing Pipeline                     │
 ├─────────────────────────────────────────────────────────────────┤
@@ -137,7 +137,7 @@ The system is built using a microservices-inspired architecture with clear separ
 
 ### RAG Query Processing
 
-```python
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                   RAG Query Processing                          │
 ├─────────────────────────────────────────────────────────────────┤
@@ -167,7 +167,7 @@ The system is built using a microservices-inspired architecture with clear separ
 
 ### Configuration Management Architecture
 
-```python
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │              Configuration Management System                    │
 ├─────────────────────────────────────────────────────────────────┤
@@ -207,7 +207,7 @@ The system is built using a microservices-inspired architecture with clear separ
 
 ### Document Ingestion Flow
 
-```mermaid
+```text
 graph TD
     A[Document Upload] --> B[File Validation]
     B --> C[Format Detection]
@@ -233,7 +233,7 @@ graph TD
 
 ### Query Processing Flow
 
-```mermaid
+```text
 graph TD
     A[User Query] --> B[Query Preprocessing]
     B --> C[Intent Analysis]
@@ -257,7 +257,7 @@ graph TD
 
 ### Configuration Update Flow
 
-```mermaid
+```text
 graph TD
     A[Configuration Change] --> B[Change Detection]
     B --> C[Validation]
@@ -282,7 +282,7 @@ graph TD
 
 ### Horizontal Scaling Architecture
 
-```python
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Load Balancer                               │
 │                    (HAProxy/Nginx)                              │
@@ -313,7 +313,7 @@ graph TD
 
 #### 1. Caching Architecture
 
-```python
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                   Multi-Level Caching                           │
 ├─────────────────────────────────────────────────────────────────┤
@@ -438,7 +438,7 @@ class OptimizedVectorStore:
 
 ### Authentication and Authorization
 
-```python
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                 Security Architecture                           │
 ├─────────────────────────────────────────────────────────────────┤

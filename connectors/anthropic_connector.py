@@ -3,9 +3,11 @@ Anthropic Claude LLM Connector - Claude model integration
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
 try:
     import anthropic
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
@@ -14,19 +16,20 @@ from .base_llm_connector import BaseLLMConnector
 
 logger = logging.getLogger(__name__)
 
+
 class AnthropicConnector(BaseLLMConnector):
     """Anthropic Claude LLM connector"""
-    
+
     def __init__(
         self,
         api_key: str,
         model: str = "claude-3-sonnet-20240229",
         timeout: int = 60,
-        parameters: Optional[Dict[str, Any]] = None
+        parameters: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize Anthropic connector
-        
+
         Args:
             api_key: Anthropic API key
             model: Claude model name
@@ -34,63 +37,58 @@ class AnthropicConnector(BaseLLMConnector):
             parameters: Generation parameters (max_tokens, temperature, etc.)
         """
         if not ANTHROPIC_AVAILABLE:
-            raise ImportError(
-                "Anthropic package not installed. Install with: pip install anthropic"
-            )
-        
+            raise ImportError("Anthropic package not installed. Install with: pip install anthropic")
+
         super().__init__(api_key, model, timeout, parameters)
         self._init_generator()
-    
+
     def _get_provider_name(self) -> str:
         return "anthropic"
-    
-    def _init_generator(self):
+
+    def _init_generator(self) -> None:
         """Initialize Anthropic client"""
         try:
-            self.client = anthropic.Anthropic(
-                api_key=self.api_key,
-                timeout=self.timeout
-            )
+            self.client = anthropic.Anthropic(api_key=self.api_key, timeout=self.timeout)
             logger.info(f"Initialized Anthropic client: {self.model}")
         except Exception as e:
             logger.error(f"Failed to initialize Anthropic client: {e}")
             raise
-    
+
+    @staticmethod
+    def _prepare_messages(messages: List[Dict[str, str]]) -> tuple[List[Dict[str, str]], Optional[str]]:
+        anthropic_messages = []
+        system_message = None
+        for message in messages:
+            if message["role"] == "system":
+                system_message = message["content"]
+            else:
+                anthropic_messages.append(
+                    {"role": "user" if message["role"] == "user" else "assistant", "content": message["content"]}
+                )
+        return anthropic_messages, system_message
+
     def generate(
-        self,
-        messages: List[Dict[str, str]], 
-        generation_kwargs: Optional[Dict[str, Any]] = None
+        self, messages: List[Dict[str, str]], generation_kwargs: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Generate response using Claude"""
         try:
             # Normalize messages
             normalized_messages = self.normalize_messages(messages)
-            
-            # Convert to Anthropic format
-            anthropic_messages = []
-            system_message = None
-            
-            for msg in normalized_messages:
-                if msg["role"] == "system":
-                    system_message = msg["content"]
-                else:
-                    anthropic_messages.append({
-                        "role": "user" if msg["role"] == "user" else "assistant",
-                        "content": msg["content"]
-                    })
-            
+
+            anthropic_messages, system_message = self._prepare_messages(normalized_messages)
+
             # Merge generation parameters
             params = self.parameters.copy()
             if generation_kwargs:
                 params.update(generation_kwargs)
-            
+
             # Set default parameters for Claude
             claude_params = {
                 "model": self.model,
                 "max_tokens": params.get("max_tokens", 1000),
-                "messages": anthropic_messages
+                "messages": anthropic_messages,
             }
-            
+
             # Add optional parameters
             if "temperature" in params:
                 claude_params["temperature"] = params["temperature"]
@@ -102,59 +100,57 @@ class AnthropicConnector(BaseLLMConnector):
                 claude_params["top_p"] = params["top_p"]
             if "top_k" in params:
                 claude_params["top_k"] = params["top_k"]
-            
+
             # Generate response
             logger.debug(f"Generating Claude response with {len(anthropic_messages)} messages")
             response = self.client.messages.create(**claude_params)
-            
+
             return {
                 "content": response.content[0].text,
-                "role": "assistant", 
+                "role": "assistant",
                 "model": self.model,
-                "provider": "anthropic"
+                "provider": "anthropic",
             }
-            
+
         except Exception as e:
             logger.error(f"Anthropic generation failed: {e}")
             return {
                 "content": f"Claude generation failed: {str(e)}",
                 "role": "assistant",
                 "model": self.model,
-                "provider": "anthropic", 
-                "error": str(e)
+                "provider": "anthropic",
+                "error": str(e),
             }
+
 
 class AnthropicConnectorFactory:
     """Factory for creating Anthropic connectors"""
-    
+
     SUPPORTED_MODELS = [
         "claude-3-opus-20240229",
-        "claude-3-sonnet-20240229", 
+        "claude-3-sonnet-20240229",
         "claude-3-haiku-20240307",
         "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022"
+        "claude-3-5-haiku-20241022",
     ]
-    
+
     @classmethod
     def create(cls, config: Dict[str, Any]) -> AnthropicConnector:
         """Create Anthropic connector from config"""
         import os
-        
+
         api_key = config.get("api_key", os.environ.get("ANTHROPIC_API_KEY", ""))
         if not api_key:
             raise ValueError("Anthropic API key is required")
-        
+
         model = config.get("model", "claude-3-sonnet-20240229")
         if model not in cls.SUPPORTED_MODELS:
             logger.warning(f"Model {model} not in supported list: {cls.SUPPORTED_MODELS}")
-        
+
         return AnthropicConnector(
-            api_key=api_key,
-            model=model,
-            timeout=config.get("timeout", 60),
-            parameters=config.get("parameters", {})
+            api_key=api_key, model=model, timeout=config.get("timeout", 60), parameters=config.get("parameters", {})
         )
-    
+
     @classmethod
     def get_supported_models(cls) -> List[str]:
         """Get list of supported Claude models"""

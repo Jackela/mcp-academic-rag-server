@@ -6,15 +6,15 @@ document processing workflows in sequence.
 """
 
 import asyncio
-from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, List, Optional
 
 from loguru import logger
 
 from models.document import Document
 from models.process_result import ProcessResult
 from processors.base_processor import IProcessor
-from utils.performance_enhancements import MemoryManager, profile_performance
+from utils.performance_enhancements import MemoryManager
 
 
 class Pipeline:
@@ -28,7 +28,7 @@ class Pipeline:
     a series of processing steps to form a complete processing workflow.
     """
 
-    def __init__(self, name: str = "DefaultPipeline"):
+    def __init__(self, name: str = "DefaultPipeline") -> None:
         """
         Initialize Pipeline object.
 
@@ -114,6 +114,23 @@ class Pipeline:
             logger.error(f"重排序失败：{str(e)}")
             return False
 
+    def _select_processors(self, document: Document, start_from: Optional[str]) -> List[IProcessor]:
+        candidates = self.processors
+        if start_from is not None:
+            start = next((i for i, item in enumerate(candidates) if item.get_name() == start_from), None)
+            if start is None:
+                raise ValueError(f"Unknown starting processor: {start_from}")
+            candidates = candidates[start:]
+        selected = []
+        for processor in candidates:
+            if processor.supports_file_type(document.file_type):
+                selected.append(processor)
+            else:
+                logger.warning(f"处理器 '{processor.get_name()}' 不支持文件类型 '{document.file_type}'，已跳过")
+        if not selected:
+            raise ValueError(f"No processor supports file type: {document.file_type}")
+        return selected
+
     async def process_document(self, document: Document, start_from: Optional[str] = None) -> ProcessResult:
         """
         异步处理文档，按顺序执行流水线中的处理器。
@@ -131,36 +148,19 @@ class Pipeline:
         document.update_status("processing")
         logger.info(f"开始异步处理文档: {document.document_id} - {document.file_name}")
 
-        start_processing = False if start_from else True
+        try:
+            selected = self._select_processors(document, start_from)
+        except ValueError as error:
+            document.update_status("error")
+            return ProcessResult.error_result(str(error), error)
 
-        for processor in self.processors:
+        for processor in selected:
             processor_name = processor.get_name()
-
-            # 如果指定了起始处理器，则跳过之前的处理器
-            if not start_processing:
-                if processor_name == start_from:
-                    start_processing = True
-                else:
-                    continue
-
-            if not processor.supports_file_type(document.file_type):
-                logger.warning(f"处理器 '{processor_name}' 不支持文件类型 '{document.file_type}'，已跳过")
-                continue
 
             logger.info(f"使用处理器 '{processor_name}' 异步处理文档 {document.document_id}")
 
             try:
-                # 检查处理器是否支持异步处理
-                if hasattr(processor, "process_async") and callable(processor.process_async):
-                    # 使用异步方法
-                    result = await processor.process_async(document)
-                else:
-                    # 使用专用线程池执行器避免阻塞，限制并发线程数
-                    if not hasattr(self, "_executor"):
-                        self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pipeline-worker")
-
-                    loop = asyncio.get_event_loop()
-                    result = await loop.run_in_executor(self._executor, processor.process, document)
+                result = await self._run_processor(processor, document)
 
                 if not result.is_successful():
                     document.update_status("error")
@@ -190,6 +190,12 @@ class Pipeline:
         logger.info(f"文档 {document.document_id} 异步处理完成")
         return ProcessResult.success_result("文档处理完成")
 
+    async def _run_processor(self, processor: IProcessor, document: Document) -> ProcessResult:
+        if hasattr(processor, "process_async") and callable(processor.process_async):
+            return await processor.process_async(document)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._executor, processor.process, document)
+
     async def process_documents(self, documents: List[Document], max_concurrent: int = 5) -> Dict[str, ProcessResult]:
         """
         异步批量处理多个文档，支持并发处理以提高性能。
@@ -202,6 +208,9 @@ class Pipeline:
             字典，键为文档ID，值为对应的ProcessResult对象
         """
         logger.info(f"开始异步批量处理 {len(documents)} 个文档，最大并发数: {max_concurrent}")
+
+        if max_concurrent < 1:
+            raise ValueError("max_concurrent must be at least one")
 
         # 创建信号量来限制并发数量
         semaphore = asyncio.Semaphore(max_concurrent)
@@ -219,9 +228,11 @@ class Pipeline:
         completed_tasks = await asyncio.gather(*tasks, return_exceptions=True)
 
         # 整理结果
-        results = {}
+        results: Dict[str, ProcessResult] = {}
         for task_result in completed_tasks:
-            if isinstance(task_result, Exception):
+            if isinstance(task_result, BaseException):
+                if not isinstance(task_result, Exception):
+                    raise task_result
                 # 处理异常情况
                 logger.error(f"文档处理任务异常: {str(task_result)}")
                 # 为异常创建错误结果（需要文档ID，这里使用通用ID）
@@ -252,21 +263,14 @@ class Pipeline:
         document.update_status("processing")
         logger.info(f"开始同步处理文档: {document.document_id} - {document.file_name}")
 
-        start_processing = False if start_from else True
+        try:
+            selected = self._select_processors(document, start_from)
+        except ValueError as error:
+            document.update_status("error")
+            return ProcessResult.error_result(str(error), error)
 
-        for processor in self.processors:
+        for processor in selected:
             processor_name = processor.get_name()
-
-            # 如果指定了起始处理器，则跳过之前的处理器
-            if not start_processing:
-                if processor_name == start_from:
-                    start_processing = True
-                else:
-                    continue
-
-            if not processor.supports_file_type(document.file_type):
-                logger.warning(f"处理器 '{processor_name}' 不支持文件类型 '{document.file_type}'，已跳过")
-                continue
 
             logger.info(f"使用处理器 '{processor_name}' 同步处理文档 {document.document_id}")
 
@@ -311,7 +315,7 @@ class Pipeline:
         Returns:
             字典，键为文档ID，值为对应的ProcessResult对象
         """
-        results = {}
+        results: Dict[str, ProcessResult] = {}
 
         for document in documents:
             results[document.document_id] = self.process_document_sync(document)

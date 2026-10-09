@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=45", "setuptools-scm[toml]>=6.2", "wheel"]
+requires = ["setuptools>=83", "setuptools-scm[toml]>=6.2", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -11,7 +11,7 @@ authors = [
 ]
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -19,7 +19,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -30,16 +29,20 @@ keywords = ["mcp", "rag", "document-processing", "academic", "ai"]
 
 dependencies = [
     # Core MCP dependencies
-    "mcp>=1.0.0",
+    "mcp>=1.0.0,<2",
     
     # Basic document processing
-    "PyPDF2>=3.0.0",
+    "pypdf>=6.19,<7",
+    "PyMuPDF>=1.23.0",
+    "markdown>=3.5",
+    "playwright>=1.63,<2",
     "Pillow>=10.0.0",
     "pytesseract>=0.3.10",
     
     # RAG pipeline (essential only)
-    "haystack-ai>=2.0.0",
+    "haystack-ai>=2.0.0,<3",
     "sentence-transformers>=2.2.0",
+    "sentence-transformers-haystack>=0.2,<1",
     "openai>=1.0.0",
     
     # Basic utilities
@@ -48,6 +51,7 @@ dependencies = [
     "aiofiles>=24.1.0",
     "python-dotenv>=1.0.0",
     "psutil>=6.0.0",
+    "watchdog>=3.0.0",
     
     # Simple vector storage
     "faiss-cpu>=1.7.0",
@@ -66,21 +70,63 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
+    "pytest-timeout>=2.3.0",
+    "pytest-env>=1.1.0",
+    "pytest-xdist>=3.3,<4",
+    "pytest-html>=4.1,<5",
+    "pytest-benchmark>=5,<6",
+    "playwright>=1.63,<2",
+    "flask>=3.0.0",
+    "python-magic>=0.4.27; sys_platform != 'win32'",
+    "python-magic-standalone>=0.4.28,<0.5; sys_platform == 'win32'",
     "black>=23.0.0",
     "isort>=5.12.0",
     "mypy>=1.5.0",
     "flake8>=6.0.0",
+    "types-Markdown>=3.5",
+    "types-jsonschema>=4.26",
+    "types-psutil>=7.2",
+    "scikit-learn-stubs>=0.0.3",
+    # Type-check existing optional Redis adapters against the actual typed SDK.
+    "redis>=8,<9",
+    "pytest-mock>=3.10.0",
+    "anthropic>=0.25.0",
+    "arxiv>=2.1.0",
+    "bandit>=1.7.0",
+    "pip-audit>=2.10,<3",
+    "tomli>=2; python_version < '3.11'",
+]
+
+# Existing monitoring runtime; optional for installed MCP-only users.
+monitoring = [
+    "fastapi>=0.143,<1",
+    "uvicorn>=0.54,<1",
+    "Jinja2>=3.1,<4",
+    "opentelemetry-api>=1.45,<2",
+    "opentelemetry-sdk>=1.45,<2",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.45,<2",
+    "opentelemetry-exporter-prometheus>=0.66b1,<1",
+    "opentelemetry-instrumentation-requests>=0.66b1,<1",
+    "opentelemetry-instrumentation-logging>=0.66b1,<1",
+    "opentelemetry-instrumentation-sqlite3>=0.66b1,<1",
+    "opentelemetry-propagator-b3>=1.45,<2",
+]
+
+# Existing CI service client, optional and independent of the application backend.
+storage-tests = [
+    "pymilvus>=2.6,<3",  # CI service protocol only; does not implement the application Milvus store.
 ]
 
 # Enhanced processing (optional for advanced users)
 enhanced = [
     "spacy>=3.6.0",          # Only if user wants advanced NLP
-    "nltk>=3.8.0",           # Only if user wants additional text processing
 ]
 
 # Web interface (optional)
 web = [
     "flask>=3.0.0",
+    "python-magic>=0.4.27; sys_platform != 'win32'",
+    "python-magic-standalone>=0.4.28,<0.5; sys_platform == 'win32'",
     "flask-cors>=4.0.0",
 ]
 
@@ -94,26 +140,29 @@ Issues = "https://github.com/Jackela/mcp-academic-rag-server/issues"
 
 [project.scripts]
 # Main MCP server entry point (SDK version - recommended)
-mcp-academic-rag-server = "mcp_server_sdk:cli_main"
+mcp-academic-rag-server = "servers.mcp_server_sdk:cli_main"
 
 # Alternative entry points for different use cases
-academic-rag = "mcp_server_sdk:cli_main"
-academic-rag-server = "mcp_server_sdk:cli_main"
+academic-rag = "servers.mcp_server_sdk:cli_main"
+academic-rag-server = "servers.mcp_server_sdk:cli_main"
 
 # Legacy versions
-mcp-academic-rag-server-secure = "mcp_server_secure:cli_main"
-mcp-academic-rag-server-dev = "mcp_server:main"
+mcp-academic-rag-server-secure = "servers.mcp_server_sdk:cli_main"
+mcp-academic-rag-server-dev = "servers.mcp_server_sdk:cli_main"
 
 [tool.setuptools]
-packages = ["core", "processors", "connectors", "models", "rag", "utils"]
-py-modules = ["mcp_server_sdk", "mcp_server_secure", "mcp_server", "deploy_secure"]
+[tool.setuptools.packages.find]
+include = ["core*", "processors*", "connectors*", "models*", "rag*", "utils*", "servers*", "document_stores*", "retrievers*", "cli*", "config*"]
+exclude = ["tests*", "examples*", "docs*"]
+namespaces = true
 
 [tool.setuptools.package-data]
+"core" = ["templates/*.html"]
 "*" = ["*.json", "*.yaml", "*.yml", "*.html", "*.css", "*.js"]
 
 [tool.black]
 line-length = 120
-target-version = ['py39', 'py310', 'py311']
+target-version = ['py310', 'py311']
 include = '\.pyi?$'
 extend-exclude = '''
 (
@@ -140,9 +189,10 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
+skip_glob = [".venv*/**", ".wheel-smoke/**", "build/**", "dist/**"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -168,31 +218,7 @@ module = [
 ]
 ignore_missing_imports = true
 
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = [
-    "-ra",
-    "--strict-markers",
-    "--cov=.",
-    "--cov-branch",
-    "--cov-report=term-missing:skip-covered",
-    "--cov-report=html",
-    "--cov-report=xml",
-    "--junitxml=test-results/junit.xml",
-    "--benchmark-only",
-    "--benchmark-autosave",
-]
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-    "e2e: marks tests as end-to-end tests",
-    "performance: marks tests as performance tests",
-]
+# pytest.ini owns pytest discovery, markers and execution settings.
 
 [tool.coverage.run]
 source = ["."]
@@ -217,17 +243,9 @@ severity = "medium"
 confidence = "medium"
 skips = ["B101", "B601"]
 
-[tool.flake8]
-max-line-length = 120
-extend-ignore = ["E203", "W503", "E501"]
-exclude = [
-    ".git",
-    "__pycache__",
-    "docs/source/conf.py",
-    "old",
-    "build",
-    "dist",
-    "venv",
-    "env",
-]
-max-complexity = 10
+# .flake8 owns lint settings; flake8 does not read pyproject.toml.
+
+# rstcheck checks base RST; Sphinx -W validates these extension directives
+# including autodoc targets and generated autosummary pages.
+[tool.rstcheck]
+ignore_directives = ["automodule", "autosummary"]

@@ -3,7 +3,7 @@ Base LLM Connector - Abstract base class for all LLM providers
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List, Union
+from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
@@ -30,12 +30,10 @@ class BaseLLMConnector(ABC):
     @abstractmethod
     def _get_provider_name(self) -> str:
         """Get the provider name (e.g., 'openai', 'anthropic', 'google')"""
-        pass
 
     @abstractmethod
-    def _init_generator(self):
+    def _init_generator(self) -> None:
         """Initialize the underlying generator/client"""
-        pass
 
     @abstractmethod
     def generate(
@@ -51,14 +49,13 @@ class BaseLLMConnector(ABC):
         Returns:
             Dict with 'content', 'role', 'model' and optionally 'error' keys
         """
-        pass
 
-    def update_parameters(self, parameters: Dict[str, Any]):
+    def update_parameters(self, parameters: Dict[str, Any]) -> None:
         """Update generation parameters"""
         self.parameters.update(parameters)
         logger.info(f"Updated {self.provider_name} parameters: {parameters}")
 
-    def set_model(self, model: str):
+    def set_model(self, model: str) -> None:
         """Update the model"""
         if model != self.model:
             old_model = self.model

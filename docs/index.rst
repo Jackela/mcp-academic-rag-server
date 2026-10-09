@@ -1,7 +1,7 @@
 MCP Academic RAG Server Documentation
 =====================================
 
-Welcome to the comprehensive documentation for the MCP Academic RAG Server - a production-ready system for academic document processing and retrieval-augmented generation.
+Welcome to the comprehensive documentation for the MCP Academic RAG Server - a system for academic document processing and retrieval-augmented generation.
 
 .. toctree::
    :maxdepth: 2
@@ -9,7 +9,6 @@ Welcome to the comprehensive documentation for the MCP Academic RAG Server - a p
    
    quickstart-guide
    user-guide
-   installation
 
 .. toctree::
    :maxdepth: 2
@@ -39,25 +38,22 @@ Welcome to the comprehensive documentation for the MCP Academic RAG Server - a p
    :maxdepth: 3
    :caption: API Reference
    
-   api/modules
+   api/core
+   api/connectors
+   api/document_stores
+   api/rag
+   api/servers
 
 .. toctree::
    :maxdepth: 1
-   :caption: Configuration
-   
-   configuration
+   :caption: Maintenance and supplementary references
+   :glob:
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Deployment
-   
-   deployment
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Monitoring
-   
-   monitoring
+   maintenance
+   api-reference
+   api-rag-pipeline
+   user-guide/mcp-tools-reference
+   archived/*
 
 Project Overview
 ================
@@ -101,24 +97,18 @@ Quick Start
 
 2. **Configuration**::
 
-    cp config/config.example.json config/config.json
+    cp config/config.json.example config/config.json
     # Edit configuration with your API keys
 
 3. **Start Server**::
 
-    python -m mcp_rag_server
+    mcp-academic-rag-server --help
+    mcp-academic-rag-server
 
-4. **Process Documents**::
+4. **Discover and call tools**:
 
-    curl -X POST "http://localhost:8080/api/v1/documents" \
-         -F "file=@paper.pdf" \
-         -F "collection_id=research"
-
-5. **Query Documents**::
-
-    curl -X POST "http://localhost:8080/api/v1/query" \
-         -H "Content-Type: application/json" \
-         -d '{"query": "What are the main findings?", "collection_id": "research"}'
+   Connect an MCP client over stdio. See :doc:`maintenance` for the isolated
+   client handshake and :doc:`user-guide/mcp-tools-reference` for tool arguments.
 
 Architecture Highlights
 =======================
@@ -133,15 +123,13 @@ The system implements a **layered, modular architecture** designed for:
 
 Core Components:
 
-.. image:: _static/architecture-diagram.png
-   :alt: System Architecture
-   :align: center
+See :doc:`architecture-overview` for the existing architecture diagrams.
 
 Support and Community
 =====================
 
 * **Documentation**: Complete API reference and guides
-* **GitHub**: `Source code and issues <https://github.com/mcp/academic-rag-server>`_
+* **GitHub**: `Source code and issues <https://github.com/Jackela/mcp-academic-rag-server>`_
 * **Community**: Developer forums and discussions
 * **Enterprise**: Professional support and consulting available
 

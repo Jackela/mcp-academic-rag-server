@@ -5,96 +5,89 @@ Minimal MCP Academic RAG Server - for debugging dependency issues
 
 import asyncio
 import logging
-import sys
 import os
+import sys
 from pathlib import Path
+from typing import Any, Dict, List
 
 # Configure logging to stderr (MCP requirement)
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stderr
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", stream=sys.stderr
 )
 logger = logging.getLogger("mcp-academic-rag-server-minimal")
+
 
 def validate_api_key(api_key: str) -> bool:
     """Validate OpenAI API key format"""
     if not api_key or not isinstance(api_key, str):
         return False
-    if api_key != api_key.strip() or ' ' in api_key:
+    if api_key != api_key.strip() or " " in api_key:
         return False
-    if not api_key.startswith('sk-'):
+    if not api_key.startswith("sk-"):
         return False
     if len(api_key) < 21:
         return False
     return True
 
-def validate_environment():
+
+def validate_environment() -> logging.Logger:
     """Validate required environment variables"""
     logger.info("Starting environment validation...")
-    
+
     # Check required API key
-    api_key = os.environ.get('OPENAI_API_KEY')
+    api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key or not validate_api_key(api_key):
         logger.error("OPENAI_API_KEY environment variable not found or invalid")
         raise EnvironmentError("OPENAI_API_KEY environment variable is required")
-    
+
     # Setup data directory
-    data_path = os.environ.get('DATA_PATH', './data')
+    data_path = os.environ.get("DATA_PATH", "./data")
     Path(data_path).mkdir(parents=True, exist_ok=True)
-    
+
     logger.info("Environment validation passed")
     return logger
 
-async def minimal_mcp_main():
+
+async def minimal_mcp_main() -> None:
     """Minimal MCP server entry point"""
     try:
         # Validate environment
         logger = validate_environment()
-        
+
         # Try to import MCP with better error handling
         try:
-            from mcp.server.stdio import stdio_server
-            from mcp.server.models import InitializationOptions
-            from mcp.server import NotificationOptions, Server
             from mcp import types
+            from mcp.server import NotificationOptions, Server
+            from mcp.server.models import InitializationOptions
+            from mcp.server.stdio import stdio_server
         except ImportError as e:
             logger.error(f"Failed to import MCP modules: {e}")
             logger.error("Please install MCP: pip install mcp")
             raise
-        
+
         # Create minimal server
         server = Server("academic-rag-server-minimal")
-        
-        @server.list_tools()
-        async def handle_list_tools():
+
+        async def handle_list_tools() -> List[types.Tool]:
             """List available tools"""
             return [
-                {
-                    "name": "test_connection",
-                    "description": "Test MCP server connection",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
+                types.Tool(
+                    name="test_connection",
+                    description="Test MCP server connection",
+                    inputSchema={"type": "object", "properties": {}, "required": []},
+                )
             ]
-        
-        @server.call_tool()
-        async def handle_call_tool(name: str, arguments: dict):
+
+        async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
             """Handle tool calls"""
             if name == "test_connection":
-                return [types.TextContent(
-                    type="text", 
-                    text="✅ MCP Academic RAG Server connection successful!"
-                )]
+                return [types.TextContent(type="text", text="✅ MCP Academic RAG Server connection successful!")]
             else:
-                return [types.TextContent(
-                    type="text", 
-                    text=f"❌ Unknown tool: {name}"
-                )]
-        
+                raise ValueError(f"Unknown tool: {name}")
+
+        server.list_tools()(handle_list_tools)
+        server.call_tool()(handle_call_tool)
+
         # Run MCP server
         async with stdio_server() as (read_stream, write_stream):
             await server.run(
@@ -104,16 +97,16 @@ async def minimal_mcp_main():
                     server_name="academic-rag-server-minimal",
                     server_version="1.0.0-minimal",
                     capabilities=server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={}
-                    )
-                )
+                        notification_options=NotificationOptions(), experimental_capabilities={}
+                    ),
+                ),
             )
     except Exception as e:
         logger.error(f"Minimal MCP server error: {str(e)}", exc_info=True)
         raise
 
-def main():
+
+def main() -> None:
     """Entry point"""
     if len(sys.argv) > 1 and sys.argv[1] == "--validate-only":
         try:
@@ -129,6 +122,7 @@ def main():
         except Exception as e:
             logger.error(f"Server startup failed: {str(e)}", exc_info=True)
             sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

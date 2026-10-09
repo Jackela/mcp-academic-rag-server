@@ -4,29 +4,20 @@ Academic RAG Server Web Application
 Provides a web interface for document upload, processing, retrieval, and intelligent chat.
 """
 
+import asyncio
+import logging
 import os
+import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash
+from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from loguru import logger
 from werkzeug.utils import secure_filename
 
-from core.config_manager import ConfigManager
-from core.pipeline import Pipeline
+from core.server_context import ServerContext
 from models.document import Document
-from rag.chat_session import ChatSession, ChatSessionManager
-from rag.haystack_pipeline import RAGPipeline
-from processors.pre_processor import PreProcessor
-from processors.ocr_processor import OCRProcessor
-from processors.structure_processor import StructureProcessor
-from processors.classification_processor import ClassificationProcessor
-from processors.format_converter import FormatConverter
-from processors.haystack_embedding_processor import HaystackEmbeddingProcessor
-import threading
-import json
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -52,66 +43,37 @@ for directory in [app.config["UPLOAD_FOLDER"], "./data", "./output"]:
     Path(directory).mkdir(parents=True, exist_ok=True)
 
 # Initialize configuration manager
-config_manager = ConfigManager("./config/config.json")
+server_context = ServerContext()
+config_manager = server_context.config_manager
 
 # 初始化日志
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("webapp")
 
 # 初始化会话管理器
-session_manager = ChatSessionManager()
+session_manager = server_context.session_manager
 
 # 初始化处理流水线
 processing_pipeline = None
 rag_pipeline = None
-# 使用线程安全的状态管理
-from threading import Lock
-import threading
 
 document_status = {}  # 存储文档处理状态
-document_status_lock = Lock()  # 保护文档状态的线程锁
+document_status_lock = threading.Lock()  # 保护文档状态的线程锁
 
 
 def init_pipeline():
-    """初始化处理流水线"""
-    global processing_pipeline, rag_pipeline
+    """Consume the maintained context instead of rebuilding obsolete Web-only interfaces."""
+    global processing_pipeline, rag_pipeline, session_manager
     try:
-        # 创建处理器
-        pre_processor = PreProcessor()
-        ocr_processor = OCRProcessor()
-        structure_processor = StructureProcessor()
-        classification_processor = ClassificationProcessor()
-        format_converter = FormatConverter()
-        embedding_processor = HaystackEmbeddingProcessor()
-
-        # 设置处理器配置
-        pre_processor.set_config(config_manager.get_value("processors.PreProcessor", {}))
-        ocr_processor.set_config(config_manager.get_value("processors.OCRProcessor", {}))
-        structure_processor.set_config(config_manager.get_value("processors.StructureProcessor", {}))
-        classification_processor.set_config(config_manager.get_value("processors.ClassificationProcessor", {}))
-        format_converter.set_config(config_manager.get_value("processors.FormatConverter", {}))
-        embedding_processor.set_config(config_manager.get_value("processors.HaystackEmbeddingProcessor", {}))
-
-        # 创建流水线
-        processing_pipeline = Pipeline("WebPipeline")
-        processing_pipeline.add_processor(pre_processor)
-        processing_pipeline.add_processor(ocr_processor)
-        processing_pipeline.add_processor(structure_processor)
-        processing_pipeline.add_processor(classification_processor)
-        processing_pipeline.add_processor(format_converter)
-        processing_pipeline.add_processor(embedding_processor)
-
-        # 初始化RAG管道
-        rag_pipeline = RAGPipeline()
-        rag_pipeline.init_retriever(config_manager.get_value("retriever.index_name", "academic_docs"))
-        rag_pipeline.init_generator(
-            config_manager.get_value("generator.model_name", "gpt-3.5-turbo"),
-            config_manager.get_value("generator.params", {}),
-        )
-
-        logger.info("处理流水线和RAG系统初始化成功")
-    except Exception as e:
-        logger.error(f"系统初始化失败: {str(e)}")
+        server_context.initialize()
+        processing_pipeline = server_context.document_pipeline
+        rag_pipeline = server_context.rag_pipeline
+        session_manager = server_context.session_manager
+        logger.info("Web runtime initialized; RAG available: %s", rag_pipeline is not None)
+    except Exception:
+        processing_pipeline = None
+        rag_pipeline = None
+        logger.exception("Web runtime initialization failed")
 
 
 # 初始化系统
@@ -169,8 +131,6 @@ def parse_table_from_text(text: str) -> dict:
     """
     从文本中解析表格数据
     """
-    import re
-
     # 查找Markdown表格
     lines = text.strip().split("\n")
     table_lines = []
@@ -183,25 +143,12 @@ def parse_table_from_text(text: str) -> dict:
         elif in_table and line.strip() == "":
             break
 
-    if len(table_lines) >= 3:  # 至少需要表头、分隔符和一行数据
-        try:
-            # 解析表头
-            headers = [cell.strip() for cell in table_lines[0].split("|") if cell.strip()]
-
-            # 解析数据行
-            rows = []
-            for line in table_lines[2:]:  # 跳过分隔符行
-                if "|" in line:
-                    row = [cell.strip() for cell in line.split("|") if cell.strip()]
-                    if len(row) == len(headers):
-                        rows.append(row)
-
-            if headers and rows:
-                return {"headers": headers, "rows": rows}
-        except:
-            pass
-
-    return None
+    if len(table_lines) < 3:
+        return None
+    headers = [cell.strip() for cell in table_lines[0].split("|") if cell.strip()]
+    rows = [[cell.strip() for cell in line.split("|") if cell.strip()] for line in table_lines[2:]]
+    rows = [row for row in rows if len(row) == len(headers)]
+    return {"headers": headers, "rows": rows} if headers and rows else None
 
 
 def extract_code_block(text: str) -> dict:
@@ -298,13 +245,12 @@ def allowed_file(filename):
 
 def process_document_async(document, doc_id):
     """异步处理文档"""
-    global document_status, processing_pipeline
     try:
         document_status[doc_id] = "processing"
         logger.info(f"开始处理文档: {doc_id}")
 
         if processing_pipeline:
-            result = processing_pipeline.process_document(document)
+            result = asyncio.run(processing_pipeline.process_document(document))
             if result.is_successful():
                 document_status[doc_id] = "completed"
                 logger.info(f"文档处理完成: {doc_id}")
@@ -423,66 +369,62 @@ def upload_document():
     return render_template("upload.html")
 
 
-@app.route("/chat")
-def chat_interface():
-    """聊天界面"""
-    # 检查是否已有会话ID，没有则创建新会话
-    if "session_id" not in session:
+def _current_chat_session():
+    session_id = session.get("session_id")
+    if not session_id:
         session_id = str(uuid.uuid4())
         session["session_id"] = session_id
-        # 创建新会话
-        chat_session = session_manager.create_session(
-            session_id=session_id, metadata={"source": "web_interface"}, max_history_length=10
-        )
-    else:
-        session_id = session["session_id"]
-        # 获取现有会话，如果不存在则创建新会话
-        chat_session = session_manager.get_session(session_id)
-        if not chat_session:
-            chat_session = session_manager.create_session(
-                session_id=session_id, metadata={"source": "web_interface"}, max_history_length=10
-            )
+    return session_manager.get_session(session_id) or session_manager.create_session(
+        session_id=session_id, metadata={"source": "web_interface"}, max_history_length=10
+    )
 
-    # 获取会话历史
-    messages = chat_session.messages if chat_session else []
 
-    return render_template("chat.html", messages=messages)
+@app.route("/chat")
+def chat_interface():
+    """Render the maintained message and citation contracts for this browser session."""
+    chat_session = _current_chat_session()
+    return render_template("chat.html", messages=chat_session.get_messages(), citations=chat_session.citations)
+
+
+def _add_structured_content(citation):
+    structured_content = extract_structured_content(citation["text"], citation["metadata"])
+    if structured_content:
+        citation["structured_content"] = structured_content
 
 
 @app.route("/api/chat", methods=["POST"])
 def chat_query():
     """处理聊天请求API"""
-    data = request.json
-    query = data.get("query", "").strip()
+    data = request.get_json(silent=True)
+    query = data.get("query") if isinstance(data, dict) else None
+    if not isinstance(query, str):
+        return jsonify({"error": "查询内容不能为空"}), 400
+    query = query.strip()
 
     if not query:
         return jsonify({"error": "查询内容不能为空"}), 400
 
-    # 获取会话ID，如果没有则创建新会话
-    session_id = session.get("session_id")
-    if not session_id:
-        session_id = str(uuid.uuid4())
-        session["session_id"] = session_id
-        chat_session = session_manager.create_session(
-            session_id=session_id, metadata={"source": "web_interface"}, max_history_length=10
-        )
-    else:
-        chat_session = session_manager.get_session(session_id)
-        if not chat_session:
-            chat_session = session_manager.create_session(
-                session_id=session_id, metadata={"source": "web_interface"}, max_history_length=10
-            )
+    if rag_pipeline is None:
+        return jsonify({"error": "问答系统尚未配置或初始化失败"}), 503
+
+    chat_session = _current_chat_session()
 
     try:
-        # 记录用户消息
-        chat_session.add_message("user", query)
-
         # 处理查询
         response = chat_session.query(query)
+        if response.get("error"):
+            return jsonify({"error": response["error"]}), 502
 
         # 提取回复内容
         answer = response.get("answer", "抱歉，我无法回答这个问题")
-        citations = response.get("citations", [])
+        citations = [
+            {
+                "document_id": document.get("id", ""),
+                "text": document.get("content", ""),
+                "metadata": document.get("metadata", {}),
+            }
+            for document in response.get("documents", [])
+        ]
 
         # 转换引用格式为前端可用格式
         formatted_citations = []
@@ -494,9 +436,7 @@ def chat_query():
             }
 
             # 提取结构化内容（表格、代码、图表等）
-            structured_content = extract_structured_content(citation.get("text", ""), citation.get("metadata", {}))
-            if structured_content:
-                formatted_citation["structured_content"] = structured_content
+            _add_structured_content(formatted_citation)
 
             formatted_citations.append(formatted_citation)
 
@@ -505,6 +445,21 @@ def chat_query():
     except Exception as e:
         logger.error(f"处理查询失败: {str(e)}")
         return jsonify({"error": f"处理查询失败: {str(e)}"}), 500
+
+
+@app.route("/api/chat/reset", methods=["POST"])
+def reset_chat():
+    """Reset this browser's existing history without changing other sessions."""
+    chat_session = session_manager.get_session(session.get("session_id", ""))
+    if chat_session:
+        chat_session.clear_history()
+    return jsonify({"success": True})
+
+
+@app.template_filter("fromtimestamp")
+def fromtimestamp(value):
+    """Format timestamps from the maintained chat-session message contract."""
+    return datetime.fromtimestamp(value).strftime("%Y-%m-%d %H:%M:%S")
 
 
 @app.route("/about")
@@ -575,7 +530,11 @@ def internal_error(error):
     return render_template("500.html"), 500
 
 
-if __name__ == "__main__":
-    # 在开发环境中使用调试模式
+def run_web_app() -> None:
+    """Start locally; exposing the listener requires an explicit HOST setting."""
     debug_mode = os.environ.get("FLASK_ENV") == "development"
-    app.run(host="0.0.0.0", port=5000, debug=debug_mode)
+    app.run(host=os.environ.get("HOST", "127.0.0.1"), port=5000, debug=debug_mode)
+
+
+if __name__ == "__main__":
+    run_web_app()

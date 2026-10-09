@@ -7,10 +7,7 @@ Advanced developer guide covering the enhanced architecture, enterprise-level fe
 1. [Enhanced Architecture Overview](#enhanced-architecture-overview)
 2. [Advanced Component Development](#advanced-component-development)
 3. [Extension and Plugin System](#extension-and-plugin-system)
-4. [Performance Optimization](#performance-optimization)
-5. [Testing Framework](#testing-framework)
-6. [Deployment and Operations](#deployment-and-operations)
-7. [Contributing Guidelines](#contributing-guidelines)
+The performance, testing, deployment and contribution chapters have not been provided.
 
 ## Enhanced Architecture Overview
 

@@ -11,13 +11,8 @@ Document Store Implementations
 """
 
 from .faiss_vector_store import FAISSVectorStore
+from .haystack_store import HaystackDocumentStore
 from .memory_vector_store import InMemoryVectorStore
 from .milvus_store import MilvusDocumentStore
-from .haystack_store import HaystackDocumentStore
 
-__all__ = [
-    "FAISSVectorStore",
-    "InMemoryVectorStore", 
-    "MilvusDocumentStore",
-    "HaystackDocumentStore"
-]
+__all__ = ["FAISSVectorStore", "InMemoryVectorStore", "MilvusDocumentStore", "HaystackDocumentStore"]

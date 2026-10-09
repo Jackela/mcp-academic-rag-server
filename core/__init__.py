@@ -12,20 +12,26 @@ Core Module for MCP Academic RAG Server
 - ProcessorLoader: 处理器动态加载器
 """
 
-from .config_center import ConfigCenter, get_config_center, init_config_center
-from .config_manager import ConfigManager
-from .config_validator import ConfigValidator
-from .server_context import ServerContext
-from .pipeline import Pipeline
-from .processor_loader import ProcessorLoader
+# Public exports remain compatible without importing every optional backend.
+from importlib import import_module
+from typing import Any
 
-__all__ = [
-    "ConfigCenter",
-    "get_config_center", 
-    "init_config_center",
-    "ConfigManager",
-    "ConfigValidator",
-    "ServerContext",
-    "Pipeline",
-    "ProcessorLoader"
-]
+_EXPORTS = {
+    "ConfigCenter": "config_center",
+    "get_config_center": "config_center",
+    "init_config_center": "config_center",
+    "ConfigManager": "config_manager",
+    "ConfigValidator": "config_validator",
+    "ServerContext": "server_context",
+    "Pipeline": "pipeline",
+    "ProcessorLoader": "processor_loader",
+}
+__all__ = list(_EXPORTS)
+
+
+def __getattr__(name: str) -> Any:
+    if name not in _EXPORTS:
+        raise AttributeError(name)
+    value = getattr(import_module(f".{_EXPORTS[name]}", __name__), name)
+    globals()[name] = value
+    return value

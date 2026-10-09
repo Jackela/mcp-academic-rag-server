@@ -1,0 +1,220 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP RAG Server Monitoring</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .header { background: #2196F3; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .metric-value { font-size: 2em; font-weight: bold; color: #2196F3; }
+        .metric-label { color: #666; margin-bottom: 10px; }
+        .status-ok { color: #4CAF50; }
+        .status-warning { color: #FF9800; }
+        .status-error { color: #F44336; }
+        .alert { padding: 10px; margin: 5px 0; border-radius: 4px; }
+        .alert-warning { background: #FFF3CD; border: 1px solid #FFEAA7; }
+        .alert-error { background: #F8D7DA; border: 1px solid #F5C6CB; }
+        .chart-container { position: relative; height: 300px; }
+        #status-indicator { width: 20px; height: 20px; border-radius: 50%; display: inline-block; margin-right: 10px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MCP Academic RAG Server Monitoring</h1>
+        <div>
+            <span id="status-indicator" class="status-ok"></span>
+            <span id="connection-status">Connected</span>
+            <span style="float: right;">Last Update: <span id="last-update">--</span></span>
+        </div>
+    </div>
+    
+    <div class="grid">
+        <div class="card">
+            <h3>System Overview</h3>
+            <div class="metric-label">CPU Usage</div>
+            <div class="metric-value" id="cpu-usage">--</div>
+            <div class="metric-label">Memory Usage</div>
+            <div class="metric-value" id="memory-usage">--</div>
+        </div>
+        
+        <div class="card">
+            <h3>RAG Performance</h3>
+            <div class="metric-label">Documents Processed</div>
+            <div class="metric-value" id="docs-processed">--</div>
+            <div class="metric-label">Queries Handled</div>
+            <div class="metric-value" id="queries-handled">--</div>
+        </div>
+        
+        <div class="card">
+            <h3>Active Alerts</h3>
+            <div id="alerts-container">No active alerts</div>
+        </div>
+        
+        <div class="card">
+            <h3>System Metrics</h3>
+            <div class="chart-container">
+                <canvas id="system-chart"></canvas>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>Performance Metrics</h3>
+            <div class="chart-container">
+                <canvas id="performance-chart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // WebSocket connection
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+        
+        // Chart configurations
+        const systemChart = new Chart(document.getElementById('system-chart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'CPU %',
+                    data: [],
+                    borderColor: '#FF6384',
+                    tension: 0.1
+                }, {
+                    label: 'Memory %',
+                    data: [],
+                    borderColor: '#36A2EB',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+        
+        const performanceChart = new Chart(document.getElementById('performance-chart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Response Time (ms)',
+                    data: [],
+                    borderColor: '#4BC0C0',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+        
+        // WebSocket event handlers
+        ws.onopen = function() {
+            document.getElementById('connection-status').textContent = 'Connected';
+            document.getElementById('status-indicator').className = 'status-ok';
+        };
+        
+        ws.onclose = function() {
+            document.getElementById('connection-status').textContent = 'Disconnected';
+            document.getElementById('status-indicator').className = 'status-error';
+        };
+        
+        ws.onmessage = function(event) {
+            const message = JSON.parse(event.data);
+            
+            if (message.type === 'metrics_update') {
+                updateMetrics(message.data);
+                updateCharts(message.data);
+            } else if (message.type === 'alert') {
+                updateAlerts(message.data);
+            }
+            
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        };
+        
+        function updateMetrics(data) {
+            // Update system metrics
+            if (data.system) {
+                document.getElementById('cpu-usage').textContent = `${data.system.cpu_percent?.toFixed(1)}%`;
+                document.getElementById('memory-usage').textContent = `${data.system.memory_percent?.toFixed(1)}%`;
+            }
+            
+            // Update RAG metrics
+            if (data.rag) {
+                document.getElementById('docs-processed').textContent = data.rag.documents_processed || '--';
+                document.getElementById('queries-handled').textContent = data.rag.queries_handled || '--';
+            }
+        }
+        
+        function updateCharts(data) {
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString();
+            
+            // Update system chart
+            if (data.system) {
+                systemChart.data.labels.push(timeLabel);
+                systemChart.data.datasets[0].data.push(data.system.cpu_percent);
+                systemChart.data.datasets[1].data.push(data.system.memory_percent);
+                
+                // Keep only last 20 points
+                if (systemChart.data.labels.length > 20) {
+                    systemChart.data.labels.shift();
+                    systemChart.data.datasets[0].data.shift();
+                    systemChart.data.datasets[1].data.shift();
+                }
+                
+                systemChart.update('none');
+            }
+            
+            // Update performance chart
+            if (data.performance && data.performance.avg_response_time) {
+                performanceChart.data.labels.push(timeLabel);
+                performanceChart.data.datasets[0].data.push(data.performance.avg_response_time);
+                
+                if (performanceChart.data.labels.length > 20) {
+                    performanceChart.data.labels.shift();
+                    performanceChart.data.datasets[0].data.shift();
+                }
+                
+                performanceChart.update('none');
+            }
+        }
+        
+        function updateAlerts(alerts) {
+            const container = document.getElementById('alerts-container');
+            
+            if (!alerts || alerts.length === 0) {
+                container.innerHTML = 'No active alerts';
+                return;
+            }
+            
+            container.innerHTML = alerts.map(alert => `
+                <div class="alert alert-${alert.level}">
+                    <strong>${alert.rule_name}</strong>: ${alert.message}
+                    <br><small>Since: ${new Date(alert.triggered_at).toLocaleString()}</small>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
+        

@@ -18,6 +18,7 @@ def test_ci_cd_placeholder():
 def test_python_version():
     """Test that we're running a supported Python version."""
     import sys
+
     assert sys.version_info >= (3, 9)
 
 
@@ -26,6 +27,7 @@ def test_imports():
     import json
     import os
     import sys
+
     assert json is not None
     assert os is not None
     assert sys is not None
