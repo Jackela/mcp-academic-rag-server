@@ -78,7 +78,13 @@ def test_container_jobs_use_real_lowercase_repository(job, tmp_path):
     assert len(normalizers) == 1
     env_file = tmp_path / "github-env"
     env = dict(os.environ, GITHUB_REPOSITORY="Jackela/MCP-Academic-RAG-Server", GITHUB_ENV=env_file.as_posix())
-    subprocess.run(["bash", "-e", "-c", normalizers[0]["run"]], env=env, check=True)
+    bash = "bash"
+    if os.name == "nt":
+        # Windows PATH may resolve bash to the WSL shim instead of Git Bash.
+        git_exec_path = Path(subprocess.check_output(["git", "--exec-path"], text=True).strip())
+        bash = str(git_exec_path.parents[2] / "bin" / "bash.exe")
+        assert Path(bash).is_file(), f"Git Bash is missing from the current Git installation: {bash}"
+    subprocess.run([bash, "-e", "-c", normalizers[0]["run"]], env=env, check=True)
     assert env_file.read_text() == "IMAGE_NAME=jackela/mcp-academic-rag-server\n"
     first_image_use = next(index for index, step in enumerate(steps) if "env.IMAGE_NAME" in str(step))
     assert steps.index(normalizers[0]) < first_image_use
