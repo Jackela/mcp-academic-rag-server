@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import tempfile
+from dataclasses import replace
 from datetime import datetime
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, Mock, patch
@@ -45,7 +46,7 @@ class MockVectorStore(BaseVectorStore):
 
         for i, doc in enumerate(documents):
             doc_id = doc.id or f"doc_{self.next_id}"
-            doc.id = doc_id
+            doc = replace(doc, id=doc_id)
             self.documents[doc_id] = doc
 
             if embeddings and i < len(embeddings):
@@ -155,7 +156,7 @@ class TestVectorStoreMigrator:
         assert migrator.logger is not None
         assert hasattr(migrator, "logger")
 
-    @patch("utils.vector_migration.create_vector_store")
+    @patch("document_stores.migration.vector_migration.create_vector_store")
     def test_migrate_success(self, mock_create_store, source_store_with_data, empty_target_store):
         """测试成功迁移"""
         migrator = VectorStoreMigrator()
@@ -178,7 +179,7 @@ class TestVectorStoreMigrator:
         assert migrated_doc is not None
         assert migrated_doc.content == "Document about AI"
 
-    @patch("utils.vector_migration.create_vector_store")
+    @patch("document_stores.migration.vector_migration.create_vector_store")
     def test_migrate_with_backup(self, mock_create_store, source_store_with_data, empty_target_store, temp_backup_dir):
         """测试带备份的迁移"""
         migrator = VectorStoreMigrator()
@@ -194,7 +195,7 @@ class TestVectorStoreMigrator:
         assert result == True
         assert mock_backup.called
 
-    @patch("utils.vector_migration.create_vector_store")
+    @patch("document_stores.migration.vector_migration.create_vector_store")
     def test_migrate_backup_failure(self, mock_create_store, source_store_with_data):
         """测试备份失败时的迁移"""
         migrator = VectorStoreMigrator()
@@ -208,7 +209,7 @@ class TestVectorStoreMigrator:
 
         assert result == False
 
-    @patch("utils.vector_migration.create_vector_store")
+    @patch("document_stores.migration.vector_migration.create_vector_store")
     def test_migrate_verification_failure(self, mock_create_store, source_store_with_data, empty_target_store):
         """测试验证失败时的迁移"""
         migrator = VectorStoreMigrator()
@@ -309,7 +310,7 @@ class TestVectorStoreMigrator:
             f.write(checksum)
 
         # 使用模拟工厂创建目标存储
-        with patch("utils.vector_migration.create_vector_store") as mock_create:
+        with patch("document_stores.migration.vector_migration.create_vector_store") as mock_create:
             mock_create.return_value = empty_target_store
 
             result = migrator.restore_storage(backup_path, {"type": "mock"}, verify_backup=True)
@@ -455,7 +456,7 @@ class TestVectorStoreMigrator:
             os.makedirs(backup_path)
 
             metadata = {
-                "backup_time": f"2024-01-{backup_name[-1]:02d}T10:00:00",
+                "backup_time": f"2024-01-{int(backup_name[-1]):02d}T10:00:00",
                 "document_count": 10,
                 "storage_info": {"storage_type": "TestStore"},
             }
@@ -527,7 +528,7 @@ class TestVectorStoreMigrator:
 class TestConvenienceFunctions:
     """测试便捷函数"""
 
-    @patch("utils.vector_migration.VectorStoreMigrator.migrate")
+    @patch("document_stores.migration.vector_migration.VectorStoreMigrator.migrate")
     def test_migrate_vector_storage_function(self, mock_migrate):
         """测试migrate_vector_storage便捷函数"""
         mock_migrate.return_value = True
@@ -546,7 +547,7 @@ class TestConvenienceFunctions:
         assert call_args[0][1] == target_config
         assert call_args[0][2] == 500
 
-    @patch("utils.vector_migration.VectorStoreMigrator.backup_storage")
+    @patch("document_stores.migration.vector_migration.VectorStoreMigrator.backup_storage")
     def test_backup_vector_storage_function(self, mock_backup):
         """测试backup_vector_storage便捷函数"""
         mock_backup.return_value = "/path/to/backup"
@@ -571,14 +572,14 @@ class TestEdgeCases:
         """测试迁移过程中发生异常"""
         migrator = VectorStoreMigrator()
 
-        with patch("utils.vector_migration.create_vector_store") as mock_create:
+        with patch("document_stores.migration.vector_migration.create_vector_store") as mock_create:
             mock_create.side_effect = Exception("Connection failed")
 
             result = migrator.migrate({"type": "memory"}, {"type": "faiss"})
 
         assert result == False
 
-    def test_backup_with_io_error(self, temp_backup_dir):
+    def test_backup_with_io_error(self, tmp_path):
         """测试备份过程中的IO错误"""
         migrator = VectorStoreMigrator()
 
@@ -587,7 +588,7 @@ class TestEdgeCases:
 
         # 模拟写入权限问题
         with patch("builtins.open", side_effect=IOError("Permission denied")):
-            backup_path = migrator.backup_storage(store, "test", temp_backup_dir)
+            backup_path = migrator.backup_storage(store, "test", str(tmp_path))
 
         assert backup_path is None
 

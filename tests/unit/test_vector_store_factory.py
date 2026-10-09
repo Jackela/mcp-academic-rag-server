@@ -105,7 +105,15 @@ class TestVectorStoreFactory:
         config = {"type": "nonexistent_backend", "vector_dimension": 384}
 
         # 应该自动回退到可用的存储
-        store = VectorStoreFactory.create(config, auto_fallback=True)
+        original = VectorStoreFactory._check_dependencies
+
+        def require_memory(factory, store_type, dependencies):
+            if store_type == "faiss":
+                raise VectorStoreError("FAISS deliberately unavailable in this test")
+            return original(factory, store_type, dependencies)
+
+        with patch.object(VectorStoreFactory, "_check_dependencies", require_memory):
+            store = VectorStoreFactory.create(config, auto_fallback=True)
 
         assert store is not None
         # 应该回退到内存存储（最后的回退选项）
@@ -217,7 +225,7 @@ class TestVectorStoreFactory:
         recommended = VectorStoreFactory.get_recommended_backend()
 
         # 默认应该推荐内存存储
-        assert recommended == "memory"
+        assert recommended == "faiss"  # Persistence is enabled by default
 
     @patch("document_stores.vector_store_factory.VectorStoreFactory._create_backend")
     def test_fallback_on_initialization_failure(self, mock_create_backend):
@@ -316,11 +324,8 @@ class TestEdgeCases:
         """测试空配置"""
         config = {}
 
-        # 空配置应该使用默认值并成功创建
-        store = VectorStoreFactory.create(config, auto_fallback=True)
-
-        assert store is not None
-        store.close()
+        with pytest.raises(VectorStoreConfigError, match="type"):
+            VectorStoreFactory.create(config, auto_fallback=True)
 
     def test_config_with_extra_fields(self):
         """测试包含额外字段的配置"""
@@ -353,7 +358,7 @@ class TestEdgeCases:
         """测试推荐函数中的None需求"""
         backend = VectorStoreFactory.get_recommended_backend(None)
 
-        assert backend == "memory"  # 应该返回默认推荐
+        assert backend == "faiss"  # Persistence is enabled by default
 
 
 if __name__ == "__main__":

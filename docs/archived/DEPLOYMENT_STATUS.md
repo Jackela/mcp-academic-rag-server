@@ -190,9 +190,9 @@ LOG_LEVEL=INFO                       # Logging level
 - **Debug Mode**: `LOG_LEVEL=DEBUG python mcp_server.py`
 
 ### Documentation
-- **User Guide**: [docs/user-guide/mcp-tools-reference.md](docs/user-guide/mcp-tools-reference.md)
-- **Developer Guide**: [docs/developer-guide.md](docs/developer-guide.md)
-- **API Reference**: [docs/api-reference.md](docs/api-reference.md)
+- **User Guide**: [docs/user-guide/mcp-tools-reference.md](../user-guide/mcp-tools-reference.md)
+- **Developer Guide**: [docs/developer-guide.md](../developer-guide.md)
+- **API Reference**: [docs/api-reference.md](../api-reference.md)
 
 ---
 

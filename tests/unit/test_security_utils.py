@@ -5,6 +5,7 @@ Unit tests for security utilities
 import os
 import tempfile
 import time
+from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -353,7 +354,7 @@ class TestPathSanitization:
             valid_path = os.path.join(temp_dir, "subdir", "file.txt")
             sanitized = sanitize_path(valid_path, temp_dir)
             assert sanitized is not None
-            assert sanitized.startswith(temp_dir)
+            assert Path(sanitized).is_relative_to(Path(temp_dir).resolve())
 
     def test_sanitize_path_traversal(self):
         """Test path traversal prevention"""

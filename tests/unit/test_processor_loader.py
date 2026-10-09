@@ -23,6 +23,12 @@ from core.processor_loader import ProcessorLoader
 from processors.base_processor import IProcessor
 
 
+@pytest.fixture(autouse=True)
+def isolated_mapping_directory(tmp_path, monkeypatch):
+    # Relative fallback configuration must not be shadowed by the checkout.
+    monkeypatch.chdir(tmp_path)
+
+
 class MockConfigManager:
     """Mock config manager for testing"""
 
@@ -51,6 +57,9 @@ class MockProcessor(IProcessor):
 
     def get_name(self) -> str:
         return self.name
+
+    def get_description(self) -> str:
+        return "local processor fixture"
 
     def get_stage(self) -> str:
         return "test"
@@ -300,7 +309,7 @@ class TestSingleProcessorLoading:
         del mock_module.TestProcessor
 
         with patch("importlib.import_module", return_value=mock_module):
-            with patch("hasattr", return_value=False):
+            with patch("builtins.hasattr", return_value=False):
                 loader = ProcessorLoader(mock_config_manager)
                 loader._processor_mappings["test_processor"] = {"module": "test.module", "class": "TestProcessor"}
 
@@ -380,7 +389,7 @@ class TestProcessorValidation:
         loader = ProcessorLoader(mock_config_manager)
         result = loader.validate_processor_config("nonexistent_processor")
 
-        assert result is True  # Missing config with enabled=True default
+        assert result is False  # Unknown processors cannot be validated
 
 
 class TestUtilityMethods:

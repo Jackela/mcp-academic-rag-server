@@ -50,7 +50,7 @@ The MCP Academic RAG Server has successfully passed all **7 critical quality gat
 ```
 
 #### ✅ Security Headers Validation
-```http
+```text
 ✓ Content-Security-Policy: Comprehensive policy implemented
 ✓ Strict-Transport-Security: HSTS with includeSubDomains
 ✓ X-Content-Type-Options: nosniff protection

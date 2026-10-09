@@ -18,8 +18,8 @@ class TestChatPromptBuilder:
     def sample_documents(self):
         """样本文档"""
         return [
-            HaystackDocument(content="This is the content of document 1", id="doc1", metadata={"title": "Document 1"}),
-            HaystackDocument(content="This is the content of document 2", id="doc2", metadata={"title": "Document 2"}),
+            HaystackDocument(content="This is the content of document 1", id="doc1", meta={"title": "Document 1"}),
+            HaystackDocument(content="This is the content of document 2", id="doc2", meta={"title": "Document 2"}),
         ]
 
     @pytest.fixture
@@ -103,9 +103,9 @@ class TestChatPromptBuilder:
         """测试格式化文档时的最大长度限制"""
         # 创建长文档
         long_docs = [
-            HaystackDocument(content="A" * 2000, id="doc1", metadata={"title": "Long Document 1"}),
-            HaystackDocument(content="B" * 2000, id="doc2", metadata={"title": "Long Document 2"}),
-            HaystackDocument(content="C" * 2000, id="doc3", metadata={"title": "Long Document 3"}),
+            HaystackDocument(content="A" * 2000, id="doc1", meta={"title": "Long Document 1"}),
+            HaystackDocument(content="B" * 2000, id="doc2", meta={"title": "Long Document 2"}),
+            HaystackDocument(content="C" * 2000, id="doc3", meta={"title": "Long Document 3"}),
         ]
 
         # 设置较小的最大上下文长度
@@ -150,8 +150,8 @@ class TestChatPromptBuilder:
         assert "参考文档：\nTest context" in prompt
         assert "基于参考文档提供准确" in prompt
 
-    def test_call_method(self, sample_documents, sample_chat_history):
-        """测试__call__方法"""
+    def test_run_method(self, sample_documents, sample_chat_history):
+        """测试Haystack run接口"""
         builder = ChatPromptBuilder()
 
         # 模拟方法
@@ -163,8 +163,8 @@ class TestChatPromptBuilder:
             mock_format.return_value = "Formatted context"
             mock_build_prompt.return_value = "Built prompt"
 
-            # 调用__call__方法
-            result = builder(query="Test query", documents=sample_documents, chat_history=sample_chat_history)
+            # 调用run方法
+            result = builder.run(query="Test query", documents=sample_documents, chat_history=sample_chat_history)
 
             # 验证方法调用
             mock_format.assert_called_once_with(sample_documents)
@@ -178,19 +178,19 @@ class TestChatPromptBuilder:
             # 验证系统消息
             system_message = messages[0]
             assert isinstance(system_message, ChatMessage)
-            assert system_message.role == "system"
-            assert system_message.content == builder.system_prompt
+            assert system_message.role.value == "system"
+            assert system_message.text == builder.system_prompt
 
             # 验证历史消息
             for i, history_item in enumerate(sample_chat_history):
                 message = messages[i + 1]
-                assert message.role == history_item["role"]
-                assert message.content == history_item["content"]
+                assert message.role.value == history_item["role"]
+                assert message.text == history_item["content"]
 
             # 验证用户消息
             user_message = messages[-1]
-            assert user_message.role == "user"
-            assert user_message.content == "Built prompt"
+            assert user_message.role.value == "user"
+            assert user_message.text == "Built prompt"
 
 
 class TestPromptBuilderFactory:

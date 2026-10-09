@@ -112,7 +112,7 @@ class TestMistralAPIConnector:
         # 验证请求参数
         mock_make_request.assert_called_once_with(
             "POST",
-            "ocr/process",
+            "ocr",
             json_data={
                 "model": "mistral-ocr-latest",
                 "document": {"type": "document_url", "document_url": "https://example.com/document.pdf"},

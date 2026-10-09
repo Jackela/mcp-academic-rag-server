@@ -104,10 +104,10 @@ class ChatPromptBuilder:
                 if remaining_length > 100:  # 至少保留100个字符才有意义
                     if self.include_citation:
                         citation_part = f"文档ID: {doc.id}\n标题: {title}\n内容:\n"
-                        content_part = content[: remaining_length - len(citation_part)]
+                        content_part = content[: max(0, remaining_length - len(citation_part) - len("...(内容被截断)"))]
                         doc_str = citation_part + content_part + "...(内容被截断)"
                     else:
-                        doc_str = content[:remaining_length] + "...(内容被截断)"
+                        doc_str = content[: max(0, remaining_length - len("...(内容被截断)"))] + "...(内容被截断)"
 
                     formatted_docs.append(doc_str)
 

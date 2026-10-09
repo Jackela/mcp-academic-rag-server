@@ -156,13 +156,14 @@ class LLMFactory:
         """
         Create connector from unified configuration format
 
-        Config format:
-        {
-            "provider": "openai|anthropic|google",
-            "model": "model-name",
-            "api_key": "key-or-env-var",
-            "parameters": {...}
-        }
+        Config format::
+
+            {
+                "provider": "openai|anthropic|google",
+                "model": "model-name",
+                "api_key": "key-or-env-var",
+                "parameters": {...}
+            }
         """
         provider = config.get("provider")
         if not provider:

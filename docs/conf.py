@@ -43,8 +43,8 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # Source file suffixes
 source_suffix = {
-    ".rst": None,
-    ".md": "myst_parser",
+    ".rst": "restructuredtext",
+    ".md": "markdown",
 }
 
 # Master document
@@ -64,7 +64,6 @@ html_theme_options = {
     "canonical_url": "",
     "analytics_id": "",
     "logo_only": False,
-    "display_version": True,
     "prev_next_buttons_location": "bottom",
     "style_external_links": False,
     "vcs_pageview_mode": "",
@@ -100,6 +99,7 @@ autodoc_default_options = {
     "undoc-members": True,
     "exclude-members": "__weakref__",
     "show-inheritance": True,
+    "ignore-module-all": True,
 }
 
 autodoc_typehints = "description"
@@ -131,6 +131,8 @@ intersphinx_mapping = {
 }
 
 # MyST Parser configuration
+myst_heading_anchors = 4
+
 myst_enable_extensions = [
     "deflist",
     "tasklist",

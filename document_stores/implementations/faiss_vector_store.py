@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import pickle
+from dataclasses import replace
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -354,7 +355,7 @@ class FAISSVectorStore(BaseVectorStore):
             del self.documents[doc_id]
 
             # 添加新文档
-            document.id = doc_id
+            document = replace(document, id=doc_id)
             return self.add_documents([document], [embedding] if embedding else None)
 
         except Exception as e:
@@ -512,7 +513,7 @@ class FAISSVectorStore(BaseVectorStore):
                 doc = HaystackDocument(
                     content=doc_data["content"], meta=doc_data["meta"], embedding=doc_data.get("embedding")
                 )
-                doc.id = doc_id
+                doc = replace(doc, id=doc_id)
                 self.documents[doc_id] = doc
 
             self.id_to_idx = metadata["id_to_idx"]

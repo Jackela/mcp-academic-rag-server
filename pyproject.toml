@@ -42,6 +42,7 @@ dependencies = [
     # RAG pipeline (essential only)
     "haystack-ai>=2.0.0,<3",
     "sentence-transformers>=2.2.0",
+    "sentence-transformers-haystack>=0.2,<1",
     "openai>=1.0.0",
     
     # Basic utilities
@@ -239,3 +240,7 @@ exclude = [
     "env",
 ]
 max-complexity = 10
+# rstcheck checks base RST; Sphinx -W validates these extension directives
+# including autodoc targets and generated autosummary pages.
+[tool.rstcheck]
+ignore_directives = ["automodule", "autosummary"]

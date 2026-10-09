@@ -270,7 +270,7 @@ class TestChatSession:
         citation2 = session.add_citation(message_id=msg.message_id, document_id="doc-456", text="Citation 2")
 
         # 获取引用
-        citations = session.get_message_citations(msg.message_id)
+        citations = session.citations.get(msg.message_id, [])
 
         assert isinstance(citations, list)
         assert len(citations) == 2
@@ -278,7 +278,7 @@ class TestChatSession:
         assert citations[1] == citation2
 
         # 测试不存在的消息ID
-        citations = session.get_message_citations("non-existent-id")
+        citations = session.citations.get("non-existent-id", [])
         assert isinstance(citations, list)
         assert len(citations) == 0
 
@@ -295,14 +295,14 @@ class TestChatSession:
 
         assert isinstance(messages, list)
         assert len(messages) == 2
-        assert messages[0] == msg1
-        assert messages[1] == msg2
+        assert messages[0] == msg1.to_dict()
+        assert messages[1] == msg2.to_dict()
 
         # 测试限制数量
         messages = session.get_messages(limit=1)
 
         assert len(messages) == 1
-        assert messages[0] == msg2  # 应该返回最新的消息
+        assert messages[0] == msg2.to_dict()  # 应该返回最新的消息
 
     def test_to_dict(self):
         """测试转换为字典"""
@@ -378,7 +378,7 @@ class TestChatSession:
         user_msg = session.add_message(role="user", content="Test question")
 
         # 生成回复
-        response = session.generate_response()
+        response, documents = session.process_query("Test question")
 
         # 验证响应
         assert isinstance(response, Message)

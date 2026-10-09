@@ -234,7 +234,7 @@ class ServerContext:
             # Clean up session manager
             if self._session_manager:
                 # Clear all sessions to free memory
-                self._session_manager._sessions.clear()
+                self._session_manager.sessions.clear()
                 self._logger.debug("Session manager cleaned up")
 
             # Clean up RAG pipeline resources

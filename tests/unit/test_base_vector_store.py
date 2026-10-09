@@ -6,6 +6,7 @@
 
 import os
 import tempfile
+from dataclasses import replace
 from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import Mock, patch
 
@@ -41,7 +42,7 @@ class MockVectorStore(BaseVectorStore):
 
         for i, doc in enumerate(documents):
             doc_id = doc.id or f"doc_{self.next_id}"
-            doc.id = doc_id
+            doc = replace(doc, id=doc_id)
             self.documents[doc_id] = doc
 
             if embeddings and i < len(embeddings):
@@ -232,8 +233,7 @@ class TestVectorStoreOperations:
         embeddings = [[0.7, 0.8, 0.9], [1.0, 1.1, 1.2]]
 
         # 移除文档自带的嵌入
-        for doc in sample_documents:
-            doc.embedding = None
+        sample_documents = [replace(doc, embedding=None) for doc in sample_documents]
 
         result = mock_store.add_documents(sample_documents, embeddings)
 

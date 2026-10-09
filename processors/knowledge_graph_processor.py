@@ -703,7 +703,7 @@ class KnowledgeGraphProcessor(BaseProcessor):
         # 移除特殊字符但保留标点
         text = re.sub(r'[^\w\s.,;:()[\]{}"\'-]', " ", text)
 
-        return text.strip()
+        return re.sub(r"\s+", " ", text).strip()
 
     def _load_academic_terms(self) -> Dict[str, List[str]]:
         """

@@ -128,7 +128,7 @@ curl -H "Authorization: Bearer your-api-key" \
 ```
 
 #### OAuth 2.0 Flow (Enterprise)
-```python
+```text
 # Step 1: Authorization URL
 GET /oauth/authorize?client_id=your_client_id&redirect_uri=your_callback&scope=read+write
 
@@ -178,7 +178,7 @@ POST /oauth/token
 - **Enterprise Tier**: Custom limits
 
 #### Rate Limit Headers
-```http
+```text
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 85
 X-RateLimit-Reset: 1642176600
@@ -325,7 +325,7 @@ Download the complete Postman collection: `https://api.rag-server.com/postman-co
 - **Beta Features**: Available in v2-beta
 
 ### Version Headers
-```http
+```text
 API-Version: v1
 Accept: application/vnd.rag-server.v1+json
 ```
@@ -340,8 +340,8 @@ Accept: application/vnd.rag-server.v1+json
 
 ### Support Channels
 - **Technical Support**: support@rag-server.com
-- **Community Forum**: https://community.rag-server.com
-- **GitHub Issues**: https://github.com/mcp-rag-server/issues
+- **Community Forum**: No verified project forum is documented.
+- **GitHub Issues**: https://github.com/Jackela/mcp-academic-rag-server/issues
 - **Documentation Feedback**: docs@rag-server.com
 
 ## Implementation Notes

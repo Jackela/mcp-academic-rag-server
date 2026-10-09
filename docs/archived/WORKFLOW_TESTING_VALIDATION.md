@@ -513,7 +513,7 @@ class TestUvxInstallation:
 **Duration**: 12 hours | **Risk**: Critical | **Priority**: Critical
 
 #### Claude Desktop Integration
-```python
+```text
 class TestMCPClientIntegration:
     """Integration testing with MCP clients"""
     

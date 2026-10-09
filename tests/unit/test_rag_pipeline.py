@@ -45,7 +45,10 @@ class TestRAGPipeline:
     def rag_pipeline(self, mock_llm_connector, mock_document_store, mock_retriever, mock_prompt_builder):
         """创建RAG管道实例"""
         # 替换InMemoryEmbeddingRetriever
-        with patch("rag.haystack_pipeline.InMemoryEmbeddingRetriever", return_value=mock_retriever):
+        with (
+            patch("rag.haystack_pipeline.InMemoryEmbeddingRetriever", return_value=mock_retriever),
+            patch("rag.haystack_pipeline.Pipeline"),
+        ):
             # 创建管道
             pipeline = RAGPipeline(
                 llm_connector=mock_llm_connector,
@@ -57,7 +60,7 @@ class TestRAGPipeline:
             # 替换haystack Pipeline
             pipeline.pipeline = MagicMock()
 
-            return pipeline
+            yield pipeline
 
     def test_initialization(self, mock_llm_connector, mock_document_store, mock_retriever, mock_prompt_builder):
         """测试初始化过程"""
@@ -94,12 +97,12 @@ class TestRAGPipeline:
         """测试运行RAG管道"""
         # 模拟Pipeline.run的返回值
         mock_documents = [
-            HaystackDocument(content="Document 1 content", id="doc1", metadata={"title": "Doc 1"}),
-            HaystackDocument(content="Document 2 content", id="doc2", metadata={"title": "Doc 2"}),
+            HaystackDocument(content="Document 1 content", id="doc1", meta={"title": "Doc 1"}),
+            HaystackDocument(content="Document 2 content", id="doc2", meta={"title": "Doc 2"}),
         ]
 
         rag_pipeline.pipeline.run.return_value = {
-            "llm": {"replies": [MagicMock(content="Generated answer")]},
+            "llm": {"replies": [MagicMock(text="Generated answer")]},
             "retriever": {"documents": mock_documents},
         }
 

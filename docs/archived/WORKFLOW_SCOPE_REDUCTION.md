@@ -203,7 +203,7 @@ Keep (Essential):
    ```
 
 2. **Simplify Storage Layer** (6 hours)
-   ```python
+   ```text
    # Files to modify:
    - document_stores/milvus_store.py → simple FAISS wrapper
    - Remove complex connection pooling

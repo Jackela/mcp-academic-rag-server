@@ -77,14 +77,14 @@ class TestConfigManager:
     def test_remove_value(self):
         """测试删除配置值"""
         # 删除已存在的值
-        self.config_manager.remove_value("app.version")
+        self.config_manager.remove_key("app.version")
         assert self.config_manager.get_value("app.version") is None
 
         # 删除不存在的值不应抛出异常
-        self.config_manager.remove_value("app.missing")
+        self.config_manager.remove_key("app.missing")
 
         # 删除嵌套路径的值
-        self.config_manager.remove_value("processors.ocr.enabled")
+        self.config_manager.remove_key("processors.ocr.enabled")
         assert self.config_manager.get_value("processors.ocr.enabled") is None
         # 确保父节点仍然存在
         assert self.config_manager.get_value("processors.ocr") is not None
@@ -96,7 +96,9 @@ class TestConfigManager:
 
         # 保存到新文件
         temp_save_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
-        self.config_manager.save_config(temp_save_file)
+        target_manager = ConfigManager(temp_save_file)
+        target_manager.config = self.config_manager.get_config()
+        assert target_manager.save_config()
 
         # 加载新配置并验证
         new_config_manager = ConfigManager(temp_save_file)

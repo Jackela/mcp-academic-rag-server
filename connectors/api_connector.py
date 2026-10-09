@@ -416,11 +416,15 @@ class APIFactory:
         """
         if api_type.lower() == "mistral":
             return MistralAPIConnector(
-                api_url=config.get("api_url", "https://api.mistral.ai/v1"), api_key=config.get("api_key", "")
+                api_url=config.get("api_url", "https://api.mistral.ai/v1"),
+                api_key=config.get("api_key", ""),
+                timeout=config.get("timeout", 60),
             )
         elif api_type.lower() == "openai":
             return OpenAIAPIConnector(
-                api_url=config.get("api_url", "https://api.openai.com/v1"), api_key=config.get("api_key", "")
+                api_url=config.get("api_url", "https://api.openai.com/v1"),
+                api_key=config.get("api_key", ""),
+                timeout=config.get("timeout", 60),
             )
         else:
             raise ValueError(f"不支持的API类型: {api_type}")

@@ -6,6 +6,7 @@
 """
 
 import logging
+from dataclasses import replace
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -85,13 +86,13 @@ class InMemoryVectorStore(BaseVectorStore):
                 if embeddings and i < len(embeddings):
                     embedding = embeddings[i]
                     if self.validate_embedding(embedding):
-                        new_doc.embedding = embedding
+                        new_doc = replace(new_doc, embedding=embedding)
                     else:
                         self.logger.warning(f"文档 {doc.id} 的向量嵌入无效，跳过")
                         continue
                 elif doc.embedding:
                     if self.validate_embedding(doc.embedding):
-                        new_doc.embedding = doc.embedding
+                        new_doc = replace(new_doc, embedding=doc.embedding)
                     else:
                         self.logger.warning(f"文档 {doc.id} 的向量嵌入无效，跳过")
                         continue
@@ -208,9 +209,9 @@ class InMemoryVectorStore(BaseVectorStore):
             self.store.delete_documents([doc_id])
 
             # 添加新文档
-            document.id = doc_id
+            document = replace(document, id=doc_id)
             if embedding:
-                document.embedding = embedding
+                document = replace(document, embedding=embedding)
 
             return self.add_documents([document])
 

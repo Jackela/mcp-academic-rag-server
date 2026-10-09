@@ -59,3 +59,4 @@ flask>=3.0.0
 python-magic>=0.4.27
 markdown>=3.5
 pdfkit>=1.0.0
+sentence-transformers-haystack>=0.2,<1

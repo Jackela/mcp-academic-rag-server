@@ -238,7 +238,7 @@ Add to Claude Desktop configuration:
 
 ### 1. Document Processing Workflow
 
-```mermaid
+```text
 graph LR
     A[Upload Document] --> B[process_document]
     B --> C[OCR/Extraction]
@@ -255,7 +255,7 @@ graph LR
 
 ### 2. Query Workflow
 
-```mermaid
+```text
 graph LR
     A[Natural Language Query] --> B[query_documents]
     B --> C[Query Embedding]

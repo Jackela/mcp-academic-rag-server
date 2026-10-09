@@ -87,8 +87,8 @@ open http://localhost:8080
 
 ```bash
 # Clone the repository
-git clone https://github.com/mcp/academic-rag-server.git
-cd academic-rag-server
+git clone https://github.com/Jackela/mcp-academic-rag-server.git
+cd mcp-academic-rag-server
 
 # Install dependencies
 pip install -r requirements.txt
@@ -625,10 +625,10 @@ curl "http://localhost:8080/api/v1/system/metrics"
 
 ### Getting Help
 
-- **Documentation**: [https://docs.mcp-rag-server.com](https://docs.mcp-rag-server.com)
-- **API Reference**: [https://api-docs.mcp-rag-server.com](https://api-docs.mcp-rag-server.com)
-- **Community Forum**: [https://community.mcp-rag-server.com](https://community.mcp-rag-server.com)
-- **GitHub Issues**: [https://github.com/mcp/rag-server/issues](https://github.com/mcp/rag-server/issues)
+- **Documentation**: [Maintenance and verification](maintenance.md)
+- **API Reference**: [API reference](api-reference.md)
+- **Community Forum**: No verified project forum is documented.
+- **GitHub Issues**: [Project issues](https://github.com/Jackela/mcp-academic-rag-server/issues)
 
 ### Professional Support
 

@@ -40,7 +40,7 @@
 
 ### 接口层次
 
-```python
+```text
 # 1. 抽象基类
 BaseVectorStore
 ├── initialize() -> bool
@@ -345,7 +345,7 @@ migrator.cleanup_old_backups(keep_count=10)
 
 ### 健康检查
 
-```python
+```text
 # 检查可用后端
 from document_stores.vector_store_factory import get_available_backends
 
@@ -456,6 +456,6 @@ if hasattr(store, 'get_index_stats'):
 ## 相关文档
 
 - [向量存储API参考](./api-reference.md)
-- [Milvus集群部署指南](./milvus-deployment.md)
-- [性能调优指南](./performance-tuning.md)
-- [故障排除手册](./troubleshooting.md)
+- Milvus集群部署指南（尚未提供）
+- 性能调优指南（尚未提供）
+- 故障排除手册（尚未提供）

@@ -95,14 +95,14 @@ class InputValidator:
         if len(filename) > 255:
             return False, "Filename too long"
 
+        # Check for null bytes
+        if "\x00" in filename:
+            return False, "Invalid filename: null byte detected"
+
         # Check for path traversal
         for pattern in SecurityConfig.PATH_TRAVERSAL_PATTERNS:
             if re.search(pattern, filename, re.IGNORECASE):
                 return False, "Invalid filename: potential path traversal"
-
-        # Check for null bytes
-        if "\x00" in filename:
-            return False, "Invalid filename: null byte detected"
 
         # Secure the filename
         secured = secure_filename(filename)
@@ -445,12 +445,16 @@ def sanitize_path(path: str, base_path: str) -> Optional[str]:
         Sanitized absolute path or None if invalid
     """
     try:
+        raw_path = Path(path)
+        if raw_path.is_symlink():
+            logger.warning(f"Symbolic link detected: {path}")
+            return None
         # Resolve to absolute path
-        abs_path = Path(path).resolve()
+        abs_path = raw_path.resolve()
         abs_base = Path(base_path).resolve()
 
         # Check if path is within base directory
-        if not str(abs_path).startswith(str(abs_base)):
+        if not abs_path.is_relative_to(abs_base):
             logger.warning(f"Path traversal attempt: {path}")
             return None
 

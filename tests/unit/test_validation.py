@@ -137,7 +137,7 @@ class TestEnvironmentValidation:
             # Should have tried to create ./data directory
             mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
-    @patch("mcp_server_secure.setup_secure_logging")
+    @patch("servers.mcp_server_secure.setup_secure_logging")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test123456789012345678"}, clear=True)
     def test_logging_setup_called(self, mock_setup_logging):
         """Test that logging setup is called during validation."""

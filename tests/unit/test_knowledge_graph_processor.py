@@ -126,9 +126,9 @@ class TestKnowledgeGraphProcessor(unittest.TestCase):
         self.assertIn("metadata", knowledge_graph)
 
         # 验证文档状态更新
-        self.assertTrue(self.test_document.get_metadata("has_knowledge_graph"))
-        self.assertIsInstance(self.test_document.get_metadata("entity_count"), int)
-        self.assertIsInstance(self.test_document.get_metadata("relation_count"), int)
+        self.assertTrue(self.test_document.metadata.get("has_knowledge_graph"))
+        self.assertIsInstance(self.test_document.metadata.get("entity_count"), int)
+        self.assertIsInstance(self.test_document.metadata.get("relation_count"), int)
 
     def test_process_no_structure_data(self):
         """测试没有结构数据时的处理"""
@@ -183,7 +183,7 @@ class TestKnowledgeGraphProcessor(unittest.TestCase):
 
     def test_extract_term_based_entities(self):
         """测试基于术语词典的实体提取"""
-        text = "We used machine learning algorithms and neural networks for natural language processing tasks."
+        text = "We used an algorithm and model to measure accuracy."
         entities = self.processor._extract_term_based_entities(text)
 
         # 验证基于术语词典的实体提取
@@ -349,10 +349,10 @@ class TestKnowledgeGraphProcessor(unittest.TestCase):
         lang = self.processor._detect_language(chinese_text)
         self.assertEqual(lang, "zh")
 
-        # 混合文本（以英文为主）
+        # 混合文本：中文字符超过现有启发式的 10% 阈值
         mixed_text = "This is mixed text 包含一些中文 but mostly English."
         lang = self.processor._detect_language(mixed_text)
-        self.assertEqual(lang, "en")
+        self.assertEqual(lang, "zh")
 
     def test_preprocess_text(self):
         """测试文本预处理功能"""

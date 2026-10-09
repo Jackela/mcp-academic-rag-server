@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import tempfile
+from dataclasses import replace
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, Mock, patch
 
@@ -145,8 +146,7 @@ class TestFAISSVectorStore:
         store.initialize()
 
         # 移除文档自带的嵌入
-        for doc in sample_documents:
-            doc.embedding = None
+        sample_documents = [replace(doc, embedding=None) for doc in sample_documents]
 
         external_embeddings = [[1.0, 1.0, 0.0, 0.0], [0.0, 1.0, 1.0, 0.0], [0.0, 0.0, 1.0, 1.0]]
 
@@ -408,10 +408,12 @@ class TestFAISSVectorStore:
         assert mock_gpu_resources.called
         assert mock_cpu_to_gpu.called
 
-        store.close()
+        # GPU conversion is mocked; native FAISS cannot serialize a MagicMock.
+        with patch.object(store, "save_index", return_value=True) as save:
+            store.close()
+            save.assert_called_once_with(temp_storage_path)
 
 
-@pytest.mark.skipif(FAISS_AVAILABLE, reason="Testing FAISS unavailable scenario")
 class TestFAISSNotAvailable:
     """测试FAISS不可用时的行为"""
 
@@ -419,7 +421,10 @@ class TestFAISSNotAvailable:
         """测试FAISS不可用时抛出异常"""
         config = {"vector_dimension": 4, "faiss": {}}
 
-        with pytest.raises(VectorStoreConnectionError, match="FAISS未安装"):
+        with (
+            patch("document_stores.implementations.faiss_vector_store.FAISS_AVAILABLE", False),
+            pytest.raises(VectorStoreConnectionError, match="FAISS未安装"),
+        ):
             FAISSVectorStore(config)
 
 

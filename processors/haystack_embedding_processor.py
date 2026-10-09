@@ -11,9 +11,9 @@ import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from haystack import Pipeline
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.dataclasses import Document as HaystackDocument
+from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersDocumentEmbedder
 
 from document_stores.implementations.haystack_store import HaystackDocumentStore
 from models.document import Document

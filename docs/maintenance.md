@@ -37,3 +37,28 @@ CI, storage and documentation workflows retain their checks. Their type/security
 failures are no longer discarded. Actionlint checks all workflow syntax; service,
 format, type and behavioral results are recorded per actual run. This repair does
 not certify remote models, vector services, full RAG quality or a production release.
+
+## Full-suite recovery evidence
+
+On 2026-10-09, Python 3.11 with the declared dependencies passed the complete
+unit suite (360 tests, 4 subtests). The five existing intentionally failing CI
+probe cases remain disabled by their own opt-in fixture. FAISS-unavailable is
+now tested explicitly even when FAISS is installed. Native vector updates use
+new Haystack documents instead of mutating deprecated fields. Context cleanup
+uses the manager's public sessions. MIME validation fails closed when libmagic
+cannot determine a type, and path checks resolve the base and reject symlinks.
+Tests cover real configuration removal/persistence, processor discovery,
+Haystack run/messages and public session queries; nonexistent historical APIs
+are not implemented to satisfy stale fixtures.
+
+Every cleanup entry consumes only explicitly registered resources. PID cleanup
+checks both parent ownership and creation time. The contract creates two same-name
+child processes itself: the registered child exits while the unregistered control
+stays alive. It also proves an unregistered file is preserved and no broad name
+or port scanning command runs. User and other agent processes are never test subjects.
+
+HTML documentation builds with warnings as errors; RST checking delegates only
+Sphinx extension directives to that real Sphinx build. Markdown remains editable
+source. Missing guide chapters and deployment materials are marked as missing.
+The old global lint/type debt remains a separate failing check until repaired;
+these behavioral results do not establish a complete CI pass.

@@ -43,7 +43,7 @@ export LLM_PROVIDER="google"
 export LLM_MODEL="gemini-1.5-pro"
 ```
 
-**📚 Need help choosing?** See our [Multi-Model Setup Guide](docs/multi-model-setup-guide.md) for detailed comparisons.
+**📚 Need help choosing?** See our [Multi-Model Setup Guide](multi-model-setup-guide.md) for detailed comparisons.
 
 ### 3. Test Server
 

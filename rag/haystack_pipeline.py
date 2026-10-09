@@ -6,12 +6,12 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from haystack import Pipeline
-from haystack.components.embedders import SentenceTransformersTextEmbedder
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore
+from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
 
 from connectors.haystack_llm_connector import HaystackLLMConnector
 from rag.prompt_builder import ChatPromptBuilder

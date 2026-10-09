@@ -37,7 +37,7 @@ class HaystackLLMConnector(BaseLLMConnector):
         Args:
             api_key (str): OpenAI API密钥
             model (str): 模型名称，默认为"gpt-3.5-turbo"
-            api_base_url (str): API基础URL，默认为"https://api.openai.com/v1"
+            api_base_url (str): API基础URL，默认为``https://api.openai.com/v1``
             timeout (int): 请求超时时间(秒)，默认为60
             streaming_callback (callable, optional): 用于流式响应的回调函数
             parameters (dict, optional): LLM参数，如temperature、max_tokens等
