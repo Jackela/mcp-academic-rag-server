@@ -273,8 +273,17 @@ class TestVectorStoreFactory:
         factory = VectorStoreFactory()
 
         # 测试检查不存在的依赖
-        with pytest.raises(VectorStoreError, match="需要以下依赖"):
+        with pytest.raises(VectorStoreConfigError, match="不支持的依赖"):
             factory._check_dependencies("test", ["nonexistent-package"])
+
+    @pytest.mark.parametrize("dependency,module", [("faiss-cpu", "faiss"), ("pymilvus", "pymilvus")])
+    def test_known_missing_dependency_retains_install_hint(self, dependency, module):
+        factory = VectorStoreFactory()
+        with patch("document_stores.vector_store_factory.importlib.import_module", side_effect=ImportError) as loader:
+            with pytest.raises(VectorStoreError, match="需要以下依赖") as error:
+                factory._check_dependencies("fixture", [dependency])
+        loader.assert_called_once_with(module)
+        assert f"pip install {dependency}" in str(error.value)
 
     @patch("document_stores.vector_store_factory.importlib.import_module")
     def test_dynamic_import_failure(self, mock_import):
@@ -282,10 +291,41 @@ class TestVectorStoreFactory:
         mock_import.side_effect = ImportError("Module not found")
 
         factory = VectorStoreFactory()
-        backend_info = {"class_name": "TestStore", "module": "nonexistent.module", "dependencies": []}
+        backend_info = factory._BACKENDS["memory"]
 
         with pytest.raises(VectorStoreError, match="无法导入存储模块"):
-            factory._get_backend_class("test", backend_info)
+            factory._get_backend_class("memory", backend_info)
+
+    @pytest.mark.parametrize("store_type", ["fixture", "memory"])
+    def test_backend_rejects_unknown_import_without_execution(self, store_type, tmp_path, monkeypatch):
+        marker = tmp_path / "backend-executed"
+        module = "factory_untrusted_backend_fixture"
+        (tmp_path / (module + ".py")).write_text(
+            "from pathlib import Path\n"
+            f"Path({str(marker)!r}).write_text('executed')\n"
+            "from document_stores.implementations.base_vector_store import BaseVectorStore\n"
+            "class FixtureStore(BaseVectorStore): pass\n"
+        )
+        monkeypatch.syspath_prepend(str(tmp_path))
+        factory = VectorStoreFactory()
+        backend_info = factory._BACKENDS["memory"].copy()
+        backend_info.update(class_name="FixtureStore", module=module)
+        with pytest.raises(VectorStoreConfigError, match="不支持的存储类型"):
+            factory._get_backend_class(store_type, backend_info)
+        assert not marker.exists()
+
+    def test_dependency_rejects_unknown_import_without_execution(self, tmp_path, monkeypatch):
+        marker = tmp_path / "dependency-executed"
+        module = "factory_untrusted_dependency_fixture"
+        (tmp_path / (module + ".py")).write_text(
+            "from pathlib import Path\n" f"Path({str(marker)!r}).write_text('executed')\n"
+        )
+        monkeypatch.syspath_prepend(str(tmp_path))
+        factory = VectorStoreFactory()
+        with pytest.raises(VectorStoreConfigError, match="不支持的依赖") as error:
+            factory._check_dependencies("fixture", [module])
+        assert "pip install" not in str(error.value)
+        assert not marker.exists()
 
 
 class TestConvenienceFunctions:

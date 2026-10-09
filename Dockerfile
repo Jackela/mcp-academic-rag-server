@@ -17,6 +17,7 @@ COPY . .
 RUN python -m pip install --no-cache-dir --no-deps . && python -m pip check
 
 FROM python:3.11-slim-bookworm AS production
+RUN python -m pip install --no-cache-dir --upgrade pip 'setuptools>=83' wheel
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH="/opt/venv/bin:$PATH"
 ENV DATA_PATH=/app/data HAYSTACK_TELEMETRY_ENABLED=False
 RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 libmagic1 \

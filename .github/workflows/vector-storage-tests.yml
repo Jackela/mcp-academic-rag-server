@@ -105,19 +105,23 @@ jobs:
           # Note: Milvus requires Docker, skip in CI
 
       - name: Verify native dependencies
+        timeout-minutes: 5
         run: |
-          python -X faulthandler -c "import torch; import faiss; print('native imports:', torch.__version__, faiss.__version__); assert torch.tensor([1, 2]).sum().item() == 3"
+          python -u -X faulthandler -c "import faulthandler, os, runpy, sys; watchdog_output = os.fdopen(os.dup(sys.stderr.fileno()), 'w'); faulthandler.dump_traceback_later(120, repeat=True, file=watchdog_output); runpy.run_module('scripts.check_native_runtime', run_name='__main__')" 2>&1 | tee native-runtime.log
+        env:
+          KMP_DUPLICATE_LIB_OK: 'FALSE'
 
       - name: Run unit tests
+        timeout-minutes: 20
         run: |
-          pytest tests/unit/ \
+          python -u -X faulthandler -c "import faulthandler, os, sys; watchdog_output = os.fdopen(os.dup(sys.stderr.fileno()), 'w'); faulthandler.dump_traceback_later(120, repeat=True, file=watchdog_output); import pytest; raise SystemExit(pytest.main())" tests/unit/ \
             --cov=document_stores \
             --cov-report=xml \
             --cov-report=term-missing \
             --junitxml=test-results/junit-unit.xml \
             -v \
             --durations=10 \
-            -m "not slow and not benchmark"
+            -m "not slow and not benchmark" 2>&1 | tee unit-tests.log
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
@@ -133,7 +137,10 @@ jobs:
         if: always()
         with:
           name: test-results-unit-${{ matrix.os }}-${{ matrix.python-version }}
-          path: test-results/
+          path: |
+            test-results/
+            unit-tests.log
+            native-runtime.log
 
   integration-tests:
     name: Integration Tests

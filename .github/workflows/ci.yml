@@ -84,7 +84,9 @@ jobs:
 
       - name: Verify native dependencies
         run: |
-          python -X faulthandler -c "import torch; import faiss; print('native imports:', torch.__version__, faiss.__version__); assert torch.tensor([1, 2]).sum().item() == 3"
+          python -X faulthandler -m scripts.check_native_runtime
+        env:
+          KMP_DUPLICATE_LIB_OK: 'FALSE'
 
       - name: Run linting
         run: |
@@ -223,6 +225,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Normalize container repository name
+        run: |
+          container_repository="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          printf 'IMAGE_NAME=%s\n' "$container_repository" >> "$GITHUB_ENV"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -257,6 +264,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Normalize container repository name
+        run: |
+          container_repository="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          printf 'IMAGE_NAME=%s\n' "$container_repository" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -305,6 +317,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Normalize container repository name
+        run: |
+          container_repository="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          printf 'IMAGE_NAME=%s\n' "$container_repository" >> "$GITHUB_ENV"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -342,6 +359,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Normalize container repository name
+        run: |
+          container_repository="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          printf 'IMAGE_NAME=%s\n' "$container_repository" >> "$GITHUB_ENV"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -377,6 +399,11 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize container repository name
+        run: |
+          container_repository="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          printf 'IMAGE_NAME=%s\n' "$container_repository" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

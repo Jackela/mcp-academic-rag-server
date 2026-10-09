@@ -22,6 +22,7 @@ from mcp.types import CallToolResult, TextContent, Tool
 # Project imports
 from core.server_context import ServerContext
 from models.document import Document
+from utils.native_runtime import prepare_cli_native_runtime, require_native_runtime
 
 # Configure logging to stderr (MCP requirement)
 logging.basicConfig(
@@ -359,6 +360,7 @@ async def main() -> None:
     try:
         # Validate environment
         validate_environment()
+        require_native_runtime()
 
         # Run server using SDK
         async with stdio_server() as (read_stream, write_stream):
@@ -390,6 +392,10 @@ def cli_main() -> None:
         except Exception as exc:
             parser.exit(1, f"Environment validation failed: {exc}\n")
     else:
+        try:
+            prepare_cli_native_runtime()
+        except Exception as exc:
+            parser.exit(1, f"Native runtime setup failed: {exc}\n")
         asyncio.run(main())
 
 

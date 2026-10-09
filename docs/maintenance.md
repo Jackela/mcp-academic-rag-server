@@ -40,8 +40,10 @@ not certify remote models, vector services, full RAG quality or a production rel
 
 ## Full-suite recovery evidence
 
-On 2026-10-09, the final Python 3.11 candidate passed all default unit, contract,
-integration, component, E2E and performance suites: 640 tests and 22 subtests.
+On 2026-10-09, the frozen Python 3.11 candidate passed all default unit, contract,
+integration, component, E2E and performance suites: 668 tests and 22 subtests.
+All 197 Python source hashes were unchanged between the run's start and end.
+Native startup used the selected Torch OpenMP library with the bypass disabled.
 The five existing intentionally failing CI probe cases remain disabled by their
 own opt-in fixture. FAISS-unavailable is
 now tested explicitly even when FAISS is installed. Native vector updates use
@@ -202,13 +204,59 @@ Per-call generation options reach that execution path; OpenAI native messages us
 Controlled provider fixtures validate retrieval, options, native reply text and explicit provider errors;
 normal browser tests retain the production HTTP and JavaScript flow.
 
+## Darwin native startup
+
+The installed macOS ARM wheels can include separate OpenMP libraries in Torch,
+FAISS and scikit-learn. Actual Torch and FAISS operations aborted with exit 134
+in both source and installed-wheel environments. Import order alone did not fix
+this. Importing scikit-learn implicitly set `KMP_DUPLICATE_LIB_OK=True`, which
+masked the conflict in earlier pytest runs; those runs do not prove safe native
+interoperation. The repair never enables that bypass or modifies wheel binaries.
+
+The five console aliases and `python -m servers.mcp_server_sdk` prepare the
+startup environment after argument parsing and before asynchronous startup.
+On Darwin they replace only the explicitly invoked CLI once, preserving
+`sys.orig_argv`, stdin, stdout, stderr and exit status. The new process places
+its own installed Torch `lib` directory first in `DYLD_LIBRARY_PATH` and fixes
+`KMP_DUPLICATE_LIB_OK=FALSE`. A checked reentry marker prevents recursive
+replacement. `--help` and `--validate-only` retain their existing lightweight behavior.
+Other platforms perform no process replacement or environment changes.
+
+Library imports do not replace a hosting application. An embedded consumer must
+launch its Python process with the environment returned by
+`utils.native_runtime.native_subprocess_environment()`, then call the SDK's
+async `main()`. Applying that mapping to `os.environ` inside an already running
+Python process does not configure dyld's startup search path. The SDK fails
+startup explicitly if its native preconditions cannot be verified. The helper
+does not expose credentials or write a global environment configuration.
+The macOS-only guard queries its own process's `KERN_PROCARGS2`, extracts only
+the two required startup keys after skipping the counted arguments, and checks
+the current settings and already loaded OpenMP paths. Apple marks this kernel
+interface `API_UNSTABLE`; it is verified on the current host, and unsupported
+or malformed responses fail startup explicitly. This checks ordinary startup
+configuration, not a hostile application's deliberate modification of its
+initial process stack. Raw arguments and environment values are never logged.
+
+`scripts/check_native_runtime.py` runs in a cold process with the bypass
+explicitly disabled. It compares Torch matrix products, actual FAISS insertion
+and nearest-neighbor searches, and scikit-learn clustering against independent
+NumPy values. On Darwin it also checks that only the selected Torch OpenMP
+library is loaded. This check is separate from MCP initialization/discovery and
+from external model or OCR requests.
+
 ## Security checks
 
 The old Safety command passed a filename to an output-format enum and failed before scanning.
 The current Safety CLI also requires account-backed service initialization. CI audits the actually
 installed project dependency environment with [PyPA pip-audit](https://github.com/pypa/pip-audit),
 which reports known vulnerabilities as JSON and preserves a nonzero failure status. No vulnerability
-is ignored. Semgrep runs in a separate tools environment to keep its own OpenTelemetry constraints
+is ignored. The factory-import follow-up passed 47 factory/native-storage cases
+including three added negative import cases. These reject unknown backend/module/dependency
+inputs before executing their controlled fixture modules. The three maintained backend modules
+and two optional dependency imports now use literal module names; fallback and unavailable
+Milvus behavior remain intact. Actual Semgrep 1.180.0 auto rules scanned the same 10 source files
+with 290 applicable rules: the previous two blocking variable-import findings are zero after
+the change, with no rule exclusions. Semgrep runs in a separate tools environment to keep its own OpenTelemetry constraints
 from changing the project runtime; `--error` makes findings fail the gate. Bandit scans the declared
 source directories with the repository's existing `pyproject.toml` configuration, avoiding temporary
 virtualenv copies while retaining all configured source checks. Publishing validation runs argument
@@ -232,6 +280,34 @@ An isolated audit of that exact version reproduces the nonzero status; its two r
 share `PYSEC-2026-3447`, fixed in setuptools 83. CI now creates a fresh project environment
 and upgrades its build tools before installing the declared dependencies, rather than
 auditing unrelated or stale hosted-toolcache packages. Failed reports are uploaded as well.
+
+The actual container Trivy scan initially failed before scanning because the
+GitHub repository owner had uppercase letters. Each image-building job now
+normalizes the same repository name before use; five Bash environment-file
+contracts failed before the change and pass afterward. The final Linux ARM
+image's seven installed configuration/query/factory/startup source hashes match
+the frozen source. Its base Python tooling is upgraded separately from the
+isolated runtime. The actual inventories audit four base distributions and 106
+public runtime distributions with zero known advisories. The unpublished project
+and the CPU Torch local-version distribution are explicitly unauditable on PyPI.
+
+Successful Trivy execution does not mean zero findings. The complete final SARIF
+retains 267 Debian advisories with no fixed version reported (2 critical, 53 high,
+109 medium, 102 low, 1 unknown) and six Python advisories from dependency-provided
+third-party SBOM records. Those six records reference historical msgpack,
+setuptools and urllib3 versions without installed metadata paths; the actual
+runtime/base metadata has the patched versions. Neither the SBOM records nor
+the OS findings are deleted or suppressed. Container publication still follows
+the existing explicit release/manual conditions.
+
+The earlier Windows matrix stopped during pytest collection after FAISS loaded;
+no test node had started. Its incomplete jobs are not passing evidence. The
+native verification and unit steps now have five- and twenty-minute failure
+limits, respectively. A C-level repeating traceback watchdog starts before
+pytest import/collection and writes through a duplicated original stderr handle,
+so pytest capture cannot hide a stalled collector's trace. All test selections,
+coverage and the existing 300-second per-test timeout remain intact. Original
+logs are uploaded even on failure; missing JUnit output is not fabricated.
 
 `scripts/check_bandit.py` validates and applies the existing medium severity and medium
 confidence configuration with `-ll/-ii`, preserving the existing B101/B601 skips. It also saves

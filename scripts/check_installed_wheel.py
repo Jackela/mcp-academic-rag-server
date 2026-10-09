@@ -53,7 +53,7 @@ def main():
         ]:
             executable = bin_dir / (name + suffix)
             subprocess.run([str(executable), "--help"], cwd=directory, check=True, capture_output=True)
-        asyncio.run(check_protocol(bin_dir / ("mcp-academic-rag-server" + suffix), directory))
+            asyncio.run(check_protocol(executable, directory))
     print("Installed wheel console and MCP stdio contracts passed")
 
 

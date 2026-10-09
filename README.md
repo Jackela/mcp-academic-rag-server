@@ -34,6 +34,16 @@ HTTP dashboard. `--validate-only` checks the environment and creates `DATA_PATH`
 produce a nonzero exit status. This entry accepts `--help` and `--validate-only`;
 logging is controlled by `LOG_LEVEL`.
 
+On macOS, normal CLI startup replaces its Python process once before serving
+stdio, selecting the installed Torch OpenMP library for Torch, FAISS and
+scikit-learn. It preserves arguments and standard streams and requires
+`KMP_DUPLICATE_LIB_OK=FALSE`. Help and validation-only commands do not need this
+native startup. Embedded SDK consumers must supply
+`utils.native_runtime.native_subprocess_environment()` when launching Python;
+changing these variables after Python starts is insufficient. SDK imports never
+replace their host process. See [native startup](docs/maintenance.md#darwin-native-startup)
+for the embedding contract and checks.
+
 Configure an MCP client with the absolute path of the installed executable and
 provide credentials through its environment configuration. Do not put a live key
 in the repository. Document processing and queries also require the applicable

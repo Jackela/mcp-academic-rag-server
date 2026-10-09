@@ -1,6 +1,7 @@
 """Actual release conditions and Git history retain data without publishing anything."""
 
 import importlib.util
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -67,6 +68,20 @@ def test_actual_publication_conditions(event, target, action, expected):
 
 def _git(directory, *args):
     return subprocess.check_output(["git", "-C", str(directory), *args], text=True).strip()
+
+
+@pytest.mark.parametrize("job", ["docker-build", "security-scan", "deploy-staging", "deploy-production", "release"])
+def test_container_jobs_use_real_lowercase_repository(job, tmp_path):
+    workflow = yaml.load((ROOT / ".github/workflows/ci.yml").read_text(), Loader=yaml.BaseLoader)
+    steps = workflow["jobs"][job]["steps"]
+    normalizers = [step for step in steps if step["name"] == "Normalize container repository name"]
+    assert len(normalizers) == 1
+    env_file = tmp_path / "github-env"
+    env = dict(os.environ, GITHUB_REPOSITORY="Jackela/MCP-Academic-RAG-Server", GITHUB_ENV=env_file.as_posix())
+    subprocess.run(["bash", "-e", "-c", normalizers[0]["run"]], env=env, check=True)
+    assert env_file.read_text() == "IMAGE_NAME=jackela/mcp-academic-rag-server\n"
+    first_image_use = next(index for index, step in enumerate(steps) if "env.IMAGE_NAME" in str(step))
+    assert steps.index(normalizers[0]) < first_image_use
 
 
 def test_first_and_subsequent_release_keep_untrusted_text_as_data(tmp_path, monkeypatch):

@@ -157,13 +157,23 @@ class VectorStoreFactory:
         Returns:
             存储类
         """
+        if self._BACKENDS.get(store_type) != backend_info:
+            raise VectorStoreConfigError(f"不支持的存储类型或模块: {store_type}")
+
         # 检查缓存
         if store_type in self._backend_cache:
             return self._backend_cache[store_type]
 
         try:
-            # 动态导入模块
-            module = importlib.import_module(backend_info["module"])
+            # Only the three maintained backend modules may be loaded.
+            if store_type == "memory":
+                module = importlib.import_module("document_stores.implementations.memory_vector_store")
+            elif store_type == "faiss":
+                module = importlib.import_module("document_stores.implementations.faiss_vector_store")
+            elif store_type == "milvus":
+                module = importlib.import_module("document_stores.implementations.milvus_store")
+            else:
+                raise VectorStoreConfigError(f"不支持的存储类型: {store_type}")
             store_class = getattr(module, backend_info["class_name"])
 
             # 验证类是否继承自BaseVectorStore
@@ -198,7 +208,7 @@ class VectorStoreFactory:
                 elif dep == "pymilvus":
                     importlib.import_module("pymilvus")
                 else:
-                    importlib.import_module(dep)
+                    raise VectorStoreConfigError(f"不支持的依赖: {dep}")
             except ImportError:
                 missing_deps.append(dep)
 
