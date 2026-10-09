@@ -1,5 +1,5 @@
 # CPU runtime for the installed MCP stdio package.
-FROM python:3.11-slim-bookworm AS builder
+FROM python:3.11.17-slim-trixie AS builder
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -16,11 +16,12 @@ RUN python -m pip install --no-cache-dir -r /tmp/runtime-requirements.txt
 COPY . .
 RUN python -m pip install --no-cache-dir --no-deps . && python -m pip check
 
-FROM python:3.11-slim-bookworm AS runtime-validation
+FROM python:3.11.17-slim-trixie AS runtime-validation
 RUN python -m pip install --no-cache-dir --upgrade pip 'setuptools>=83' wheel
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH="/opt/venv/bin:$PATH"
 ENV DATA_PATH=/app/data HAYSTACK_TELEMETRY_ENABLED=False
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 libmagic1 \
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends libgomp1 libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /opt/venv /opt/venv
 RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /bin/bash appuser
@@ -43,7 +44,8 @@ USER appuser
 FROM runtime-validation AS production
 USER root
 RUN /usr/local/bin/python -m pip uninstall -y pip \
-    && /opt/venv/bin/python -m pip uninstall -y pip
+    && /opt/venv/bin/python -m pip uninstall -y pip \
+    && /usr/local/bin/python -c "import pathlib, shutil, sysconfig; shutil.rmtree(pathlib.Path(sysconfig.get_path('stdlib')) / 'ensurepip')"
 USER appuser
 
 LABEL maintainer="Academic RAG Team"

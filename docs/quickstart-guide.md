@@ -4,7 +4,7 @@ Get up and running with the MCP Academic RAG Server in under 10 minutes.
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.10+
 - OpenAI API key
 - Claude Desktop (for MCP integration)
 
