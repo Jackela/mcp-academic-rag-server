@@ -233,6 +233,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Build dependency validation image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runtime-validation
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:dependency-validation
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
@@ -251,7 +262,14 @@ jobs:
       - name: Test installed Docker entry and real stdio
         run: |
           python -m pip install 'mcp>=1,<2'
-          python scripts/check_container.py "${{ env.IMAGE_NAME }}:test"
+          python scripts/check_container.py "${{ env.IMAGE_NAME }}:test" --dependency-image "${{ env.IMAGE_NAME }}:dependency-validation" --receipt container-runtime-receipt.json
+
+      - name: Upload actual container inventories
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-runtime-evidence
+          path: container-runtime-receipt.json
 
   security-scan:
     name: Security Scan
@@ -293,6 +311,13 @@ jobs:
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
+
+      - name: Preserve complete unsuppressed Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-trivy-report
+          path: trivy-results.sarif
 
   deploy-staging:
     name: Publish Staging Image

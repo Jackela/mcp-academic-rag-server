@@ -16,7 +16,7 @@ RUN python -m pip install --no-cache-dir -r /tmp/runtime-requirements.txt
 COPY . .
 RUN python -m pip install --no-cache-dir --no-deps . && python -m pip check
 
-FROM python:3.11-slim-bookworm AS production
+FROM python:3.11-slim-bookworm AS runtime-validation
 RUN python -m pip install --no-cache-dir --upgrade pip 'setuptools>=83' wheel
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH="/opt/venv/bin:$PATH"
 ENV DATA_PATH=/app/data HAYSTACK_TELEMETRY_ENABLED=False
@@ -34,6 +34,17 @@ USER appuser
 # Optional PDF rendering requires a Chromium installation, as on other hosts.
 HEALTHCHECK NONE
 ENTRYPOINT ["mcp-academic-rag-server"]
+
+# Both installed environments are checked before removing their build-only installer.
+USER root
+RUN /usr/local/bin/python -m pip check && /opt/venv/bin/python -m pip check
+USER appuser
+
+FROM runtime-validation AS production
+USER root
+RUN /usr/local/bin/python -m pip uninstall -y pip \
+    && /opt/venv/bin/python -m pip uninstall -y pip
+USER appuser
 
 LABEL maintainer="Academic RAG Team"
 LABEL version="1.0.0"
