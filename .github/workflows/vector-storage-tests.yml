@@ -109,7 +109,11 @@ jobs:
           python -X faulthandler -c "import torch; import faiss; print('native imports:', torch.__version__, faiss.__version__); assert torch.tensor([1, 2]).sum().item() == 3"
           python -X faulthandler -c "import pytest_benchmark.plugin; import pytest_html.plugin; import torch; print('plugin imports:', torch.__version__)"
 
+      - name: Diagnose pytest startup against the unmodified baseline
+        run: python scripts/diagnose_pytest_startup.py
+
       - name: Run unit tests
+        if: always()
         run: |
           pytest tests/unit/ \
             --cov=document_stores \
