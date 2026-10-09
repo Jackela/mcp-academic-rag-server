@@ -233,7 +233,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Build dependency validation image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runtime-validation
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:dependency-validation
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build Docker image
+        id: runtime_image_build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -249,9 +261,18 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Test installed Docker entry and real stdio
+        env:
+          CONTAINER_IMAGE_MANIFEST: ${{ steps.runtime_image_build.outputs.digest }}
         run: |
           python -m pip install 'mcp>=1,<2'
-          python scripts/check_container.py "${{ env.IMAGE_NAME }}:test"
+          python scripts/check_container.py "${{ env.IMAGE_NAME }}:test" --dependency-image "${{ env.IMAGE_NAME }}:dependency-validation" --receipt container-runtime-receipt.json
+
+      - name: Upload actual container inventories
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-runtime-evidence
+          path: container-runtime-receipt.json
 
   security-scan:
     name: Security Scan
@@ -273,13 +294,43 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Build dependency validation image for scan verification
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runtime-validation
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:scan-dependency-validation
+          cache-from: type=gha
+
       - name: Build image for scanning
+        id: scan_image_build
         uses: docker/build-push-action@v5
         with:
           context: .
           load: true
           tags: ${{ env.IMAGE_NAME }}:scan
           cache-from: type=gha
+
+      - name: Set up Python for scan-image MCP verification
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify the actual image that Trivy scans
+        env:
+          CONTAINER_IMAGE_MANIFEST: ${{ steps.scan_image_build.outputs.digest }}
+        run: |
+          python -m pip install 'mcp>=1,<2'
+          python scripts/check_container.py "${{ env.IMAGE_NAME }}:scan" --dependency-image "${{ env.IMAGE_NAME }}:scan-dependency-validation" --receipt scan-runtime-receipt.json
+
+      - name: Preserve actual scanned-image inventories
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scanned-container-runtime-evidence
+          path: scan-runtime-receipt.json
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
@@ -293,6 +344,13 @@ jobs:
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
+
+      - name: Preserve complete unsuppressed Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-trivy-report
+          path: trivy-results.sarif
 
   deploy-staging:
     name: Publish Staging Image

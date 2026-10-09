@@ -81,7 +81,7 @@ whose editable project reference could not resolve. Its floating Debian image al
 obsolete system packages, and its runtime referenced missing root `mcp_server.py` and
 `health_check.py` files. `EXPOSE 8000` did not create an HTTP server.
 
-The maintained image uses Python 3.11 on Debian Bookworm, selects official CPU Torch wheels,
+The maintained image uses Python 3.11.17 on Debian Trixie, selects official CPU Torch wheels,
 and runs `mcp-academic-rag-server` as a non-root user. No HTTP health check is declared.
 Startup environment validation checks key syntax and creates the configured data directory;
 it does not verify OCR, model availability or answer quality. Default browser rendering is
@@ -89,8 +89,9 @@ not installed in the image: hosts that need PDF rendering install Chromium and s
 dependencies in a derived image. The existing explicit missing-browser error remains active.
 
 ```bash
+docker build --target runtime-validation -t academic-rag:dependencies .
 docker build -t academic-rag:local .
-python scripts/check_container.py academic-rag:local
+python scripts/check_container.py academic-rag:local --dependency-image academic-rag:dependencies --receipt container-runtime-receipt.json
 ```
 
 This check uses an actual MCP `ClientSession` against a unique, owned `docker run -i`
@@ -332,14 +333,45 @@ isolated runtime. The actual inventories audit four base distributions and 106
 public runtime distributions with zero known advisories. The unpublished project
 and the CPU Torch local-version distribution are explicitly unauditable on PyPI.
 
-Successful Trivy execution does not mean zero findings. The complete final SARIF
-retains 267 Debian advisories with no fixed version reported (2 critical, 53 high,
-109 medium, 102 low, 1 unknown) and six Python advisories from dependency-provided
-third-party SBOM records. Those six records reference historical msgpack,
-setuptools and urllib3 versions without installed metadata paths; the actual
-runtime/base metadata has the patched versions. Neither the SBOM records nor
-the OS findings are deleted or suppressed. Container publication still follows
-the existing explicit release/manual conditions.
+Successful Trivy execution does not mean zero findings. The 193 candidate's scan
+retained 281 Debian records without a reported fix and six Python records. The six
+versions match `pip/_vendor/bom.cdx.json` in the official pip 26.2.1 wheel: msgpack
+1.1.2, setuptools 70.3.0 and urllib3 2.7.0. pip includes executable vendored urllib3;
+upgrading the top-level distribution does not update that copy. Its setuptools
+subset is pkg_resources, and its msgpack copy is pure Python; applicability must
+be assessed per advisory rather than dismissing all six records as stale metadata.
+
+The base uses the official `python:3.11.17-slim-trixie` tag in both stages.
+The runtime applies available upgrades from the same Trixie package sources before
+installing libgomp/libmagic; it adds no mixed-release or external package repository.
+Debian records SQLite CVE-2025-7458 as vulnerable in Bookworm and fixed in Trixie;
+this base change must still be verified against the actual final package inventory
+and complete scan. It does not imply all OS findings disappear. The container check
+loads the real system libmagic and records its native version, then performs SQLite
+file transactions and rollback, configuration save/reload,
+real in-memory document write/read/search/delete and chat-session save/recovery.
+No project SQLite document-store implementation or external model result is claimed.
+References: [official Python tags](https://github.com/docker-library/official-images/blob/master/library/python)
+and [Debian SQLite advisory](https://security-tracker.debian.org/tracker/CVE-2025-7458).
+
+The `runtime-validation` image retains the installer and runs real `pip check` in
+both Python installations. Production derives from that stage and uninstalls the
+complete pip distribution from both environments, including vendored code and its
+BOM, then removes the standard-library ensurepip installer package and its bundled
+pip wheel. The first actual cloud image inspection found a retained pip 24.0 wheel
+at `/usr/local/lib/python3.11/ensurepip/_bundled/`; checking only site-packages would
+have missed it. Runtime setuptools and wheel remain installed. The actual container checker
+repeats both pre-cleanup dependency checks, verifies pip is physically absent from
+both final site-packages directories and the shared standard-library ensurepip
+directory/import path, then runs the existing native and official
+MCP stdio contracts without networking. CI preserves both inventories and the
+complete unsuppressed Trivy SARIF. The security job repeats the actual runtime
+contracts on its own scan image before Trivy runs, binding the receipt image ID
+to that scan; another job's independently built image is not substituted as evidence. Installing packages inside the finished image
+requires a derived build stage with an installer; bootstrapping pip through
+ensurepip is also unavailable. The maintained runtime itself does not install packages. Results remain bound to the exact candidate image and
+must be recorded separately from this source-level design. Container publication
+retains its existing explicit release/manual conditions.
 
 The earlier Windows matrix stopped during pytest collection after FAISS loaded;
 no test node had started. Its incomplete jobs are not passing evidence. The

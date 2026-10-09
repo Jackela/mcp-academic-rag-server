@@ -83,13 +83,15 @@ Missing browsers and unsupported legacy PDF options are explicit errors.
 The Docker image runs this same installed MCP stdio entry:
 
 ```bash
+docker build --target runtime-validation -t academic-rag:dependencies .
 docker build -t academic-rag:local .
+python scripts/check_container.py academic-rag:local --dependency-image academic-rag:dependencies
 docker run --rm -i --network none -e OPENAI_API_KEY academic-rag:local
 ```
 
 Connect the container through an MCP stdio client. It has no HTTP listener or port
-8000 health endpoint. `scripts/check_container.py academic-rag:local` verifies the
-installed entry and real protocol with a fixture key and networking disabled. The
+8000 health endpoint. The container checker verifies actual dependencies, installer
+removal, the installed entry and real protocol with a fixture key and networking disabled. The
 CPU image uses the official PyTorch CPU wheels. Optional PDF rendering requires
 installing Chromium and its system dependencies in a derived image; missing browsers
 fail explicitly. The historical `docker-compose.yml` infrastructure is not the
