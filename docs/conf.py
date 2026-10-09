@@ -203,13 +203,35 @@ def setup(app):
 
 # -- LaTeX output configuration ----------------------------------------------
 
+latex_engine = "lualatex"
+
 latex_elements = {
     "papersize": "letterpaper",
     "pointsize": "10pt",
+    # The Markdown includes Chinese, Unicode status symbols and literal code diagrams.
+    # LuaHBTeX shapes the emoji fallback without rewriting those source characters.
+    "fontpkg": r"""
+\usepackage{luatexja-fontspec}
+% Symbols use alphabet-font fallback; they do not have Japanese JFM metrics.
+\ltjdefcharrange{100}{"2000-"2BFF,"FE00-"FE0F,"1F000-"1FAFF}
+\ltjsetparameter{jacharrange={-100}}
+\directlua{
+  luaotfload.add_fallback("docunicode", {
+    "NotoSansMonoCJKSC:mode=node;",
+    "Symbola:mode=node;",
+    "NotoColorEmoji:mode=harf;"
+  })
+}
+\defaultfontfeatures{RawFeature={fallback=docunicode}}
+\setmainfont{XCharter}
+\setsansfont{Lato}
+\setmonofont{Inconsolatazi4}
+\setmainjfont{Noto Serif CJK SC}
+\setsansjfont{Noto Sans CJK SC}
+\setmonojfont{Noto Sans Mono CJK SC}
+""",
     "preamble": r"""
-\usepackage{charter}
-\usepackage[defaultsans]{lato}
-\usepackage{inconsolata}
+\tracinglostchars=3
 """,
     "fncychap": "\\usepackage[Bjornstrup]{fncychap}",
     "printindex": "\\footnotesize\\raggedright\\printindex",

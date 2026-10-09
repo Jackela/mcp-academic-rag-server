@@ -4,6 +4,7 @@ on:
   push:
     branches: [ main, develop ]
     paths: 
+      - '.github/workflows/docs.yml'
       - 'docs/**'
       - 'core/**'
       - 'connectors/**'
@@ -14,6 +15,7 @@ on:
   pull_request:
     branches: [ main ]
     paths:
+      - '.github/workflows/docs.yml'
       - 'docs/**'
       - '*.py'
   workflow_dispatch:
@@ -70,25 +72,42 @@ jobs:
         sphinx-build -b html . _build/html -W --keep-going
     
     - name: Build PDF documentation
-      if: github.ref == 'refs/heads/main'
       run: |
         cd docs
         # Install LaTeX dependencies
         sudo apt-get update
-        sudo apt-get install -y texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra
+        sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=30 latexmk xindy tex-gyre texlive-luatex texlive-lang-japanese texlive-latex-recommended texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra fonts-noto-cjk fonts-noto-color-emoji fonts-symbola poppler-utils
         
         # Build PDF
         sphinx-build -b latex . _build/latex
         cd _build/latex
-        make all-pdf
+        make all-pdf LATEXOPTS='-interaction=nonstopmode -halt-on-error'
+        # A successful compiler exit must also preserve the source's Unicode content.
+        pdftotext -layout MCPAcademicRAGServer.pdf MCPAcademicRAGServer.txt
+        python - <<'PY'
+        from pathlib import Path
+        log = Path("MCPAcademicRAGServer.log").read_text()
+        assert "Missing character:" not in log, "PDF contains missing glyphs"
+        text = Path("MCPAcademicRAGServer.txt").read_text()
+        compact = "".join(text.split())
+        for required in (
+            "核心架构", "PRD文档解析器", "├──", "❌None",
+            "python-c\"importmcp,haystack;print('✅Dependenciesinstalled')\"",
+        ):
+            assert required in compact, f"PDF lost source content: {required}"
+        print("PDF preserves Chinese, status symbols and literal code content")
+        PY
     
     - name: Upload documentation artifacts
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: documentation
         path: |
           docs/_build/html/
           docs/_build/latex/*.pdf
+          docs/_build/latex/*.txt
+          docs/_build/latex/*.log
         retention-days: 30
     
     - name: Setup Pages
