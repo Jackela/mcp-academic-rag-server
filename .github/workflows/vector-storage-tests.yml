@@ -33,9 +33,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.10'
           cache: 'pip'
 
       - name: Install dependencies
@@ -63,13 +63,13 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.10', '3.11', '3.12']
         exclude:
           # Reduce test matrix for faster runs
           - os: windows-latest
-            python-version: '3.9'
+            python-version: '3.10'
           - os: macos-latest
-            python-version: '3.9'
+            python-version: '3.10'
           - os: macos-latest
             python-version: '3.10'
 
@@ -78,7 +78,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
@@ -98,7 +98,7 @@ jobs:
       - name: Install optional dependencies
         run: |
           # Install FAISS for testing
-          pip install faiss-cpu || echo "FAISS installation failed, tests will be skipped"
+          pip install faiss-cpu
           # Note: Milvus requires Docker, skip in CI
 
       - name: Run unit tests
@@ -115,7 +115,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
           flags: unit
@@ -123,7 +123,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results-unit-${{ matrix.os }}-${{ matrix.python-version }}
@@ -143,7 +143,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
@@ -169,7 +169,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
           flags: integration
@@ -177,7 +177,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results-integration-${{ matrix.python-version }}
@@ -194,7 +194,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -216,7 +216,7 @@ jobs:
             --timeout=600
 
       - name: Upload performance results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: performance-results
           path: test-results/
@@ -229,7 +229,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -252,7 +252,7 @@ jobs:
             document_stores/ utils/vector_migration.py || true
 
       - name: Upload security reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-reports
           path: |
@@ -281,7 +281,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -307,7 +307,7 @@ jobs:
           MILVUS_PORT: 19530
 
       - name: Upload Docker test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results-docker
@@ -321,35 +321,35 @@ jobs:
 
     steps:
       - name: Download all test results
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: all-test-results/
 
       - name: Publish test summary
         run: |
-          echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
           
           if [ "${{ needs.unit-tests.result }}" == "success" ]; then
-            echo "✅ Unit Tests: Passed" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Unit Tests: Passed" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "❌ Unit Tests: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Unit Tests: Failed" >> "$GITHUB_STEP_SUMMARY"
           fi
           
           if [ "${{ needs.integration-tests.result }}" == "success" ]; then
-            echo "✅ Integration Tests: Passed" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Integration Tests: Passed" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "❌ Integration Tests: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Integration Tests: Failed" >> "$GITHUB_STEP_SUMMARY"
           fi
           
           if [ "${{ needs.performance-tests.result }}" == "success" ]; then
-            echo "✅ Performance Tests: Passed" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Performance Tests: Passed" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "⚠️ Performance Tests: ${{ needs.performance-tests.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Performance Tests: ${{ needs.performance-tests.result }}" >> "$GITHUB_STEP_SUMMARY"
           fi
           
           if [ "${{ needs.security-scan.result }}" == "success" ]; then
-            echo "✅ Security Scan: Passed" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Security Scan: Passed" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "⚠️ Security Scan: ${{ needs.security-scan.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Security Scan: ${{ needs.security-scan.result }}" >> "$GITHUB_STEP_SUMMARY"
           fi

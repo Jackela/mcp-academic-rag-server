@@ -2,7 +2,7 @@
 # Total: ~15 packages (down from 70+)
 
 # Core MCP Protocol
-mcp>=1.0.0
+mcp>=1.0.0,<2
 
 # Document Processing (essential only)
 PyPDF2>=3.0.0

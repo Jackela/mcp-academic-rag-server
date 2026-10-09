@@ -283,3 +283,6 @@ health-check-*.json
 *.orig
 .env.*
 !.env.example
+# Isolated contract/wheel validation environments
+.venv*/
+.wheel-smoke/

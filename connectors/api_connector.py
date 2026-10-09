@@ -70,7 +70,7 @@ class APIConnector(ABC):
                 response = requests.request(
                     method=method,
                     url=url,
-                    headers=self.headers,
+                    headers={k: v for k, v in self.headers.items() if not files or k.lower() != "content-type"},
                     params=params,
                     data=data,
                     files=files,
@@ -141,7 +141,7 @@ class MistralAPIConnector(APIConnector):
         Returns:
             dict: OCR处理结果
         """
-        endpoint = "ocr/process"
+        endpoint = "ocr"
         payload = {
             "model": model,
             "document": {
@@ -201,20 +201,15 @@ class MistralAPIConnector(APIConnector):
         Returns:
             dict: 上传响应
         """
-        endpoint = "files/upload"
+        endpoint = "files"
         
         try:
             file_name = os.path.basename(file_path)
-            files = {
-                "file": (file_name, open(file_path, "rb"), "application/octet-stream")
-            }
-            
-            data = {
-                "purpose": purpose
-            }
-            
+            data = {"purpose": purpose}
             logger.info(f"开始上传文件: {file_name}")
-            response = self.make_request("POST", endpoint, data=data, files=files)
+            with open(file_path, "rb") as handle:
+                files = {"file": (file_name, handle, "application/octet-stream")}
+                response = self.make_request("POST", endpoint, data=data, files=files)
             logger.info(f"文件上传成功: {file_name}")
             return response
             
@@ -232,7 +227,7 @@ class MistralAPIConnector(APIConnector):
         Returns:
             dict: 包含签名URL的响应
         """
-        endpoint = f"files/get_signed_url/{file_id}"
+        endpoint = f"files/{file_id}/url"
         
         logger.info(f"获取文件签名URL: {file_id}")
         return self.make_request("GET", endpoint)

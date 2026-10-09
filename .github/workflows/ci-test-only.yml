@@ -1,86 +1,34 @@
 name: Test Only Pipeline
-
 on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
   workflow_dispatch:
-
-env:
-  PYTHON_VERSION: '3.11'
-
+permissions:
+  contents: read
 jobs:
-  test-basic:
-    name: Basic Test Suite
+  package-contracts:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11']
-
+        python-version: ['3.10', '3.11', '3.12']
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-
-      - name: Install basic dependencies
+      - name: Build distributable wheel
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-cov pytest-mock pytest-asyncio
-          pip install python-dotenv pydantic jsonschema loguru
-          pip install anthropic arxiv PyMuPDF || echo "Optional dependencies failed"
-
-      - name: Create test configuration
+          python -m pip install build
+          python -m build --wheel
+      - name: Install wheel into isolated environment
         run: |
-          mkdir -p config
-          cp config/config.json.example config/config.json
-
-      - name: Run simple standalone test
+          python -m venv .venv-wheel
+          .venv-wheel/bin/python -m pip install dist/*.whl
+      - name: Validate installed entry points and real stdio
+        run: .venv-wheel/bin/python scripts/check_installed_wheel.py
+      - name: Run MCP and OCR contracts without external services
         run: |
-          python test_simple.py
-
-      - name: Run simple test runner
-        run: |
-          python tests/simple_test_runner.py
-
-      - name: Test PyTest without conftest
-        run: |
-          cd tests && python -m pytest test_placeholder.py::test_ci_cd_placeholder -v --tb=short --confcutdir=/tmp || echo "Pytest with conftest failed as expected"
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-
-      - name: Run isolated unit tests
-        run: |
-          python -c "
-          import sys, os
-          sys.path.insert(0, '.')
-          
-          # Simple unit tests
-          def test_basic_functionality():
-              assert 1 + 1 == 2
-              print('✅ Basic math works')
-              
-          def test_python_imports():
-              import json, os, sys
-              assert all([json, os, sys])
-              print('✅ Basic imports work')
-              
-          def test_file_operations():
-              import tempfile
-              with tempfile.NamedTemporaryFile() as f:
-                  f.write(b'test')
-                  f.flush()
-                  assert os.path.exists(f.name)
-              print('✅ File operations work')
-          
-          # Run tests
-          try:
-              test_basic_functionality()
-              test_python_imports() 
-              test_file_operations()
-              print('🎉 All isolated unit tests passed!')
-          except Exception as e:
-              print(f'❌ Test failed: {e}')
-              sys.exit(1)
-          "
+          .venv-wheel/bin/python -m unittest discover -s tests/contracts -v
+          .venv-wheel/bin/python -m unittest discover -s tests/unit -p test_ocr_processor.py -v

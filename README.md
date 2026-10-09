@@ -1,18 +1,18 @@
-# MCP Academic RAG Server (Enterprise Edition)
+# MCP Academic RAG Server
 
-[![MCP Compatible](https://img.shields.io/badge/MCP-1.0-purple.svg)](https://modelcontextprotocol.io)
-[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Enterprise Ready](https://img.shields.io/badge/enterprise-ready-blue.svg)](#enterprise-features)
-[![Monitoring](https://img.shields.io/badge/monitoring-24%2F7-green.svg)](#monitoring)
-[![Status](https://img.shields.io/badge/status-enterprise_ready-success.svg)](#enterprise-features)
+An AI-assisted experimental MCP server for academic document OCR and RAG.
+The maintained console entry point is `servers.mcp_server_sdk:cli_main`.
+All published console aliases delegate to that same SDK implementation; older
+server source variants remain for reference and are not separate acceptance targets.
 
-**Enterprise-grade Model Context Protocol (MCP) server** for academic document processing and retrieval-augmented generation. This production-ready system provides comprehensive document analysis, intelligent querying, real-time monitoring, and enterprise-level configuration management.
+Install a wheel with Python 3.10 or newer. This implementation uses the MCP SDK
+v1 handler contract (`mcp>=1,<2`); SDK v2 changed that API and needs an explicit migration.
+Packaging and offline contracts do not establish production readiness, live OCR
+quality, RAG answer quality or current whole-project coverage.
 
-**🎯 Status**: Enterprise Ready - Comprehensive enterprise enhancements completed  
-**🚀 Quality Score**: 4.8/5.0 (improved from 4.2/5.0)  
-**📋 Architecture**: Enterprise-grade with monitoring, configuration management, and testing  
-**⚡ Installation**: Production-ready with automated deployment and monitoring
+Repeatable maintenance checks are documented in [docs/maintenance.md](docs/maintenance.md).
+Existing MIT metadata is preserved; a repository LICENSE file has not been established
+by this repair, so metadata alone is not treated as proof of a license grant.
 
 ## 🚀 Enterprise Features
 
@@ -37,7 +37,7 @@
 - **Performance Budgets**: Automated threshold monitoring with intelligent correlation
 
 ### 🧪 Enterprise Testing Infrastructure
-- **85%+ Test Coverage**: Comprehensive unit, integration, and E2E testing
+- **Test infrastructure**: Unit, integration and E2E suites exist; current whole-project coverage is not established
 - **Automated CI/CD**: GitHub Actions with quality gates and automated deployment
 - **Resource Management**: Advanced cleanup mechanisms and test isolation
 - **Performance Benchmarking**: Automated performance regression detection
@@ -176,7 +176,7 @@ uvx --from git+https://github.com/Jackela/mcp-academic-rag-server mcp-academic-r
 
 ```bash
 # Clone and setup
-git clone https://github.com/yourusername/mcp-academic-rag-server
+git clone https://github.com/Jackela/mcp-academic-rag-server
 cd mcp-academic-rag-server
 
 # Guided setup (recommended for beginners)
@@ -215,7 +215,7 @@ docker-compose logs -f mcp-academic-rag-server
 
 ```bash
 # Development install
-git clone https://github.com/yourusername/mcp-academic-rag-server
+git clone https://github.com/Jackela/mcp-academic-rag-server
 cd mcp-academic-rag-server
 pip install -e ".[dev]"
 
@@ -579,10 +579,10 @@ uvx --version
 curl -I https://github.com
 
 # Use SSH instead of HTTPS
-uvx --from git+ssh://git@github.com/yourusername/mcp-academic-rag-server mcp-academic-rag-server
+uvx --from git+ssh://git@github.com/Jackela/mcp-academic-rag-server mcp-academic-rag-server
 
 # Or clone locally first
-git clone https://github.com/yourusername/mcp-academic-rag-server
+git clone https://github.com/Jackela/mcp-academic-rag-server
 cd mcp-academic-rag-server
 uvx install .
 ```
@@ -643,7 +643,7 @@ Enable detailed logging for troubleshooting:
 1. **Check logs**: `~/Library/Logs/Claude/mcp-server-academic-rag.log`
 2. **Run validation**: `python validate_mcp.py`
 3. **Test manually**: `uvx --from git+https://... --validate-only`
-4. **Create issue**: [GitHub Issues](https://github.com/yourusername/mcp-academic-rag-server/issues)
+4. **Create issue**: [GitHub Issues](https://github.com/Jackela/mcp-academic-rag-server/issues)
 
 ## 🚀 Production Deployment
 
@@ -874,29 +874,12 @@ The MCP Academic RAG Server follows a **layered, modular architecture** designed
          └─────────────────────────────────────────────┘
 ```
 
-### Quality Metrics
+### Validation status
 
-| Category | Score | Improvement |
-|----------|-------|-------------|
-| **Overall Quality** | **4.8/5.0** | +14.3% |
-| Code Organization | 4.9/5.0 | +1.1 |
-| Configuration Management | 4.8/5.0 | +1.3 |
-| Testing Coverage | 4.7/5.0 | +0.7 |
-| Monitoring & Observability | 4.8/5.0 | +2.3 |
-| Documentation Quality | 4.7/5.0 | +0.5 |
-| Performance | 4.8/5.0 | +0.3 |
-| Security | 4.9/5.0 | +0.1 |
-
-### Enterprise Readiness
-
-✅ **Production Ready Checklist**
-- [x] Enterprise-level configuration management
-- [x] Comprehensive monitoring and alerting
-- [x] Automated testing with 85%+ coverage
-- [x] Professional documentation (90% API coverage)
-- [x] Security validation and compliance
-- [x] Performance optimization and monitoring
-- [x] Disaster recovery and backup capabilities
+Current installation and MCP/OCR contract evidence belongs to CI runs and the PR
+for this revision. Historical self-assessed quality scores and readiness checklists
+are not current acceptance evidence. The complete legacy workflows still run their
+broader checks, and any failures must be investigated before merging or publishing.
 
 ## 📚 Documentation
 

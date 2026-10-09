@@ -177,7 +177,7 @@ The server works with **zero configuration** out of the box. Optional configurat
 
 ```bash
 # Install for development
-git clone https://github.com/yourusername/mcp-academic-rag-server.git
+git clone https://github.com/Jackela/mcp-academic-rag-server.git
 cd mcp-academic-rag-server
 uvx --editable . mcp-academic-rag-server
 
@@ -264,8 +264,8 @@ Built with:
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/mcp-academic-rag-server/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/mcp-academic-rag-server/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Jackela/mcp-academic-rag-server/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Jackela/mcp-academic-rag-server/discussions)
 - **Documentation**: [Setup Guide](SETUP_SIMPLIFIED.md) | [Roadmap](ROADMAP_REFOCUSED.md)
 
 ---

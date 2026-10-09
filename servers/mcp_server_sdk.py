@@ -5,6 +5,7 @@ Official SDK implementation for better stability and development experience
 """
 
 import asyncio
+import argparse
 import os
 import sys
 import logging
@@ -359,14 +360,15 @@ async def main():
 
 def cli_main():
     """CLI entry point for uvx installation"""
-    if len(sys.argv) > 1 and sys.argv[1] == "--validate-only":
+    parser = argparse.ArgumentParser(description="MCP academic document OCR and RAG server (stdio)")
+    parser.add_argument("--validate-only", action="store_true", help="Validate environment without starting stdio")
+    args = parser.parse_args()
+    if args.validate_only:
         try:
             validate_environment()
-            print("✅ SDK version environment validation passed", file=sys.stderr)
-            sys.exit(0)
-        except Exception as e:
-            print(f"❌ SDK version validation failed: {e}", file=sys.stderr)
-            sys.exit(1)
+            print("SDK environment validation passed", file=sys.stderr)
+        except Exception as exc:
+            parser.exit(1, f"Environment validation failed: {exc}\n")
     else:
         asyncio.run(main())
 

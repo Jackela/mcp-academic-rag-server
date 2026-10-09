@@ -48,6 +48,7 @@ class OCRProcessor(BaseProcessor):
         
         # 合并配置
         self.config = {**self.default_config, **(config or {})}
+        self.config["api_config"] = {**self.default_config["api_config"], **(config or {}).get("api_config", {})}
         
         # 创建API连接器
         try:
@@ -116,12 +117,15 @@ class OCRProcessor(BaseProcessor):
             # 进行OCR处理
             ocr_results = self._process_ocr(input_files)
             
-            if not ocr_results:
-                return ProcessResult.error_result("OCR处理失败，未获取到结果")
+            if not ocr_results or len(ocr_results) != len(input_files):
+                return ProcessResult.error_result("OCR处理失败，存在未识别的文件")
             
             # 合并多页OCR结果
             combined_text, combined_text_by_page = self._combine_ocr_results(ocr_results)
             
+            if not combined_text.strip():
+                return ProcessResult.error_result("OCR返回空文本")
+
             # 记录处理结果
             result_data = {
                 "text": combined_text,
@@ -287,7 +291,7 @@ class OCRProcessor(BaseProcessor):
                 # 多页文档处理
                 if 'pages' in result:
                     for page in result['pages']:
-                        page_text = page.get('text', '')
+                        page_text = page.get('markdown', page.get('text', ''))
                         if page_text:
                             combined_text += page_text + "\n\n"
                             text_by_page.append(page_text)

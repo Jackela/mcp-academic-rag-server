@@ -3,15 +3,17 @@ Server Context - Dependency Injection Container
 Manages all server dependencies and eliminates global state
 """
 
-from typing import Optional, List
+from __future__ import annotations
+
+from typing import Optional, List, TYPE_CHECKING
 import logging
 from pathlib import Path
 
 from core.config_manager import ConfigManager
 from core.pipeline import Pipeline
-from rag.haystack_pipeline import RAGPipeline
-from rag.chat_session import ChatSessionManager
-from connectors.haystack_llm_connector import HaystackLLMConnector
+if TYPE_CHECKING:
+    from rag.haystack_pipeline import RAGPipeline
+    from rag.chat_session import ChatSessionManager
 from processors.base_processor import IProcessor
 
 
@@ -54,6 +56,7 @@ class ServerContext:
     def session_manager(self) -> ChatSessionManager:
         """Get the session manager, creating it if needed."""
         if self._session_manager is None:
+            from rag.chat_session import ChatSessionManager
             self._session_manager = ChatSessionManager()
         return self._session_manager
     

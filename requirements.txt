@@ -2,7 +2,7 @@
 # Total: ~20 packages (down from 70+)
 
 # Core MCP Protocol
-mcp>=1.0.0
+mcp>=1.0.0,<2
 
 # Document Processing (essential only)
 PyPDF2>=3.0.0
@@ -48,3 +48,8 @@ flake8>=6.0.0
 mypy>=1.5.0
 bandit>=1.7.0
 safety>=2.3.0
+# Imported by the core document pipeline
+aiofiles>=24.1.0
+psutil>=6.0.0
+pytest-timeout>=2.3.0
+pytest-env>=1.1.0
