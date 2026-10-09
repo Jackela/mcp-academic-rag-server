@@ -28,20 +28,12 @@ jobs:
       matrix:
         python-version: ['3.10', '3.11']
 
-    services:
-      milvus:
-        image: milvusdb/milvus:v2.3.4
-        ports:
-          - 19530:19530
-        options: >-
-          --health-cmd "curl -f http://localhost:9091/healthz || exit 1"
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 5
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Start real Milvus dependencies
+        run: docker compose -f .github/milvus-ci.yml up -d --wait --wait-timeout 180
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -111,6 +103,10 @@ jobs:
           python -m pytest tests/component/ -v --cov-append --cov=. --cov-report=xml
         env:
           PYTHONPATH: ${{ github.workspace }}
+
+      - name: Stop Milvus dependencies
+        if: always()
+        run: docker compose -f .github/milvus-ci.yml down -v
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
