@@ -161,3 +161,20 @@ all severities/confidences to `bandit-report-all.json`; low findings remain visi
 or incomplete scan fails. The former command did not apply configured thresholds and scanned
 temporary virtualenv copies. Actual clean, low-informational and high-failing fixture sources
 verify scanner statuses; no finding is converted to success with a shell fallback.
+
+## Retained and retired server entry contracts
+
+The config-center example uses its validated effective `ConfigManager` snapshot through
+`ServerContext(config_manager=...)`, then delegates processing/query execution to the
+maintained SDK helpers with explicit context injection. Its old content/id/embedding input
+schema referred to methods and constructors that do not exist; current document tools take
+`file_path`, preserve model-stage metadata and share the actual native RAG store/session.
+The retained debug servers use one JSON line transport, terminate on stdin EOF, reject
+malformed JSON/requests/params, ignore notifications and retain the current request ID on failure.
+Empty PDF text does not become an extraction success or fictitious OCR fallback.
+
+`tests/temp_root_tests/test_mcp.py` was retired: it hardcoded an inaccessible E: drive path
+and awaited a response to initialization notifications, which can hang. The actual official
+MCP stdio client contract lives in `tests/e2e/test_rag_workflow.py`; it verifies discovery,
+processing and registered logical failures with native `CallToolResult.isError=True`.
+Helper list APIs remain compatible, and success after a controlled failure is checked.

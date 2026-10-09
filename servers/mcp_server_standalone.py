@@ -4,15 +4,19 @@ Standalone MCP Academic RAG Server - 渐进式增强版本
 重用现有架构但提供独立的依赖管理
 """
 
+from __future__ import annotations
+
 import asyncio
-import json
 import logging
 import os
 import sys
 import time
-import uuid
+from importlib import import_module
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from models.document import Document
+from servers.jsonrpc_stdio import serve_requests
 
 # 配置日志到stderr (MCP要求) - 必须在其他模块引用logger之前
 logging.basicConfig(
@@ -25,7 +29,6 @@ try:
     from connectors.haystack_llm_connector import HaystackLLMConnector
     from core.server_context import ServerContext
     from document_stores.implementations.haystack_store import HaystackDocumentStore
-    from models.document import Document
     from processors.haystack_embedding_processor import HaystackEmbeddingProcessor
     from rag.haystack_pipeline import RAGPipeline
 
@@ -36,41 +39,20 @@ except ImportError as e:
     HAS_FULL_DEPS = False
     logger.warning(f"⚠️ 完整RAG依赖不可用: {e}")
 
-    class Document:
-        """简化的文档类"""
-
-        def __init__(self, file_path: str):
-            self.document_id = str(uuid.uuid4())
-            self.file_path = file_path
-            self.file_name = os.path.basename(file_path)
-            self.file_type = os.path.splitext(file_path)[1].lower()
-            self.creation_time = time.strftime("%Y-%m-%d %H:%M:%S")
-            self.status = "new"
-            self.metadata = {}
-            self.content = {}
-
-        def store_content(self, stage: str, content: str):
-            """存储内容到指定阶段"""
-            self.content[stage] = content
-
-        def get_content(self, stage: str):
-            """获取指定阶段的内容"""
-            return self.content.get(stage)
-
-    class ServerContext:
+    class _BasicServerContext:
         """简化的服务器上下文"""
 
-        def __init__(self):
+        def __init__(self) -> None:
             self._initialized = False
 
-        def initialize(self):
+        def initialize(self) -> None:
             self._initialized = True
 
         @property
-        def is_initialized(self):
+        def is_initialized(self) -> bool:
             return self._initialized
 
-        def get_status(self):
+        def get_status(self) -> Dict[str, Any]:
             return {
                 "initialized": self._initialized,
                 "config_loaded": False,
@@ -83,74 +65,38 @@ except ImportError as e:
 class SimpleDocumentProcessor:
     """增强的文档处理器 - 支持PDF并重用Document模型"""
 
-    def __init__(self, mcp_server=None):
+    def __init__(self, mcp_server: Optional[MCPServer] = None) -> None:
         self.documents: Dict[str, Document] = {}
         self.mcp_server = mcp_server  # 引用父服务器以访问RAG组件
 
+    @staticmethod
+    def _extract_pdf_text(file_path: str, backend: str) -> str:
+        if backend == "pypdf":
+            module = import_module("pypdf")
+            with open(file_path, "rb") as stream:
+                reader = module.PdfReader(stream)
+                return "\n".join(page.extract_text() or "" for page in reader.pages)
+        if backend == "pdfplumber":
+            module = import_module("pdfplumber")
+            with module.open(file_path) as document:
+                return "\n".join(page.extract_text() or "" for page in document.pages)
+        result = import_module("pdfminer.high_level").extract_text(file_path)
+        if not isinstance(result, str):
+            raise ValueError("PDF backend did not return text")
+        return result
+
     def process_pdf(self, file_path: str) -> str:
-        """处理PDF文件 - 尝试多种方法"""
-        try:
-            # 方法1: 尝试使用pypdf (如果可用)
+        """Read actual PDF text; empty/scanned documents need a separately configured OCR stage."""
+        failures = []
+        for backend in ("pypdf", "pdfplumber", "pdfminer"):
             try:
-                import pypdf
-
-                with open(file_path, "rb") as f:
-                    reader = pypdf.PdfReader(f)
-                    text = ""
-                    for page in reader.pages:
-                        text += page.extract_text() + "\n"
-                    if text.strip():
-                        return text
-            except ImportError:
-                pass
-            except Exception:
-                pass
-
-            # 方法2: 尝试使用pdfplumber (如果可用)
-            try:
-                import pdfplumber
-
-                with pdfplumber.open(file_path) as pdf:
-                    text = ""
-                    for page in pdf.pages:
-                        page_text = page.extract_text()
-                        if page_text:
-                            text += page_text + "\n"
-                    if text.strip():
-                        return text
-            except ImportError:
-                pass
-            except Exception:
-                pass
-
-            # 方法3: 尝试使用pdfminer (如果可用)
-            try:
-                from pdfminer.high_level import extract_text
-
-                text = extract_text(file_path)
+                text = self._extract_pdf_text(file_path, backend)
                 if text.strip():
                     return text
-            except ImportError:
-                pass
-            except Exception:
-                pass
-
-            # 方法4: 使用现有的OCR处理器 (如果可用)
-            if HAS_FULL_DEPS:
-                try:
-                    from processors.ocr_processor import OCRProcessor
-
-                    processor = OCRProcessor()
-                    # 这里需要先将PDF转换为图像，然后OCR
-                    # 为简化，我们暂时跳过这个方法
-                except ImportError:
-                    pass
-
-            # 如果所有方法都失败，返回错误信息
-            raise Exception("PDF处理失败：需要安装 pypdf, pdfplumber 或 pdfminer3 之一")
-
-        except Exception as e:
-            raise Exception(f"PDF处理错误: {str(e)}")
+                failures.append(f"{backend}: empty text")
+            except Exception as exc:
+                failures.append(f"{backend}: {type(exc).__name__}")
+        raise ValueError("PDF处理错误：未提取到文本；需要配置OCR或可用解析后端。 " + "; ".join(failures))
 
     def process_document(self, file_path: str) -> Dict[str, Any]:
         """处理文档并存储 - 支持PDF和完整RAG管道"""
@@ -265,9 +211,9 @@ class SimpleDocumentProcessor:
 class MCPServer:
     """增强的MCP服务器实现 - 重用现有架构"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # 使用依赖注入模式
-        self.server_context = ServerContext()
+        self.server_context = ServerContext() if HAS_FULL_DEPS else _BasicServerContext()
         self.document_processor = SimpleDocumentProcessor(mcp_server=self)
 
         # 尝试初始化真正的RAG管道
@@ -321,7 +267,7 @@ class MCPServer:
             },
         ]
 
-    def validate_api_key(self, api_key: str) -> bool:
+    def validate_api_key(self, api_key: Optional[str]) -> bool:
         """验证OpenAI API密钥格式"""
         if not api_key or not isinstance(api_key, str):
             return False
@@ -388,7 +334,7 @@ class MCPServer:
                 return await self.handle_list_documents(request_id, arguments)
 
             else:
-                result_text = f"❌ 未知工具: {tool_name}\n可用工具: {', '.join([t['name'] for t in self.tools])}"
+                result_text = f"❌ 未知工具: {tool_name}\n可用工具: {', '.join(str(t['name']) for t in self.tools)}"
                 return {
                     "jsonrpc": "2.0",
                     "result": {"content": [{"type": "text", "text": result_text}]},
@@ -412,7 +358,7 @@ class MCPServer:
             "id": request_id,
         }
 
-    def _try_initialize_full_rag(self):
+    def _try_initialize_full_rag(self) -> None:
         """尝试初始化完整的RAG管道"""
         try:
             logger.info("🔄 尝试初始化完整RAG管道...")
@@ -597,6 +543,75 @@ class MCPServer:
 
         return {"jsonrpc": "2.0", "result": {"content": [{"type": "text", "text": result_text}]}, "id": request_id}
 
+    @staticmethod
+    def _format_rag_answer(rag_result: Dict[str, Any], query: str, top_k: int, session_id: str) -> str:
+        # RAG成功，返回完整的智能答案
+        answer = rag_result.get("answer", "无法生成答案")
+        documents = rag_result.get("documents", [])
+
+        result_text = f"""🤖 智能RAG查询结果:
+
+❓ 问题: {query}
+
+💬 AI答案:
+{answer}
+
+📁 相关文档片段 (前{len(documents[:top_k])}个):
+"""
+
+        for i, doc in enumerate(documents[:top_k], 1):
+            content = doc.get("content", "")
+            if len(content) > 200:
+                content = content[:200] + "..."
+
+            metadata = doc.get("metadata", {})
+            file_name = metadata.get("file_name", "未知")
+
+            result_text += f"\n{i}. 📄 {file_name}\n   📝 {content}\n"
+
+        result_text += "\n🔍 检索模式: 嵌入向量匹配 (Sentence-BERT)"
+        result_text += "\n🤖 生成模式: OpenAI GPT (LLM)"
+
+        if session_id:
+            result_text += f"\n🆔 会话ID: {session_id}"
+
+        return result_text
+
+    @staticmethod
+    def _format_keyword_results(results: List[Dict[str, Any]], query: str) -> str:
+        if not results:
+            result_text = f"""🔍 查询结果:
+
+❓ 查询: {query}
+📊 结果: 未找到相关文档
+
+💡 建议:
+• 尝试更通用的关键词
+• 检查拼写是否正确
+• 确认相关内容已被处理
+
+🔍 检索模式: 关键词匹配 (简单模式)"""
+        else:
+            result_text = f"""🔍 关键词匹配查询结果:
+
+❓ 查询: {query}
+📊 找到 {len(results)} 个相关文档:
+
+"""
+            for i, result in enumerate(results, 1):
+                doc = result["document"]
+                result_text += f"""📄 结果 {i}:
+  • 文件: {doc.file_name}
+  • 文档ID: {doc.document_id[:8]}...
+  • 相关性: {result['score']} 分
+  • 字数: {doc.metadata.get('word_count', 0):,}
+  • 预览: {result['snippet'][:150]}...
+
+"""
+            result_text += "\n🔍 检索模式: 关键词匹配 (简单模式)"
+
+        return result_text
+
     async def handle_query_documents(self, request_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """处理文档查询请求 - 完整RAG实现"""
         query = arguments.get("query", "")
@@ -635,36 +650,7 @@ class MCPServer:
                     )
 
                     if "error" not in rag_result:
-                        # RAG成功，返回完整的智能答案
-                        answer = rag_result.get("answer", "无法生成答案")
-                        documents = rag_result.get("documents", [])
-
-                        result_text = f"""🤖 智能RAG查询结果:
-
-❓ 问题: {query}
-
-💬 AI答案:
-{answer}
-
-📁 相关文档片段 (前{len(documents[:top_k])}个):
-"""
-
-                        for i, doc in enumerate(documents[:top_k], 1):
-                            content = doc.get("content", "")
-                            if len(content) > 200:
-                                content = content[:200] + "..."
-
-                            metadata = doc.get("metadata", {})
-                            file_name = metadata.get("file_name", "未知")
-
-                            result_text += f"\n{i}. 📄 {file_name}\n   📝 {content}\n"
-
-                        result_text += f"\n🔍 检索模式: 嵌入向量匹配 (Sentence-BERT)"
-                        result_text += f"\n🤖 生成模式: OpenAI GPT (LLM)"
-
-                        if session_id:
-                            result_text += f"\n🆔 会话ID: {session_id}"
-
+                        result_text = self._format_rag_answer(rag_result, query, top_k, session_id)
                         return {
                             "jsonrpc": "2.0",
                             "result": {"content": [{"type": "text", "text": result_text}]},
@@ -681,36 +667,7 @@ class MCPServer:
             logger.info(f"🔍 使用简单关键词匹配模式查询: {query}")
             results = self.document_processor.search_documents(query, top_k)
 
-            if not results:
-                result_text = f"""🔍 查询结果:
-
-❓ 查询: {query}
-📊 结果: 未找到相关文档
-
-💡 建议:
-• 尝试更通用的关键词
-• 检查拼写是否正确
-• 确认相关内容已被处理
-
-🔍 检索模式: 关键词匹配 (简单模式)"""
-            else:
-                result_text = f"""🔍 关键词匹配查询结果:
-
-❓ 查询: {query}
-📊 找到 {len(results)} 个相关文档:
-
-"""
-                for i, result in enumerate(results, 1):
-                    doc = result["document"]
-                    result_text += f"""📄 结果 {i}:
-  • 文件: {doc.file_name}
-  • 文档ID: {doc.document_id[:8]}...
-  • 相关性: {result['score']} 分
-  • 字数: {doc.metadata.get('word_count', 0):,}
-  • 预览: {result['snippet'][:150]}...
-
-"""
-                result_text += f"\n🔍 检索模式: 关键词匹配 (简单模式)"
+            result_text = self._format_keyword_results(results, query)
 
             if session_id:
                 result_text += f"\n🆔 会话ID: {session_id}"
@@ -748,61 +705,24 @@ class MCPServer:
 
         return {"jsonrpc": "2.0", "result": {"content": [{"type": "text", "text": result_text}]}, "id": request_id}
 
-    async def run(self):
-        """运行MCP服务器"""
-        logger.info("Starting MCP Academic RAG Server (Standalone)")
+    async def _dispatch_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        method = request.get("method")
+        request_id = request.get("id")
+        params = request.get("params", {})
+        if method == "initialize":
+            return await self.handle_initialize(request_id, params)
+        if method == "tools/list":
+            return await self.handle_list_tools(request_id)
+        if method == "tools/call":
+            return await self.handle_call_tool(request_id, params)
+        return {"jsonrpc": "2.0", "error": {"code": -32601, "message": f"Method not found: {method}"}, "id": request_id}
 
-        try:
-            while True:
-                line = await asyncio.get_event_loop().run_in_executor(None, sys.stdin.readline)
-
-                if not line.strip():
-                    continue
-
-                try:
-                    request = json.loads(line)
-                    method = request.get("method")
-                    request_id = request.get("id")
-                    params = request.get("params", {})
-
-                    logger.debug(f"Received request: {method}")
-
-                    if method == "initialize":
-                        response = await self.handle_initialize(request_id, params)
-                    elif method == "tools/list":
-                        response = await self.handle_list_tools(request_id)
-                    elif method == "tools/call":
-                        response = await self.handle_call_tool(request_id, params)
-                    else:
-                        response = {
-                            "jsonrpc": "2.0",
-                            "error": {"code": -32601, "message": f"Method not found: {method}"},
-                            "id": request_id,
-                        }
-
-                    print(json.dumps(response))
-                    sys.stdout.flush()
-
-                except json.JSONDecodeError as e:
-                    logger.error(f"JSON decode error: {e}")
-                    continue
-                except Exception as e:
-                    logger.error(f"Request handling error: {e}", exc_info=True)
-                    error_response = {
-                        "jsonrpc": "2.0",
-                        "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
-                        "id": request.get("id") if "request" in locals() else None,
-                    }
-                    print(json.dumps(error_response))
-                    sys.stdout.flush()
-
-        except KeyboardInterrupt:
-            logger.info("Server shutdown requested")
-        except Exception as e:
-            logger.error(f"Server error: {str(e)}", exc_info=True)
+    async def run(self) -> None:
+        """Run until stdin closes, using the shared debug-server transport."""
+        await serve_requests(self._dispatch_request)
 
 
-def main():
+def main() -> None:
     """主入口点"""
     if len(sys.argv) > 1 and sys.argv[1] == "--validate-only":
         # 验证模式

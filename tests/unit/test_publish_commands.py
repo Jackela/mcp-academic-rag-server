@@ -1,6 +1,7 @@
 """Publishing helpers preserve literal argv and fail closed before any upload."""
 
 import importlib.util
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -46,4 +47,4 @@ def test_failed_artifact_check_stops_before_prompt_or_upload(tmp_path, monkeypat
         assert len(run.call_args_list) == 2
         assert all("upload" not in call.args[0] for call in run.call_args_list)
     finally:
-        monkeypatch.chdir(original)
+        os.chdir(original)

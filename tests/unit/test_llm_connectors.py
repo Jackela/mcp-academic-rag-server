@@ -6,6 +6,7 @@ import os
 from unittest.mock import Mock, patch
 
 import pytest
+from haystack.dataclasses import ChatMessage
 
 # Import the connectors
 from connectors.base_llm_connector import BaseLLMConnector
@@ -59,8 +60,7 @@ class TestOpenAIConnector:
     def test_openai_connector_generate_success(self, mock_generator):
         """Test successful response generation"""
         # Mock the generator response
-        mock_reply = Mock()
-        mock_reply.content = "Test response"
+        mock_reply = ChatMessage.from_assistant("Test response")
         mock_generator_instance = Mock()
         mock_generator_instance.run.return_value = {"replies": [mock_reply]}
         mock_generator.return_value = mock_generator_instance

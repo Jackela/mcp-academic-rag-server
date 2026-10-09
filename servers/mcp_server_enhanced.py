@@ -5,7 +5,6 @@ Enhanced MCP Academic RAG Server - 渐进式功能实现
 """
 
 import asyncio
-import json
 import logging
 import os
 import sys
@@ -13,6 +12,8 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List
+
+from servers.jsonrpc_stdio import serve_requests
 
 # 配置日志到stderr (MCP要求)
 logging.basicConfig(
@@ -24,8 +25,8 @@ logger = logging.getLogger("mcp-academic-rag-enhanced")
 class SimpleDocumentProcessor:
     """简单的文档处理器 - 不依赖外部库"""
 
-    def __init__(self):
-        self.processed_documents = {}
+    def __init__(self) -> None:
+        self.processed_documents: Dict[str, Dict[str, Any]] = {}
 
     def process_text_file(self, file_path: str) -> Dict[str, Any]:
         """处理文本文件"""
@@ -92,9 +93,9 @@ class SimpleDocumentProcessor:
 class EnhancedMCPServer:
     """增强版MCP服务器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.doc_processor = SimpleDocumentProcessor()
-        self.session_contexts = {}  # 存储会话上下文
+        self.session_contexts: Dict[str, List[Dict[str, Any]]] = {}  # 存储会话上下文
 
         self.tools = [
             {
@@ -238,7 +239,7 @@ class EnhancedMCPServer:
                         "content": [
                             {
                                 "type": "text",
-                                "text": f"❌ 未知工具: {tool_name}\\n可用工具: {', '.join([t['name'] for t in self.tools])}",
+                                "text": f"❌ 未知工具: {tool_name}\\n可用工具: {', '.join(str(t['name']) for t in self.tools)}",
                             }
                         ]
                     },
@@ -473,61 +474,24 @@ class EnhancedMCPServer:
             "id": request_id,
         }
 
-    async def run(self):
-        """运行MCP服务器"""
-        logger.info("Starting MCP Academic RAG Server (Enhanced)")
+    async def _dispatch_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        method = request.get("method")
+        request_id = request.get("id")
+        params = request.get("params", {})
+        if method == "initialize":
+            return await self.handle_initialize(request_id, params)
+        if method == "tools/list":
+            return await self.handle_list_tools(request_id)
+        if method == "tools/call":
+            return await self.handle_call_tool(request_id, params)
+        return {"jsonrpc": "2.0", "error": {"code": -32601, "message": f"Method not found: {method}"}, "id": request_id}
 
-        try:
-            while True:
-                line = await asyncio.get_event_loop().run_in_executor(None, sys.stdin.readline)
-
-                if not line.strip():
-                    continue
-
-                try:
-                    request = json.loads(line)
-                    method = request.get("method")
-                    request_id = request.get("id")
-                    params = request.get("params", {})
-
-                    logger.debug(f"Received request: {method}")
-
-                    if method == "initialize":
-                        response = await self.handle_initialize(request_id, params)
-                    elif method == "tools/list":
-                        response = await self.handle_list_tools(request_id)
-                    elif method == "tools/call":
-                        response = await self.handle_call_tool(request_id, params)
-                    else:
-                        response = {
-                            "jsonrpc": "2.0",
-                            "error": {"code": -32601, "message": f"Method not found: {method}"},
-                            "id": request_id,
-                        }
-
-                    print(json.dumps(response))
-                    sys.stdout.flush()
-
-                except json.JSONDecodeError as e:
-                    logger.error(f"JSON decode error: {e}")
-                    continue
-                except Exception as e:
-                    logger.error(f"Request handling error: {e}", exc_info=True)
-                    error_response = {
-                        "jsonrpc": "2.0",
-                        "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
-                        "id": request.get("id") if "request" in locals() else None,
-                    }
-                    print(json.dumps(error_response))
-                    sys.stdout.flush()
-
-        except KeyboardInterrupt:
-            logger.info("Server shutdown requested")
-        except Exception as e:
-            logger.error(f"Server error: {str(e)}", exc_info=True)
+    async def run(self) -> None:
+        """Run until stdin closes, using the shared debug-server transport."""
+        await serve_requests(self._dispatch_request)
 
 
-def main():
+def main() -> None:
     """主入口点"""
     if len(sys.argv) > 1 and sys.argv[1] == "--validate-only":
         # 验证模式

@@ -10,14 +10,14 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 from mcp.server import NotificationOptions, Server
 
 # MCP SDK imports
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp.types import TextContent, Tool
+from mcp.types import CallToolResult, TextContent, Tool
 
 # Project imports
 from core.server_context import ServerContext
@@ -124,30 +124,32 @@ async def handle_list_tools() -> List[Tool]:
     ]
 
 
-async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-    """Handle tool calls using SDK"""
-    logger.info(f"Handling tool call: {name} with args: {list(arguments.keys())}")
+class _ToolErrorOutput(list[TextContent]):
+    """Preserve helper list access while carrying an explicit registered-tool failure."""
 
+
+async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> Union[List[TextContent], CallToolResult]:
+    """Return native MCP errors for actual logical failures, independently of display text."""
+    logger.info("Handling tool call: %s with fields: %s", name, list(arguments))
+    handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[List[TextContent]]]] = {
+        "test_connection": handle_test_connection,
+        "validate_system": handle_validate_system,
+        "process_document": handle_process_document,
+        "query_documents": handle_query_documents,
+    }
+    handler = handlers.get(name)
+    if handler is None:
+        return CallToolResult(isError=True, content=[TextContent(type="text", text=f"Unknown tool: {name}")])
     try:
-        if name == "test_connection":
-            return await handle_test_connection(arguments)
-        elif name == "validate_system":
-            return await handle_validate_system(arguments)
-        elif name == "process_document":
-            return await handle_process_document(arguments)
-        elif name == "query_documents":
-            return await handle_query_documents(arguments)
-        else:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"❌ Unknown tool: {name}\nAvailable tools: test_connection, validate_system, process_document, query_documents",
-                )
-            ]
-
-    except Exception as e:
-        logger.error(f"Tool execution error: {str(e)}", exc_info=True)
-        return [TextContent(type="text", text=f"❌ Error executing tool '{name}': {str(e)}")]
+        output = await handler(arguments)
+        if isinstance(output, _ToolErrorOutput):
+            return CallToolResult(isError=True, content=list(output))
+        return output
+    except Exception as exc:
+        logger.error("Tool execution error: %s", exc, exc_info=True)
+        return CallToolResult(
+            isError=True, content=[TextContent(type="text", text=f"Error executing tool '{name}': {exc}")]
+        )
 
 
 # SDK v1 registration decorators are untyped. Register the typed handlers explicitly
@@ -209,28 +211,32 @@ async def handle_validate_system(arguments: Dict[str, Any]) -> List[TextContent]
     return [TextContent(type="text", text=response_text)]
 
 
-async def handle_process_document(arguments: Dict[str, Any]) -> List[TextContent]:
+async def handle_process_document(
+    arguments: Dict[str, Any], context: Optional[ServerContext] = None
+) -> List[TextContent]:
     """Handle document processing tool"""
+    context = context or server_context
     file_path = arguments.get("file_path")
     file_name = arguments.get("file_name", os.path.basename(file_path) if file_path else "unknown")
 
     if not file_path:
-        return [TextContent(type="text", text="❌ Error: file_path is required")]
+        return _ToolErrorOutput([TextContent(type="text", text="❌ Error: file_path is required")])
 
     if not os.path.exists(file_path):
-        return [TextContent(type="text", text=f"❌ Error: File not found: {file_path}")]
+        return _ToolErrorOutput([TextContent(type="text", text=f"❌ Error: File not found: {file_path}")])
 
+    failed = False
     try:
         # Initialize system if needed
-        if not server_context.is_initialized:
-            server_context.initialize()
+        if not context.is_initialized:
+            context.initialize()
 
         # Create document object
         document = Document(file_path)
 
         # Process document through pipeline
-        if server_context.document_pipeline:
-            result = await server_context.document_pipeline.process_document(document)
+        if context.document_pipeline:
+            result = await context.document_pipeline.process_document(document)
 
             if result.is_successful():
                 response_text = f"""✅ 文档处理成功!
@@ -242,24 +248,27 @@ async def handle_process_document(arguments: Dict[str, Any]) -> List[TextContent
 
 处理完成，文档已准备用于查询。"""
             else:
+                failed = True
                 response_text = f"""❌ 文档处理失败:
 
 📄 文件名: {file_name}
 💬 错误信息: {result.get_message()}
 🔍 详细错误: {str(result.get_error()) if result.get_error() else '未知错误'}"""
         else:
+            failed = True
             response_text = f"""❌ 文档处理管道未初始化
 
 📄 文件名: {file_name}
-🔧 系统状态: {server_context.get_status()}
+🔧 系统状态: {context.get_status()}
 
 请检查服务器配置。"""
 
-        return [TextContent(type="text", text=response_text)]
+        output = [TextContent(type="text", text=response_text)]
+        return _ToolErrorOutput(output) if failed else output
 
     except Exception as e:
         logger.error(f"Document processing error: {str(e)}", exc_info=True)
-        return [TextContent(type="text", text=f"❌ 文档处理异常: {str(e)}")]
+        return _ToolErrorOutput([TextContent(type="text", text=f"❌ 文档处理异常: {str(e)}")])
 
 
 def _format_query_result(result: Dict[str, Any], query: str, session_id: str, top_k: int) -> str:
@@ -288,49 +297,56 @@ def _format_query_result(result: Dict[str, Any], query: str, session_id: str, to
     return response_text
 
 
-async def handle_query_documents(arguments: Dict[str, Any]) -> List[TextContent]:
+async def handle_query_documents(
+    arguments: Dict[str, Any], context: Optional[ServerContext] = None
+) -> List[TextContent]:
     """Handle document query tool"""
+    context = context or server_context
     query = arguments.get("query")
     session_id = arguments.get("session_id")
     top_k = arguments.get("top_k", 5)
 
     if not query:
-        return [TextContent(type="text", text="❌ Error: Query is required")]
+        return _ToolErrorOutput([TextContent(type="text", text="❌ Error: Query is required")])
 
+    failed = False
     try:
-        if not server_context.is_initialized:
-            server_context.initialize()
+        if not context.is_initialized:
+            context.initialize()
 
-        if server_context.rag_pipeline:
+        if context.rag_pipeline:
             # Get or create session
             if session_id:
-                session = server_context.session_manager.get_session(session_id)
+                session = context.session_manager.get_session(session_id)
                 if not session:
-                    session = server_context.session_manager.create_session(session_id)
-                    session.set_rag_pipeline(server_context.rag_pipeline)
+                    session = context.session_manager.create_session(session_id)
+                    session.set_rag_pipeline(context.rag_pipeline)
             else:
-                session = server_context.session_manager.create_session()
-                session.set_rag_pipeline(server_context.rag_pipeline)
+                session = context.session_manager.create_session()
+                session.set_rag_pipeline(context.rag_pipeline)
                 session_id = session.session_id
 
             # Execute query
             result = session.query(query)
+            failed = bool(result.get("error"))
 
             response_text = _format_query_result(result, query, session_id, top_k)
 
         else:
+            failed = True
             response_text = f"""❌ RAG管道未就绪
 
 ❓ 问题: {query}
-🔧 系统状态: {server_context.get_status()}
+🔧 系统状态: {context.get_status()}
 
 RAG功能需要完整的文档处理管道。请先处理一些文档。"""
 
-        return [TextContent(type="text", text=response_text)]
+        output = [TextContent(type="text", text=response_text)]
+        return _ToolErrorOutput(output) if failed else output
 
     except Exception as e:
         logger.error(f"Query error: {str(e)}", exc_info=True)
-        return [TextContent(type="text", text=f"❌ 查询异常: {str(e)}")]
+        return _ToolErrorOutput([TextContent(type="text", text=f"❌ 查询异常: {str(e)}")])
 
 
 async def main() -> None:
