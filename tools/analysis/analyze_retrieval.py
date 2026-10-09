@@ -11,21 +11,47 @@ import time
 from pathlib import Path
 
 
+def _print_retrieval_content(content):
+    # 解析响应内容
+    lines = content.split("\n")
+    found_results = False
+
+    for line in lines:
+        if "找到" in line and "个相关文档" in line:
+            print(f"  📊 {line.strip()}")
+            found_results = True
+        elif "• 文件:" in line:
+            filename = line.split("• 文件:")[1].strip()
+            print(f"  📄 匹配文档: {filename}")
+        elif "• 相关性:" in line:
+            score = line.split("• 相关性:")[1].strip()
+            print(f"  🎯 相关性评分: {score}")
+        elif "• 预览:" in line:
+            preview = line.split("• 预览:")[1].strip()
+            # 截取前100个字符显示
+            if len(preview) > 100:
+                preview = preview[:100] + "..."
+            print(f"  👁️ 内容预览: {preview}")
+
+    if not found_results and "未找到相关文档" in content:
+        print("  ❌ 未找到匹配文档")
+
+
 def analyze_retrieval():
     """分析检索过程的详细信息"""
     print("🔍 RAG检索过程详细分析")
     print("=" * 50)
 
     env = os.environ.copy()
-    env["OPENAI_API_KEY"] = "sk-test-key-for-validation"
 
     process = subprocess.Popen(
-        [sys.executable, "mcp_server_standalone.py"],
+        [sys.executable, "-m", "servers.mcp_server_standalone"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         env=env,
+        cwd=Path(__file__).resolve().parents[2],
     )
 
     time.sleep(1)
@@ -108,31 +134,9 @@ def analyze_retrieval():
 
             if response and "result" in response:
                 content = response["result"]["content"][0]["text"]
-                print(f"📤 RAG系统响应:")
+                print("📤 RAG系统响应:")
 
-                # 解析响应内容
-                lines = content.split("\n")
-                found_results = False
-
-                for line in lines:
-                    if "找到" in line and "个相关文档" in line:
-                        print(f"  📊 {line.strip()}")
-                        found_results = True
-                    elif "• 文件:" in line:
-                        filename = line.split("• 文件:")[1].strip()
-                        print(f"  📄 匹配文档: {filename}")
-                    elif "• 相关性:" in line:
-                        score = line.split("• 相关性:")[1].strip()
-                        print(f"  🎯 相关性评分: {score}")
-                    elif "• 预览:" in line:
-                        preview = line.split("• 预览:")[1].strip()
-                        # 截取前100个字符显示
-                        if len(preview) > 100:
-                            preview = preview[:100] + "..."
-                        print(f"  👁️ 内容预览: {preview}")
-
-                if not found_results and "未找到相关文档" in content:
-                    print("  ❌ 未找到匹配文档")
+                _print_retrieval_content(content)
 
             else:
                 print("  ❌ 查询失败")
@@ -160,19 +164,18 @@ def analyze_retrieval():
         print("   • 提取前后50字符作为上下文")
         print("   • 总预览长度约200字符")
 
-        # 显示实际的评分示例
-        print("\n📈 实际评分示例:")
-        print("• 'machine learning' 在论文中出现104次 → 相关性104分")
-        print("• 'deep learning' 在论文中出现98次 → 相关性98分")
-        print("• 'neural network' 在论文中出现55次 → 相关性55分")
-        print("• 'MCP' 在服务器文档中出现3次 → 相关性3分")
+        print("本轮相关性和片段数量以实际返回结果为准。")
 
     except Exception as e:
         print(f"❌ 分析过程出错: {e}")
 
     finally:
         process.terminate()
-        process.wait()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
 
 
 if __name__ == "__main__":

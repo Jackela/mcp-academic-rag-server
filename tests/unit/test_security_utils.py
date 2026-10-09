@@ -9,14 +9,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from flask import Flask, request
-from werkzeug.test import EnvironBuilder
+from flask import Flask
 
 from utils.security_utils import (
     APIKeyManager,
     InputValidator,
     RateLimiter,
-    SecurityConfig,
     SecurityHeaders,
     rate_limit,
     require_api_key,

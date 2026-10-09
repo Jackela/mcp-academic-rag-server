@@ -87,7 +87,7 @@ class TestFAISSVectorStore:
 
         result = store.initialize()
 
-        assert result == True
+        assert result is True
         assert store.is_initialized
         assert store.index is not None
 
@@ -108,7 +108,7 @@ class TestFAISSVectorStore:
             store = FAISSVectorStore(config)
             result = store.initialize()
 
-            assert result == True, f"Failed to initialize {index_type}"
+            assert result is True, f"Failed to initialize {index_type}"
             store.close()
 
     def test_initialization_creates_storage_directory(self, temp_storage_path):
@@ -117,7 +117,7 @@ class TestFAISSVectorStore:
 
         config = {"vector_dimension": 4, "faiss": {"storage_path": storage_path, "index_type": "Flat"}}
 
-        store = FAISSVectorStore(config)
+        FAISSVectorStore(config)
 
         assert os.path.exists(storage_path)
 
@@ -128,7 +128,7 @@ class TestFAISSVectorStore:
 
         result = store.add_documents(sample_documents)
 
-        assert result == True
+        assert result is True
         assert store.get_document_count() == 3
 
         # 验证文档映射
@@ -150,7 +150,7 @@ class TestFAISSVectorStore:
 
         result = store.add_documents(sample_documents, external_embeddings)
 
-        assert result == True
+        assert result is True
         assert store.get_document_count() == 3
 
         store.close()
@@ -166,7 +166,7 @@ class TestFAISSVectorStore:
 
         result = store.add_documents([invalid_doc])
 
-        assert result == False
+        assert result is False
         assert store.get_document_count() == 0
 
         store.close()
@@ -244,7 +244,7 @@ class TestFAISSVectorStore:
 
         result = store.update_document("doc1", updated_doc, [0.9, 0.1, 0.0, 0.0])
 
-        assert result == True
+        assert result is True
 
         # 验证更新
         retrieved = store.get_document_by_id("doc1")
@@ -263,13 +263,13 @@ class TestFAISSVectorStore:
 
         result = store.delete_document("doc2")
 
-        assert result == True
+        assert result is True
         assert store.get_document_count() == initial_count - 1
         assert store.get_document_by_id("doc2") is None
 
         # 测试删除不存在的文档
         result = store.delete_document("nonexistent")
-        assert result == False
+        assert result is False
 
         store.close()
 
@@ -283,7 +283,7 @@ class TestFAISSVectorStore:
 
         result = store.delete_all_documents()
 
-        assert result == True
+        assert result is True
         assert store.get_document_count() == 0
 
         store.close()
@@ -297,7 +297,7 @@ class TestFAISSVectorStore:
 
         # 保存索引
         save_result = store1.save_index(temp_storage_path)
-        assert save_result == True
+        assert save_result is True
 
         # 验证保存的文件存在
         assert os.path.exists(os.path.join(temp_storage_path, "index.faiss"))
@@ -310,7 +310,7 @@ class TestFAISSVectorStore:
         store2.initialize()
 
         load_result = store2.load_index(temp_storage_path)
-        assert load_result == True
+        assert load_result is True
 
         # 验证加载的数据
         assert store2.get_document_count() == 3
@@ -364,9 +364,9 @@ class TestFAISSVectorStore:
 
         result = store.add_documents(docs, embeddings)
 
-        assert result == True
+        assert result is True
         assert store.get_document_count() == 300
-        assert store.index.is_trained == True
+        assert store.index.is_trained is True
 
         store.close()
 
@@ -381,8 +381,8 @@ class TestFAISSVectorStore:
         assert stats["total_vectors"] == 3
         assert stats["vector_dimension"] == 4
         assert stats["index_type"] == "Flat"
-        assert stats["is_trained"] == True
-        assert stats["use_gpu"] == False
+        assert stats["is_trained"] is True
+        assert stats["use_gpu"] is False
 
         store.close()
 
@@ -402,7 +402,7 @@ class TestFAISSVectorStore:
         store = FAISSVectorStore(config)
         result = store.initialize()
 
-        assert result == True
+        assert result is True
         assert mock_gpu_resources.called
         assert mock_cpu_to_gpu.called
 
@@ -445,7 +445,7 @@ class TestFAISSConfigValidation:
         result = store.initialize()
 
         # 应该回退到Flat索引
-        assert result == True
+        assert result is True
         assert store.index is not None
 
     @pytest.mark.skipif(not FAISS_AVAILABLE, reason="FAISS not available")
@@ -458,7 +458,7 @@ class TestFAISSConfigValidation:
         assert store.index_type == "Flat"
         assert store.metric_type == "INNER_PRODUCT"
         assert store.auto_save_interval == 300
-        assert store.use_gpu == False
+        assert store.use_gpu is False
 
 
 if __name__ == "__main__":

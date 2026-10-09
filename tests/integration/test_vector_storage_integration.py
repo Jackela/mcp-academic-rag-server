@@ -15,7 +15,6 @@ import numpy as np
 import pytest
 from haystack import Document as HaystackDocument
 
-from document_stores.implementations.base_vector_store import BaseVectorStore
 from document_stores.migration.vector_migration import VectorStoreMigrator
 from document_stores.vector_store_factory import VectorStoreFactory, create_vector_store
 
@@ -23,7 +22,7 @@ from document_stores.vector_store_factory import VectorStoreFactory, create_vect
 def _is_faiss_available() -> bool:
     """检查FAISS是否可用"""
     try:
-        import faiss
+        __import__("faiss")
 
         return True
     except ImportError:
@@ -103,11 +102,11 @@ class TestVectorStorageIntegration:
 
         try:
             # 初始化
-            assert store.initialize() == True
+            assert store.initialize() is True
             assert store.get_document_count() == 0
 
             # 添加文档
-            assert store.add_documents(small_document_set) == True
+            assert store.add_documents(small_document_set) is True
             assert store.get_document_count() == 3
 
             # 搜索测试
@@ -128,13 +127,13 @@ class TestVectorStorageIntegration:
             updated_doc = HaystackDocument(
                 content="Updated AI content", meta={"category": "AI", "author": "Alice Updated"}, id="ai_doc"
             )
-            assert store.update_document("ai_doc", updated_doc) == True
+            assert store.update_document("ai_doc", updated_doc) is True
 
             retrieved = store.get_document_by_id("ai_doc")
             assert retrieved.content == "Updated AI content"
 
             # 删除文档
-            assert store.delete_document("ml_doc") == True
+            assert store.delete_document("ml_doc") is True
             assert store.get_document_count() == 2
             assert store.get_document_by_id("ml_doc") is None
 
@@ -155,14 +154,14 @@ class TestVectorStorageIntegration:
 
         try:
             # 初始化
-            assert store.initialize() == True
+            assert store.initialize() is True
 
             # 添加文档
-            assert store.add_documents(small_document_set) == True
+            assert store.add_documents(small_document_set) is True
             assert store.get_document_count() == 3
 
             # 持久化测试
-            assert store.save_index(temp_storage_path) == True
+            assert store.save_index(temp_storage_path) is True
 
             # 验证保存的文件
             assert os.path.exists(os.path.join(temp_storage_path, "index.faiss"))
@@ -185,7 +184,7 @@ class TestVectorStorageIntegration:
         available_backends = VectorStoreFactory.get_available_backends()
 
         assert "memory" in available_backends
-        assert available_backends["memory"]["available"] == True
+        assert available_backends["memory"]["available"] is True
 
         # 测试不存在的后端自动回退
         config = {"type": "nonexistent_backend", "vector_dimension": 384}
@@ -254,7 +253,7 @@ class TestVectorStorageMigration:
                 source_config, target_config, batch_size=2, verify_migration=True, backup_before_migration=False
             )
 
-        assert result == True
+        assert result is True
 
         source_store.close()
 
@@ -286,7 +285,7 @@ class TestVectorStorageMigration:
 
         # 如果FAISS可用，迁移应该成功
         if "FAISSVectorStore" in str(type(target_store)):
-            assert result == True
+            assert result is True
 
         source_store.close()
         if hasattr(target_store, "close"):
@@ -331,7 +330,7 @@ class TestVectorStoragePerformance:
                     search_times = []
                     for _ in range(10):  # 多次搜索求平均值
                         start_time = time.time()
-                        results_list = store.search(query_embedding, top_k=5)
+                        store.search(query_embedding, top_k=5)
                         search_time = time.time() - start_time
                         search_times.append(search_time)
 
@@ -394,7 +393,7 @@ class TestVectorStoragePerformance:
             # 如果是真正的FAISS存储，测试持久化性能
             if "FAISSVectorStore" in str(type(faiss_store)):
                 start_time = time.time()
-                assert faiss_store.save_index(temp_storage_path) == True
+                assert faiss_store.save_index(temp_storage_path) is True
                 save_time = time.time() - start_time
 
                 assert save_time >= 0
@@ -569,7 +568,7 @@ class TestVectorStorageErrorHandling:
 
 
 # 导入模拟补丁用于测试
-from unittest.mock import patch
+from unittest.mock import patch  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

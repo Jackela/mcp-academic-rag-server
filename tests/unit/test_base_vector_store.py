@@ -129,21 +129,21 @@ class TestBaseVectorStore:
         store = MockVectorStore({"vector_dimension": 3})
 
         valid_embedding = [0.1, 0.2, 0.3]
-        assert store.validate_embedding(valid_embedding) == True
+        assert store.validate_embedding(valid_embedding) is True
 
     def test_validate_embedding_wrong_dimension(self):
         """测试错误维度的向量嵌入"""
         store = MockVectorStore({"vector_dimension": 3})
 
         wrong_dim_embedding = [0.1, 0.2]  # 维度不匹配
-        assert store.validate_embedding(wrong_dim_embedding) == False
+        assert store.validate_embedding(wrong_dim_embedding) is False
 
     def test_validate_embedding_empty(self):
         """测试空向量嵌入"""
         store = MockVectorStore({"vector_dimension": 3})
 
-        assert store.validate_embedding([]) == False
-        assert store.validate_embedding(None) == False
+        assert store.validate_embedding([]) is False
+        assert store.validate_embedding(None) is False
 
     def test_validate_embedding_invalid_values(self):
         """测试包含无效值的向量"""
@@ -151,11 +151,11 @@ class TestBaseVectorStore:
 
         # NaN值
         nan_embedding = [0.1, float("nan"), 0.3]
-        assert store.validate_embedding(nan_embedding) == False
+        assert store.validate_embedding(nan_embedding) is False
 
         # 无穷大值
         inf_embedding = [0.1, float("inf"), 0.3]
-        assert store.validate_embedding(inf_embedding) == False
+        assert store.validate_embedding(inf_embedding) is False
 
     def test_get_storage_info(self):
         """测试获取存储信息"""
@@ -166,7 +166,7 @@ class TestBaseVectorStore:
 
         assert info["storage_type"] == "MockVectorStore"
         assert info["vector_dimension"] == 128
-        assert info["is_initialized"] == True
+        assert info["is_initialized"] is True
         assert info["document_count"] == 0
 
     def test_get_supported_similarity_functions(self):
@@ -183,11 +183,11 @@ class TestBaseVectorStore:
         store = MockVectorStore({})
         store.initialize()
 
-        assert store.is_initialized == True
+        assert store.is_initialized is True
 
         store.close()
 
-        assert store.is_initialized == False
+        assert store.is_initialized is False
 
 
 class TestVectorStoreOperations:
@@ -217,7 +217,7 @@ class TestVectorStoreOperations:
         """测试成功添加文档"""
         result = mock_store.add_documents(sample_documents)
 
-        assert result == True
+        assert result is True
         assert mock_store.get_document_count() == 2
 
         # 验证文档存在
@@ -234,7 +234,7 @@ class TestVectorStoreOperations:
 
         result = mock_store.add_documents(sample_documents, embeddings)
 
-        assert result == True
+        assert result is True
         assert mock_store.get_document_count() == 2
 
         # 验证使用了外部嵌入
@@ -246,7 +246,7 @@ class TestVectorStoreOperations:
 
         result = store.add_documents(sample_documents)
 
-        assert result == False
+        assert result is False
 
     def test_search_documents(self, mock_store, sample_documents):
         """测试搜索文档"""
@@ -292,7 +292,7 @@ class TestVectorStoreOperations:
 
         result = mock_store.update_document("doc1", updated_doc, [0.9, 0.8, 0.7])
 
-        assert result == True
+        assert result is True
 
         # 验证更新
         retrieved_doc = mock_store.get_document_by_id("doc1")
@@ -305,7 +305,7 @@ class TestVectorStoreOperations:
 
         result = mock_store.update_document("nonexistent", doc)
 
-        assert result == False
+        assert result is False
 
     def test_delete_document_success(self, mock_store, sample_documents):
         """测试成功删除文档"""
@@ -313,7 +313,7 @@ class TestVectorStoreOperations:
 
         result = mock_store.delete_document("doc1")
 
-        assert result == True
+        assert result is True
         assert mock_store.get_document_count() == 1
         assert mock_store.get_document_by_id("doc1") is None
 
@@ -321,7 +321,7 @@ class TestVectorStoreOperations:
         """测试删除不存在的文档"""
         result = mock_store.delete_document("nonexistent")
 
-        assert result == False
+        assert result is False
 
     def test_delete_all_documents(self, mock_store, sample_documents):
         """测试删除所有文档"""
@@ -330,7 +330,7 @@ class TestVectorStoreOperations:
 
         result = mock_store.delete_all_documents()
 
-        assert result == True
+        assert result is True
         assert mock_store.get_document_count() == 0
 
     def test_get_document_count(self, mock_store, sample_documents):

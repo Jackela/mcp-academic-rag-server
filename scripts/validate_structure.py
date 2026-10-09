@@ -127,6 +127,33 @@ def validate_module_structure() -> Dict[str, any]:
     return results
 
 
+def _find_import_cycles(module_graph):
+    circular_imports = []
+
+    # 简单的循环导入检测
+    def has_cycle(graph, start, visited, rec_stack):
+        visited.add(start)
+        rec_stack.add(start)
+
+        for neighbor in graph.get(start, set()):
+            if neighbor not in visited:
+                if has_cycle(graph, neighbor, visited, rec_stack):
+                    return True
+            elif neighbor in rec_stack:
+                circular_imports.append(f"{start} -> {neighbor}")
+                return True
+
+        rec_stack.remove(start)
+        return False
+
+    visited = set()
+    for node in module_graph:
+        if node not in visited:
+            has_cycle(module_graph, node, visited, set())
+
+    return circular_imports
+
+
 def validate_import_paths() -> Dict[str, any]:
     """验证导入路径"""
     print("🔍 验证导入路径...")
@@ -163,26 +190,7 @@ def validate_import_paths() -> Dict[str, any]:
                 {"file": str(file_path.relative_to(project_root)), "import": "N/A", "issue": f"parse_error: {e}"}
             )
 
-    # 简单的循环导入检测
-    def has_cycle(graph, start, visited, rec_stack):
-        visited.add(start)
-        rec_stack.add(start)
-
-        for neighbor in graph.get(start, set()):
-            if neighbor not in visited:
-                if has_cycle(graph, neighbor, visited, rec_stack):
-                    return True
-            elif neighbor in rec_stack:
-                circular_imports.append(f"{start} -> {neighbor}")
-                return True
-
-        rec_stack.remove(start)
-        return False
-
-    visited = set()
-    for node in module_graph:
-        if node not in visited:
-            has_cycle(module_graph, node, visited, set())
+    circular_imports = _find_import_cycles(module_graph)
 
     result = {
         "total_files_checked": len(python_files),
@@ -209,7 +217,7 @@ def validate_test_structure() -> Dict[str, any]:
     if not tests_dir.exists():
         return {"exists": False, "compliant": False}
 
-    expected_test_dirs = ["unit", "integration", "manual", "utils"]
+    ["unit", "integration", "manual", "utils"]
     actual_test_dirs = [d.name for d in tests_dir.iterdir() if d.is_dir()]
 
     test_files = list(tests_dir.rglob("test_*.py"))
@@ -227,12 +235,12 @@ def validate_test_structure() -> Dict[str, any]:
     if result["compliant"]:
         print(f"  ✅ 测试结构: {len(test_files)} 测试文件, {len(conftest_files)} conftest")
     else:
-        print(f"  ❌ 测试结构: 测试文件不足或缺失conftest")
+        print("  ❌ 测试结构: 测试文件不足或缺失conftest")
 
     if result["has_utils_cleanup"]:
-        print(f"  ✅ 清理工具: tests/utils/cleanup.py 存在")
+        print("  ✅ 清理工具: tests/utils/cleanup.py 存在")
     else:
-        print(f"  ⚠️  清理工具: tests/utils/cleanup.py 缺失")
+        print("  ⚠️  清理工具: tests/utils/cleanup.py 缺失")
 
     return result
 
@@ -275,7 +283,7 @@ def validate_configuration() -> Dict[str, any]:
         return {"exists": False, "compliant": False}
 
     config_files = list(config_dir.glob("*.json"))
-    required_configs = ["config.json"]
+    ["config.json"]
 
     has_examples = any("example" in f.name for f in config_files)
     has_env_configs = any(env in f.name for f in config_files for env in ["development", "production"])
@@ -291,9 +299,29 @@ def validate_configuration() -> Dict[str, any]:
     if result["compliant"]:
         print(f"  ✅ 配置结构: {len(config_files)} 配置文件")
     else:
-        print(f"  ⚠️  配置结构: 配置文件不足")
+        print("  ⚠️  配置结构: 配置文件不足")
 
     return result
+
+
+def _structure_detail(check_name, result):
+    if check_name == "root_directory":
+        detail = f"{result['total_python_files']}/5 Python文件"
+    elif check_name == "module_structure":
+        modules_count = sum(1 for r in result.values() if isinstance(r, dict) and r.get("exists", False))
+        detail = f"{modules_count} 个模块"
+    elif check_name == "import_paths":
+        detail = f"{result['total_files_checked']} 文件检查, {len(result['import_issues'])} 问题"
+    elif check_name == "test_structure":
+        detail = f"{result['test_files_count']} 测试文件"
+    elif check_name == "documentation":
+        detail = f"{len(result['existing_docs'])} 文档文件"
+    elif check_name == "configuration":
+        detail = f"{len(result['config_files'])} 配置文件"
+    else:
+        detail = "详见详细报告"
+
+    return detail
 
 
 def generate_structure_report(results: Dict[str, Dict]) -> str:
@@ -319,25 +347,11 @@ def generate_structure_report(results: Dict[str, Dict]) -> str:
     for check_name, result in results.items():
         status = "✅ 通过" if result.get("compliant", False) else "❌ 未通过"
 
-        if check_name == "root_directory":
-            detail = f"{result['total_python_files']}/5 Python文件"
-        elif check_name == "module_structure":
-            modules_count = sum(1 for r in result.values() if isinstance(r, dict) and r.get("exists", False))
-            detail = f"{modules_count} 个模块"
-        elif check_name == "import_paths":
-            detail = f"{result['total_files_checked']} 文件检查, {len(result['import_issues'])} 问题"
-        elif check_name == "test_structure":
-            detail = f"{result['test_files_count']} 测试文件"
-        elif check_name == "documentation":
-            detail = f"{len(result['existing_docs'])} 文档文件"
-        elif check_name == "configuration":
-            detail = f"{len(result['config_files'])} 配置文件"
-        else:
-            detail = "详见详细报告"
+        detail = _structure_detail(check_name, result)
 
         report += f"| {check_name} | {status} | {detail} |\n"
 
-    report += f"""
+    report += """
 
 ## 改进建议
 

@@ -14,17 +14,19 @@ def test_imports():
     """Test basic imports"""
     try:
         print("Testing workflow_models import...")
-        from core.workflow_models import OutputFormat, PersonaType, WorkflowStrategy
+        getattr(__import__("core.workflow_models", fromlist=["OutputFormat"]), "OutputFormat")
+        getattr(__import__("core.workflow_models", fromlist=["PersonaType"]), "PersonaType")
+        getattr(__import__("core.workflow_models", fromlist=["WorkflowStrategy"]), "WorkflowStrategy")
 
         print("✅ workflow_models imported successfully")
 
         print("Testing workflow_generator import...")
-        from core.workflow_generator import PRDParser
+        getattr(__import__("core.workflow_generator", fromlist=["PRDParser"]), "PRDParser")
 
         print("✅ workflow_generator imported successfully")
 
         print("Testing workflow_formatter import...")
-        from core.workflow_formatter import WorkflowFormatter
+        getattr(__import__("core.workflow_formatter", fromlist=["WorkflowFormatter"]), "WorkflowFormatter")
 
         print("✅ workflow_formatter imported successfully")
 
@@ -42,7 +44,9 @@ def test_basic_functionality():
     """Test basic functionality"""
     try:
         from core.workflow_generator import PRDParser
-        from core.workflow_models import PRDStructure, Requirement
+
+        getattr(__import__("core.workflow_models", fromlist=["PRDStructure"]), "PRDStructure")
+        getattr(__import__("core.workflow_models", fromlist=["Requirement"]), "Requirement")
 
         print("Testing PRD parser...")
         parser = PRDParser()

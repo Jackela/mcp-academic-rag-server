@@ -64,7 +64,7 @@ class TestCIFailureDetection(unittest.TestCase):
         if enable_import_error in ["true", "1", "yes", "on"]:
             # 尝试导入不存在的模块
             try:
-                import nonexistent_module_for_testing
+                __import__("nonexistent_module_for_testing")
 
                 self.fail("不应该能够导入不存在的模块")
             except ImportError:

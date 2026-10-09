@@ -13,16 +13,24 @@
 
 import asyncio
 import logging
-import os
 import sys
 from pathlib import Path
 
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.workflow_formatter import WorkflowFormatter
-from core.workflow_generator import PRDParser, RequirementAnalyzer, WorkflowGenerator
-from core.workflow_models import OutputFormat, PersonaType, WorkflowOptions, WorkflowStrategy
+from core.workflow_formatter import WorkflowFormatter  # noqa: E402 - import follows source-script or runtime bootstrap.
+from core.workflow_generator import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    PRDParser,
+    RequirementAnalyzer,
+    WorkflowGenerator,
+)
+from core.workflow_models import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    OutputFormat,
+    PersonaType,
+    WorkflowOptions,
+    WorkflowStrategy,
+)
 
 # 配置日志
 logging.basicConfig(
@@ -51,7 +59,7 @@ SAMPLE_PRD = """
 ### 1. 用户注册功能
 用户可以通过邮箱地址创建新账户，需要进行邮箱验证。注册过程应该简洁明了，支持密码强度检查。
 
-### 2. 用户登录功能  
+### 2. 用户登录功能
 支持邮箱+密码登录，集成Google、Facebook等社交媒体登录。登录失败时提供友好的错误提示。
 
 ### 3. 双因子认证(2FA)
@@ -127,7 +135,7 @@ async def demo_prd_parsing():
     print("1. 解析完整PRD文档...")
     prd_structure = parser.parse_content(SAMPLE_PRD, "user_auth_system_prd.md")
 
-    print(f"✅ 解析完成:")
+    print("✅ 解析完成:")
     print(f"   标题: {prd_structure.title}")
     print(f"   需求数量: {len(prd_structure.requirements)}")
     print(f"   验收标准: {len(prd_structure.acceptance_criteria)}")
@@ -138,10 +146,10 @@ async def demo_prd_parsing():
     for i, req in enumerate(prd_structure.requirements[:3], 1):
         print(f"   {i}. {req.title} (优先级: {req.priority.value}, 复杂度: {req.complexity.value})")
 
-    print(f"\n2. 解析简单文本描述...")
+    print("\n2. 解析简单文本描述...")
     simple_prd = parser.parse_text_description(SIMPLE_DESCRIPTION)
 
-    print(f"✅ 解析完成:")
+    print("✅ 解析完成:")
     print(f"   需求数量: {len(simple_prd.requirements)}")
 
     print("\n📋 简单需求预览:")
@@ -166,7 +174,7 @@ async def demo_requirement_analysis():
     print("1. 复杂度分析...")
     complexity_analysis = analyzer.analyze_complexity(requirements)
 
-    print(f"✅ 分析完成:")
+    print("✅ 分析完成:")
     print(f"   整体复杂度: {complexity_analysis.overall_complexity.value}")
     print(f"   技术复杂度: {complexity_analysis.technical_complexity * 100:.1f}%")
     print(f"   集成复杂度: {complexity_analysis.integration_complexity * 100:.1f}%")
@@ -180,7 +188,7 @@ async def demo_requirement_analysis():
     print("\n2. 需求分类...")
     categories = analyzer.categorize_requirements(requirements)
 
-    print(f"✅ 分类完成:")
+    print("✅ 分类完成:")
     print(f"   功能性需求: {len(categories.functional_requirements)}")
     print(f"   非功能性需求: {len(categories.non_functional_requirements)}")
     print(f"   UI需求: {len(categories.ui_requirements)}")
@@ -191,7 +199,7 @@ async def demo_requirement_analysis():
     print("\n3. 工作量估算...")
     estimation = analyzer.estimate_effort(requirements)
 
-    print(f"✅ 估算完成:")
+    print("✅ 估算完成:")
     print(f"   总工作量: {estimation.total_hours} 小时")
     print(f"   置信度: {estimation.confidence_level * 100:.0f}%")
     print(f"   缓冲比例: {estimation.buffer_percentage * 100:.0f}%")
@@ -334,14 +342,39 @@ async def demo_persona_activation():
         options = WorkflowOptions(strategy=WorkflowStrategy.SYSTEMATIC)
         workflow = await generator.generate_workflow(description, options)
 
-        print(f"激活的专家人格:")
+        print("激活的专家人格:")
         for persona in workflow.activated_personas:
             print(f"  - {persona.value.title()}: 自动激活")
 
         if workflow.persona_recommendations:
-            print(f"专家建议:")
+            print("专家建议:")
             for persona, recommendation in workflow.persona_recommendations.items():
                 print(f"  - {persona.value.title()}: {recommendation}")
+
+
+def _print_workflow_schedule(workflow):
+    # 并行流分析
+    if workflow.parallel_streams:
+        print("\n🔄 并行工作流分析:")
+        for stream in workflow.parallel_streams:
+            print(f"   - {stream.name}: {stream.description}")
+            if stream.estimated_effort:
+                print(f"     工作量: {stream.estimated_effort}h")
+            if stream.required_team_size > 1:
+                print(f"     团队规模: {stream.required_team_size}人")
+
+    # 关键路径分析
+    if workflow.critical_path:
+        print("\n🎯 关键路径分析:")
+        print(f"   总工作量: {workflow.critical_path.total_effort}h")
+        if workflow.critical_path.total_duration:
+            print(f"   预计工期: {workflow.critical_path.total_duration.days}天")
+
+        if workflow.critical_path.bottlenecks:
+            print(f"   瓶颈数量: {len(workflow.critical_path.bottlenecks)}")
+
+        if workflow.critical_path.optimization_opportunities:
+            print(f"   优化建议: {len(workflow.critical_path.optimization_opportunities)}个")
 
 
 async def demo_advanced_features():
@@ -361,12 +394,12 @@ async def demo_advanced_features():
         include_risks=True,
         enable_parallel_analysis=True,
         enable_milestones=True,
-        enable_mcp_integration=True,  # 启用MCP集成
+        enable_mcp_integration=False,  # 外部服务尚未实现
         forced_persona=PersonaType.ARCHITECT,  # 强制激活架构师
         team_size=5,
-        enable_context7=True,
-        enable_sequential=True,
-        enable_magic=True,
+        enable_context7=False,
+        enable_sequential=False,
+        enable_magic=False,
         include_code_examples=True,
         include_templates=True,
         enable_optimization_suggestions=True,
@@ -376,39 +409,18 @@ async def demo_advanced_features():
     print("生成高级工作流...")
     workflow = await generator.generate_workflow(SAMPLE_PRD, options)
 
-    print(f"✅ 高级工作流生成完成:")
+    print("✅ 高级工作流生成完成:")
     print(f"   策略: {workflow.strategy.value}")
     print(f"   阶段数: {len(workflow.phases)}")
     print(f"   里程碑数: {sum(len(phase.milestones) for phase in workflow.phases)}")
     print(f"   激活人格: {', '.join([p.value for p in workflow.activated_personas])}")
 
-    # 并行流分析
-    if workflow.parallel_streams:
-        print(f"\n🔄 并行工作流分析:")
-        for stream in workflow.parallel_streams:
-            print(f"   - {stream.name}: {stream.description}")
-            if stream.estimated_effort:
-                print(f"     工作量: {stream.estimated_effort}h")
-            if stream.required_team_size > 1:
-                print(f"     团队规模: {stream.required_team_size}人")
-
-    # 关键路径分析
-    if workflow.critical_path:
-        print(f"\n🎯 关键路径分析:")
-        print(f"   总工作量: {workflow.critical_path.total_effort}h")
-        if workflow.critical_path.total_duration:
-            print(f"   预计工期: {workflow.critical_path.total_duration.days}天")
-
-        if workflow.critical_path.bottlenecks:
-            print(f"   瓶颈数量: {len(workflow.critical_path.bottlenecks)}")
-
-        if workflow.critical_path.optimization_opportunities:
-            print(f"   优化建议: {len(workflow.critical_path.optimization_opportunities)}个")
+    _print_workflow_schedule(workflow)
 
     # 风险分析
     high_risks = workflow.get_high_risk_items()
     if high_risks:
-        print(f"\n⚠️ 高风险项分析:")
+        print("\n⚠️ 高风险项分析:")
         for risk in high_risks[:3]:  # 显示前3个高风险项
             print(f"   - {risk.name}: {risk.description[:50]}...")
             if risk.mitigation_strategies:
@@ -417,7 +429,7 @@ async def demo_advanced_features():
     # 关键依赖
     critical_deps = workflow.get_critical_dependencies()
     if critical_deps:
-        print(f"\n🔗 关键依赖分析:")
+        print("\n🔗 关键依赖分析:")
         for dep in critical_deps[:3]:
             print(f"   - {dep.name}: {dep.description[:50]}...")
             print(f"     类型: {dep.type}, 重要性: {dep.criticality.value}")
@@ -499,7 +511,7 @@ async def main():
         await demo_persona_activation()
 
         # 6. 高级功能演示
-        advanced_workflow = await demo_advanced_features()
+        await demo_advanced_features()
 
         # 7. 保存演示输出
         saved_files = await save_demo_outputs()
@@ -520,7 +532,7 @@ async def main():
         print("   - 关键路径计算")
         print("   - 高级功能集成")
 
-        print(f"\n📊 核心指标:")
+        print("\n📊 核心指标:")
         print(f"   - 解析需求数: {len(workflow.requirements)}")
         print(f"   - 生成阶段数: {len(workflow.phases)}")
         print(f"   - 总工作量: {workflow.get_total_effort()}小时")
@@ -528,11 +540,11 @@ async def main():
         print(f"   - 激活人格数: {len(workflow.activated_personas)}")
         print(f"   - 识别风险数: {len(workflow.risks)}")
 
-        print(f"\n💾 输出文件:")
+        print("\n💾 输出文件:")
         for file_path in saved_files:
             print(f"   - {file_path}")
 
-        print(f"\n🚀 /sc:workflow 命令演示成功!")
+        print("\n🚀 /sc:workflow 命令演示成功!")
         print("企业级工作流生成器已准备就绪，可以处理真实的PRD和项目需求。")
 
     except Exception as e:

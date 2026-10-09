@@ -3,7 +3,6 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import os
 import sys
 from pathlib import Path
 
@@ -168,7 +167,7 @@ _optional_doc_imports = [
     "redis",
     "watchdog",
 ]
-import importlib.util
+import importlib.util  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 # Never replace installed SDKs with fake classes during import/type introspection.
 autodoc_mock_imports = [name for name in _optional_doc_imports if importlib.util.find_spec(name) is None]

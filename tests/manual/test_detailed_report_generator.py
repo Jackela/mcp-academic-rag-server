@@ -14,7 +14,7 @@ from datetime import datetime
 # 添加项目路径
 sys.path.insert(0, os.getcwd())
 
-from mcp_server_standalone import MCPServer
+from mcp_server_standalone import MCPServer  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 class DetailedReportGenerator:
@@ -269,7 +269,7 @@ class DetailedReportGenerator:
         for i, query in enumerate(performance_queries):
             start_time = time.time()
 
-            result = await self.server.handle_query_documents(20 + i, {"query": query, "top_k": 2})
+            await self.server.handle_query_documents(20 + i, {"query": query, "top_k": 2})
 
             end_time = time.time()
             response_time = (end_time - start_time) * 1000
@@ -371,7 +371,7 @@ class DetailedReportGenerator:
         with open("mcp_detailed_test_report.json", "w", encoding="utf-8") as f:
             json.dump(self.detailed_report, f, ensure_ascii=False, indent=2)
 
-        print(f"\n📄 详细报告已保存到: mcp_detailed_test_report.json")
+        print("\n📄 详细报告已保存到: mcp_detailed_test_report.json")
 
     def _display_summary(self):
         """显示报告摘要"""

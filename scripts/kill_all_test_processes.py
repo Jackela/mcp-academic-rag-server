@@ -5,7 +5,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tests.utils.cleanup import _global_cleaner, emergency_cleanup, kill_port
+from tests.utils.cleanup import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    _global_cleaner,
+    emergency_cleanup,
+    kill_port,
+)
 
 
 def cleanup_processes():

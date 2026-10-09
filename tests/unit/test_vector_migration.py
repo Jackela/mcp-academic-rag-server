@@ -170,7 +170,7 @@ class TestVectorStoreMigrator:
             source_config, target_config, batch_size=10, verify_migration=True, backup_before_migration=False
         )
 
-        assert result == True
+        assert result is True
         assert empty_target_store.get_document_count() == 3
 
         # 验证文档内容
@@ -191,7 +191,7 @@ class TestVectorStoreMigrator:
 
             result = migrator.migrate({"type": "memory"}, {"type": "faiss"}, backup_before_migration=True)
 
-        assert result == True
+        assert result is True
         assert mock_backup.called
 
     @patch("document_stores.migration.vector_migration.create_vector_store")
@@ -206,7 +206,7 @@ class TestVectorStoreMigrator:
 
             result = migrator.migrate({"type": "memory"}, {"type": "faiss"}, backup_before_migration=True)
 
-        assert result == False
+        assert result is False
 
     @patch("document_stores.migration.vector_migration.create_vector_store")
     def test_migrate_verification_failure(self, mock_create_store, source_store_with_data, empty_target_store):
@@ -220,7 +220,7 @@ class TestVectorStoreMigrator:
 
             result = migrator.migrate({"type": "memory"}, {"type": "faiss"}, verify_migration=True)
 
-        assert result == False
+        assert result is False
 
     def test_execute_migration_empty_source(self):
         """测试空源存储的迁移"""
@@ -234,7 +234,7 @@ class TestVectorStoreMigrator:
 
         result = migrator._execute_migration(empty_source, empty_target, 10)
 
-        assert result == True
+        assert result is True
 
     def test_execute_migration_with_data(self, source_store_with_data, empty_target_store):
         """测试有数据的迁移执行"""
@@ -242,7 +242,7 @@ class TestVectorStoreMigrator:
 
         result = migrator._execute_migration(source_store_with_data, empty_target_store, 2)
 
-        assert result == True
+        assert result is True
         assert empty_target_store.get_document_count() == 3
 
     def test_backup_storage_success(self, source_store_with_data, temp_backup_dir):
@@ -314,7 +314,7 @@ class TestVectorStoreMigrator:
 
             result = migrator.restore_storage(backup_path, {"type": "mock"}, verify_backup=True)
 
-        assert result == True
+        assert result is True
         assert len(empty_target_store.load_calls) == 1
 
     def test_restore_storage_missing_files(self, temp_backup_dir):
@@ -327,7 +327,7 @@ class TestVectorStoreMigrator:
 
         result = migrator.restore_storage(backup_path, {"type": "mock"}, verify_backup=True)
 
-        assert result == False
+        assert result is False
 
     def test_verify_migration_count_mismatch(self, source_store_with_data):
         """测试文档数量不匹配的验证"""
@@ -339,7 +339,7 @@ class TestVectorStoreMigrator:
 
         result = migrator.verify_migration(source_store_with_data, target_store)
 
-        assert result == False
+        assert result is False
 
     @pytest.mark.parametrize(
         "changes",
@@ -369,7 +369,7 @@ class TestVectorStoreMigrator:
 
         result = migrator.verify_migration(empty_source, empty_target)
 
-        assert result == True
+        assert result is True
 
     def test_verify_backup_success(self, temp_backup_dir):
         """测试成功的备份验证"""
@@ -396,7 +396,7 @@ class TestVectorStoreMigrator:
 
         result = migrator.verify_backup(backup_path)
 
-        assert result == True
+        assert result is True
 
     def test_verify_backup_missing_files(self, temp_backup_dir):
         """测试缺失文件的备份验证"""
@@ -407,7 +407,7 @@ class TestVectorStoreMigrator:
 
         result = migrator.verify_backup(backup_path)
 
-        assert result == False
+        assert result is False
 
     def test_verify_backup_checksum_mismatch(self, temp_backup_dir):
         """测试校验和不匹配的备份验证"""
@@ -428,7 +428,7 @@ class TestVectorStoreMigrator:
 
         result = migrator.verify_backup(backup_path)
 
-        assert result == False
+        assert result is False
 
     def test_calculate_backup_checksum(self, temp_backup_dir):
         """测试备份校验和计算"""
@@ -553,7 +553,7 @@ class TestConvenienceFunctions:
 
         result = migrate_vector_storage(source_config, target_config, batch_size=500)
 
-        assert result == True
+        assert result is True
         assert mock_migrate.called
 
         # 验证调用参数
@@ -592,7 +592,7 @@ class TestEdgeCases:
 
             result = migrator.migrate({"type": "memory"}, {"type": "faiss"})
 
-        assert result == False
+        assert result is False
 
     def test_backup_with_io_error(self, tmp_path):
         """测试备份过程中的IO错误"""

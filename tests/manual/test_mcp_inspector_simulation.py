@@ -12,7 +12,7 @@ import sys
 # 添加项目路径
 sys.path.insert(0, os.getcwd())
 
-from mcp_server_standalone import MCPServer
+from mcp_server_standalone import MCPServer  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 class MCPInspectorSimulator:
@@ -154,7 +154,7 @@ class MCPInspectorSimulator:
                     "status": "❌ 失败",
                     "error": result["error"]["message"],
                 }
-                print(f"  状态: 查询失败")
+                print("  状态: 查询失败")
 
             mode_comparison.append(comparison_result)
 
@@ -231,7 +231,7 @@ class MCPInspectorSimulator:
                 print(f"   响应时间: {result.get('response_time_ms', 0):.0f}ms")
 
         # 总体评估
-        print(f"\n🎯 总体评估:")
+        print("\n🎯 总体评估:")
         if successful_tests == total_tests:
             print("🟢 优秀 - 所有测试通过，RAG系统运行完美")
         elif successful_tests >= total_tests * 0.8:
@@ -243,7 +243,7 @@ class MCPInspectorSimulator:
         with open("mcp_inspector_test_report.json", "w", encoding="utf-8") as f:
             json.dump(self.test_results, f, ensure_ascii=False, indent=2)
 
-        print(f"\n📄 详细报告已保存到: mcp_inspector_test_report.json")
+        print("\n📄 详细报告已保存到: mcp_inspector_test_report.json")
 
 
 async def main():

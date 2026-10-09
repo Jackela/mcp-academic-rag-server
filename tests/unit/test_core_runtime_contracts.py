@@ -184,3 +184,17 @@ async def test_real_workflow_strategies_respect_milestone_options(tmp_path):
         assert all(not phase.milestones for phase in disabled.phases)
     with pytest.raises(NotImplementedError, match="not implemented"):
         await generator.generate_workflow(str(path), WorkflowOptions(enable_context7=True))
+
+
+def test_rejected_candidate_keeps_the_previous_config_valid(tmp_path):
+    make_config(tmp_path)
+    manager = ConfigManager(str(tmp_path / "config.json"))
+    before = manager.get_config()
+    candidate = manager.get_config()
+    candidate["logging"]["level"] = "INVALID"
+    assert not manager.apply_config(candidate)
+    assert manager.get_config() == before
+    assert manager.is_config_valid()
+    assert manager.set_value("logging.level", "INVALID")
+    assert not manager.is_config_valid()
+    assert manager.get_validation_report()["is_valid"] is False

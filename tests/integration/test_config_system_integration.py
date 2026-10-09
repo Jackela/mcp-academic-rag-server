@@ -14,14 +14,7 @@ import pytest
 
 from core.config_environment_manager import ConfigEnvironmentManager, EnvironmentType
 from core.config_migration_tool import ConfigMigrationTool
-from core.config_runtime_validator import (
-    DependencyConstraint,
-    PatternConstraint,
-    RangeConstraint,
-    RuntimeConfigValidator,
-    ValidationLevel,
-    ValidationSeverity,
-)
+from core.config_runtime_validator import RuntimeConfigValidator, ValidationLevel, ValidationSeverity
 from core.config_version_manager import ChangeType, ConfigVersionManager
 
 
@@ -268,7 +261,7 @@ class TestConfigSystemIntegration:
 
         # 步骤2: 使用版本管理器管理配置
         version_manager = ConfigVersionManager(str(config_file))
-        version_id = version_manager.create_version(dev_config, "开发环境初始配置", "integration_test")
+        version_manager.create_version(dev_config, "开发环境初始配置", "integration_test")
 
         # 步骤3: 验证配置
         validator = RuntimeConfigValidator(ValidationLevel.STANDARD)

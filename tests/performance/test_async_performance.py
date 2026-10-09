@@ -16,10 +16,10 @@ import unittest
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.pipeline import Pipeline
-from models.document import Document
-from models.process_result import ProcessResult
-from processors.base_processor import BaseProcessor
+from core.pipeline import Pipeline  # noqa: E402 - import follows source-script or runtime bootstrap.
+from models.document import Document  # noqa: E402 - import follows source-script or runtime bootstrap.
+from models.process_result import ProcessResult  # noqa: E402 - import follows source-script or runtime bootstrap.
+from processors.base_processor import BaseProcessor  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 class MockProcessor(BaseProcessor):
@@ -228,7 +228,7 @@ class TestAsyncPerformance(unittest.TestCase):
         # 异步处理应该显著快于同步处理
         performance_improvement = (sync_duration - async_duration) / sync_duration * 100
 
-        print(f"批量处理性能比较:")
+        print("批量处理性能比较:")
         print(f"  同步处理耗时: {sync_duration:.3f}s")
         print(f"  异步处理耗时: {async_duration:.3f}s")
         print(f"  性能提升: {performance_improvement:.1f}%")
@@ -355,7 +355,7 @@ class TestAsyncPerformance(unittest.TestCase):
         self.assertEqual(len(sync_results), len(large_doc_set))
         self.assertEqual(len(async_results), len(large_doc_set))
 
-        print(f"\\n内存使用比较:")
+        print("\\n内存使用比较:")
         print(f"  同步处理内存增量: {sync_memory_usage:.2f} MB")
         print(f"  异步处理内存增量: {async_memory_usage:.2f} MB")
 
@@ -415,7 +415,7 @@ class TestAsyncPerformance(unittest.TestCase):
         success_count = sum(1 for result in results.values() if result.is_successful())
         error_count = sum(1 for result in results.values() if not result.is_successful())
 
-        print(f"\\n错误处理测试结果:")
+        print("\\n错误处理测试结果:")
         print(f"  成功处理: {success_count}/{len(test_docs)}")
         print(f"  处理失败: {error_count}/{len(test_docs)}")
 

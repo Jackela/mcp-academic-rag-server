@@ -11,7 +11,7 @@ import time
 # 添加项目路径
 sys.path.insert(0, os.getcwd())
 
-from mcp_server_standalone import MCPServer
+from mcp_server_standalone import MCPServer  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 async def test_mode_comparison():
@@ -78,7 +78,7 @@ async def test_mode_comparison():
                 answer_start = response.find("💬 AI答案:") + len("💬 AI答案:")
                 answer_end = response.find("📁 相关文档片段") if "📁 相关文档片段" in response else len(response)
                 answer = response[answer_start:answer_end].strip()
-                print(f"\n📝 回答摘要:")
+                print("\n📝 回答摘要:")
                 print(f"   {answer[:200]}...")
 
             # 检查是否包含相关信息
@@ -105,7 +105,7 @@ async def test_mode_comparison():
 
         print("-" * 60)
 
-    print(f"\n🎯 测试总结:")
+    print("\n🎯 测试总结:")
     print("✅ 完整RAG系统运行正常")
     print("🤖 智能RAG: 语义检索 + OpenAI生成 (推荐)")
     print("🔍 简单模式: 关键词匹配 (后备方案)")

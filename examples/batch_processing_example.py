@@ -13,12 +13,11 @@ import random
 import string
 import sys
 import time
-from pathlib import Path
 
 # 添加项目根目录到系统路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cli.document_cli import DocumentCLI
+from cli.document_cli import DocumentCLI  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 def generate_test_documents(directory, count=10, size_range=(1, 5)):

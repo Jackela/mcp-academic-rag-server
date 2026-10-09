@@ -13,7 +13,6 @@ import signal
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
 
 # 添加项目根目录
 sys.path.insert(0, os.path.abspath("."))
@@ -188,7 +187,7 @@ class MultiLLMIntegrationTester:
         logger.info("🔗 测试LLM连接器抽象层...")
 
         try:
-            from connectors.base_llm_connector import BaseLLMConnector
+            getattr(__import__("connectors.base_llm_connector", fromlist=["BaseLLMConnector"]), "BaseLLMConnector")
             from core.config_center import ConfigCenter
 
             # 加载配置
@@ -387,7 +386,7 @@ class MultiLLMIntegrationTester:
             for i, test_config in enumerate(test_configurations):
                 try:
                     # 创建测试配置
-                    test_llm_config = {"llm": test_config}
+                    {"llm": test_config}
 
                     # 验证配置格式
                     config_valid = all(key in test_config for key in ["provider", "model", "parameters"])

@@ -16,12 +16,11 @@ import os
 import sys
 import time
 import uuid
-from pathlib import Path
 
 # 添加项目根目录到系统路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cli.chat_cli import ChatCLI
+from cli.chat_cli import ChatCLI  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 def simulate_chat_conversation(chat_cli, queries):

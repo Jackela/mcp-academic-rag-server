@@ -57,29 +57,29 @@ class TestKnowledgeGraphProcessor(unittest.TestCase):
         """获取样本学术文本"""
         return """
         Machine Learning for Natural Language Processing
-        
+
         Abstract
-        This paper presents a comprehensive study on machine learning approaches for natural language processing tasks. 
-        We compare convolutional neural networks, recurrent neural networks, and transformer models. 
+        This paper presents a comprehensive study on machine learning approaches for natural language processing tasks.
+        We compare convolutional neural networks, recurrent neural networks, and transformer models.
         Our experiments demonstrate that transformer architectures achieve superior performance on text classification tasks.
-        
+
         1. Introduction
-        Natural language processing (NLP) has witnessed significant advancements with deep learning techniques. 
+        Natural language processing (NLP) has witnessed significant advancements with deep learning techniques.
         Convolutional neural networks (CNNs) and recurrent neural networks (RNNs) have been widely used for NLP tasks.
         Smith et al. (2020) proposed a novel CNN architecture for text classification.
-        
+
         2. Methodology
-        We propose a neural network architecture that combines CNN and RNN models. 
+        We propose a neural network architecture that combines CNN and RNN models.
         The proposed method uses feature extraction techniques and achieves 95% accuracy on benchmark datasets.
         Our approach improves the performance compared to traditional methods.
-        
+
         3. Results
         Table 1: Performance Comparison
         Model     Accuracy  Precision
         CNN       0.85      0.82
         RNN       0.88      0.86
         Our Model 0.95      0.94
-        
+
         Figure 1: System Architecture
         The figure shows the neural network architecture with multiple layers.
         """

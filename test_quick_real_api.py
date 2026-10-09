@@ -10,7 +10,6 @@ import logging
 import os
 import signal
 import sys
-from datetime import datetime
 from pathlib import Path
 
 # 添加项目根目录
@@ -174,7 +173,7 @@ class QuickAPITester:
         success_rate = (passed / total * 100) if total > 0 else 0
 
         logger.info(f"\n{'='*60}")
-        logger.info(f"🧪 快速测试完成")
+        logger.info("🧪 快速测试完成")
         logger.info(f"📊 总测试数: {total}")
         logger.info(f"✅ 通过: {passed}")
         logger.info(f"❌ 失败: {failed}")

@@ -76,7 +76,7 @@ class TestMemoryManager:
 
         with manager.monitor_memory("test_operation"):
             # Create some objects to increase memory usage
-            test_data = [list(range(100)) for _ in range(10)]
+            [list(range(100)) for _ in range(10)]
 
         # Check that metrics were recorded
         assert len(manager.metrics_history) > 0
@@ -157,7 +157,7 @@ class TestConnectionPool:
 
         # Get maximum connections
         conn1 = await pool.get_connection()
-        conn2 = await pool.get_connection()
+        await pool.get_connection()
 
         # Should raise exception when exceeding max size
         with pytest.raises(Exception, match="Connection pool exhausted"):

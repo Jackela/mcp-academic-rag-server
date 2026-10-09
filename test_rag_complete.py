@@ -13,7 +13,6 @@ import signal
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
 
 # 添加项目根目录
 sys.path.insert(0, os.path.abspath("."))

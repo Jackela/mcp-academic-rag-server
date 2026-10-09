@@ -373,7 +373,7 @@ class TestChatSession:
         session = ChatSession(rag_pipeline=mock_rag_pipeline)
 
         # 添加用户消息
-        user_msg = session.add_message(role="user", content="Test question")
+        session.add_message(role="user", content="Test question")
 
         # 生成回复
         response, documents = session.process_query("Test question")

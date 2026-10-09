@@ -11,8 +11,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
-from unittest.mock import Mock, call, patch
 
 import pytest
 

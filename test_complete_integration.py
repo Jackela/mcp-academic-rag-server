@@ -12,7 +12,6 @@ import os
 import signal
 import subprocess
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -53,6 +52,26 @@ class TestResourceManager:
         """注册临时文件用于清理"""
         self.files_to_cleanup.append(filepath)
 
+    def _cleanup_registered_resources(self):
+        # 清理进程
+        for proc in self.processes:
+            try:
+                if proc.poll() is None:  # 进程仍在运行
+                    proc.terminate()
+                    proc.wait(timeout=5)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+
+        # 清理文件
+        for filepath in self.files_to_cleanup:
+            try:
+                Path(filepath).unlink(missing_ok=True)
+            except Exception:
+                pass
+
     def cleanup_all(self):
         """执行所有清理"""
         print("🧹 开始资源清理...")
@@ -67,24 +86,7 @@ class TestResourceManager:
             except Exception as e:
                 print(f"清理函数失败: {e}")
 
-        # 清理进程
-        for proc in self.processes:
-            try:
-                if proc.poll() is None:  # 进程仍在运行
-                    proc.terminate()
-                    proc.wait(timeout=5)
-            except Exception as e:
-                try:
-                    proc.kill()
-                except:
-                    pass
-
-        # 清理文件
-        for filepath in self.files_to_cleanup:
-            try:
-                Path(filepath).unlink(missing_ok=True)
-            except Exception:
-                pass
+        self._cleanup_registered_resources()
 
         # 额外的进程清理
         self._cleanup_remaining_processes()
@@ -246,7 +248,7 @@ class CompleteIntegrationTester:
             # 恢复原值
             config_center.set_value("llm.parameters.temperature", original_temp)
 
-            logger.info(f"✅ 配置系统测试通过")
+            logger.info("✅ 配置系统测试通过")
             logger.info(f"   LLM提供商: {config['llm']['provider']}")
             logger.info(f"   向量存储: {config['vector_db']['type']}")
 

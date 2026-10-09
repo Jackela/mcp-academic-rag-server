@@ -26,28 +26,29 @@ import pytest
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.config_manager import ConfigManager
-from core.pipeline import Pipeline
+from core.config_manager import ConfigManager  # noqa: E402 - import follows source-script or runtime bootstrap.
+from core.pipeline import Pipeline  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 # Import project modules
-from models.document import Document
-from models.process_result import ProcessResult
-from processors.base_processor import BaseProcessor
-from rag.chat_session import ChatSession, ChatSessionManager
+from models.document import Document  # noqa: E402 - import follows source-script or runtime bootstrap.
+from models.process_result import ProcessResult  # noqa: E402 - import follows source-script or runtime bootstrap.
+from processors.base_processor import BaseProcessor  # noqa: E402 - import follows source-script or runtime bootstrap.
+from rag.chat_session import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    ChatSession,
+    ChatSessionManager,
+)
 
 # Import cleanup utilities
-from tests.utils.cleanup import (
+from tests.utils.cleanup import (  # noqa: E402 - import follows source-script or runtime bootstrap.
     cleanup_sync,
     emergency_cleanup,
     register_cleanup,
-    register_connection,
-    register_process,
-    register_server,
     register_temp_dir,
-    register_temp_file,
     run_cleanups,
 )
-from utils.performance_enhancements import MemoryManager
+from utils.performance_enhancements import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    MemoryManager,
+)
 
 
 @pytest.fixture(scope="session")

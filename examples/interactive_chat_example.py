@@ -9,16 +9,17 @@
 
 import argparse
 import os
-import readline  # 用于命令行历史记录和编辑功能
-import sys
-import time
-import uuid
-from datetime import datetime
+
+__import__("readline")
+import sys  # noqa: E402 - import follows source-script or runtime bootstrap.
+import time  # noqa: E402 - import follows source-script or runtime bootstrap.
+import uuid  # noqa: E402 - import follows source-script or runtime bootstrap.
+from datetime import datetime  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 # 添加项目根目录到系统路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cli.chat_cli import ChatCLI
+from cli.chat_cli import ChatCLI  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 class EnhancedChatInterface:
@@ -112,6 +113,34 @@ class EnhancedChatInterface:
             )
             print(f"{role_color}{content}{self.colors['reset']}\n")
 
+    def _handle_command(self, user_input):
+        """Handle a local command and report whether it consumed the input."""
+        # 处理特殊命令
+        if user_input.lower() in ["help", "?", "帮助"]:
+            self.print_help()
+            return True
+
+        if user_input.lower() in ["clear", "cls", "清屏"]:
+            os.system("cls" if os.name == "nt" else "clear")
+            self.print_welcome()
+            return True
+
+        if user_input.lower().startswith("history"):
+            args = user_input.split()[1:] if len(user_input.split()) > 1 else []
+            self.handle_history_command(args)
+            return True
+
+        if user_input.lower() in ["save", "保存"]:
+            self.cli._save_session()
+            print(f"{self.colors['system']}会话已保存{self.colors['reset']}")
+            return True
+
+        if user_input.lower() in ["export", "导出"]:
+            self.cli._export_session(self.session_id)
+            return True
+
+        return False
+
     def run(self):
         """运行增强的聊天界面"""
         # 打印欢迎信息
@@ -140,28 +169,7 @@ class EnhancedChatInterface:
             if not user_input:
                 continue
 
-            # 处理特殊命令
-            if user_input.lower() in ["help", "?", "帮助"]:
-                self.print_help()
-                continue
-
-            if user_input.lower() in ["clear", "cls", "清屏"]:
-                os.system("cls" if os.name == "nt" else "clear")
-                self.print_welcome()
-                continue
-
-            if user_input.lower().startswith("history"):
-                args = user_input.split()[1:] if len(user_input.split()) > 1 else []
-                self.handle_history_command(args)
-                continue
-
-            if user_input.lower() in ["save", "保存"]:
-                self.cli._save_session()
-                print(f"{self.colors['system']}会话已保存{self.colors['reset']}")
-                continue
-
-            if user_input.lower() in ["export", "导出"]:
-                self.cli._export_session(self.session_id)
+            if self._handle_command(user_input):
                 continue
 
             # 处理常规聊天消息

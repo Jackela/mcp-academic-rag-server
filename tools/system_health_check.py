@@ -60,12 +60,12 @@ def test_document_structure_extraction():
 
     test_text = """
     Title: Academic Paper on Machine Learning
-    
+
     Abstract: This paper presents a novel approach to machine learning.
-    
+
     1. INTRODUCTION
     Machine learning is an important field of study.
-    
+
     2. METHODOLOGY
     We propose a new algorithm.
     """
@@ -168,7 +168,8 @@ def test_rag_components():
     """测试RAG组件"""
     try:
         from rag.chat_session import ChatSession, ChatSessionManager
-        from rag.haystack_pipeline import RAGPipelineFactory
+
+        getattr(__import__("rag.haystack_pipeline", fromlist=["RAGPipelineFactory"]), "RAGPipelineFactory")
 
         # 基本导入测试
         manager = ChatSessionManager()

@@ -6,8 +6,6 @@ import json
 import os
 import tempfile
 
-import pytest
-
 from core.config_manager import ConfigManager
 
 

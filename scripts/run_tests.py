@@ -51,7 +51,7 @@ class TestRunner:
 
         # 检查基础依赖
         try:
-            import pytest
+            __import__("pytest")
 
             dependencies["pytest"] = True
         except ImportError:
@@ -59,7 +59,7 @@ class TestRunner:
 
         # 检查FAISS
         try:
-            import faiss
+            __import__("faiss")
 
             dependencies["faiss"] = True
         except ImportError:
@@ -67,7 +67,7 @@ class TestRunner:
 
         # 检查Milvus客户端
         try:
-            import pymilvus
+            __import__("pymilvus")
 
             dependencies["pymilvus"] = True
         except ImportError:
@@ -75,7 +75,7 @@ class TestRunner:
 
         # 检查覆盖率工具
         try:
-            import coverage
+            __import__("coverage")
 
             dependencies["coverage"] = True
         except ImportError:
@@ -299,6 +299,28 @@ class TestRunner:
         print("=" * 60)
 
 
+def _run_selected_tests(args, runner, verbose, coverage):
+    # 运行测试
+    if args.all:
+        return runner.run_all_tests(verbose, coverage)
+    elif args.unit:
+        return runner.run_unit_tests(verbose, coverage)
+    elif args.integration:
+        return runner.run_integration_tests(verbose, coverage)
+    elif args.performance:
+        return runner.run_performance_tests(verbose)
+    elif args.quick:
+        return runner.run_quick_tests()
+    elif args.pattern:
+        return runner.run_specific_tests(args.pattern, verbose)
+    elif args.markers:
+        return runner.run_tests_with_markers(args.markers, verbose)
+    else:
+        # 默认运行快速测试
+        print("No specific test type specified, running quick tests...")
+        return runner.run_quick_tests()
+
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
@@ -363,27 +385,7 @@ Examples:
         verbose = True
 
     coverage = not args.no_coverage
-    success = True
-
-    # 运行测试
-    if args.all:
-        success = runner.run_all_tests(verbose, coverage)
-    elif args.unit:
-        success = runner.run_unit_tests(verbose, coverage)
-    elif args.integration:
-        success = runner.run_integration_tests(verbose, coverage)
-    elif args.performance:
-        success = runner.run_performance_tests(verbose)
-    elif args.quick:
-        success = runner.run_quick_tests()
-    elif args.pattern:
-        success = runner.run_specific_tests(args.pattern, verbose)
-    elif args.markers:
-        success = runner.run_tests_with_markers(args.markers, verbose)
-    else:
-        # 默认运行快速测试
-        print("No specific test type specified, running quick tests...")
-        success = runner.run_quick_tests()
+    success = _run_selected_tests(args, runner, verbose, coverage)
 
     # 打印结果
     if success:

@@ -15,10 +15,8 @@ from unittest.mock import MagicMock, patch
 # 添加项目根目录到系统路径，确保能够导入被测试模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cli.chat_cli import ChatCLI
-from cli.document_cli import DocumentCLI
-from models.document import Document
-from rag.chat_session import ChatSession
+from cli.chat_cli import ChatCLI  # noqa: E402 - import follows source-script or runtime bootstrap.
+from cli.document_cli import DocumentCLI  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 class TestSystemIntegration(unittest.TestCase):
@@ -293,7 +291,7 @@ class TestPerformance(unittest.TestCase):
 
             # 处理查询（使用模拟实现）
             with patch("builtins.print"):  # 捕获输出
-                response = cli._generate_mock_response(query)
+                cli._generate_mock_response(query)
 
             # 计算查询时间
             query_time = time.time() - start_time

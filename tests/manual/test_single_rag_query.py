@@ -10,7 +10,7 @@ import sys
 # 添加项目路径
 sys.path.insert(0, os.getcwd())
 
-from mcp_server_standalone import MCPServer
+from mcp_server_standalone import MCPServer  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 async def test_single_rag_query():

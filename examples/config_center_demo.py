@@ -20,7 +20,11 @@ from pathlib import Path
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.config_center import ConfigCenter, ConfigChangeEvent, get_config_center, init_config_center
+from core.config_center import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    ConfigChangeEvent,
+    get_config_center,
+    init_config_center,
+)
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -77,7 +81,7 @@ def demo_environment_switching():
     # 切换到生产环境
     print("\n🔄 切换到生产环境...")
     if config_center.switch_environment("production"):
-        print(f"✅ 环境切换成功!")
+        print("✅ 环境切换成功!")
         print(f"新环境: {config_center.environment}")
         print(f"新端口: {config_center.get_value('server.port')}")
         print(f"新LLM模型: {config_center.get_value('llm.model')}")
@@ -85,7 +89,7 @@ def demo_environment_switching():
     # 切换回开发环境
     print("\n🔄 切换回开发环境...")
     if config_center.switch_environment("development"):
-        print(f"✅ 环境切换成功!")
+        print("✅ 环境切换成功!")
         print(f"环境: {config_center.environment}")
         print(f"端口: {config_center.get_value('server.port')}")
 
@@ -156,7 +160,7 @@ def demo_backup_restore():
 
         # 修改配置
         print("\n🔧 修改配置...")
-        original_port = config_center.get_value("server.port")
+        config_center.get_value("server.port")
         config_center.set_value("server.port", 7777)
         print(f"端口已修改为: {config_center.get_value('server.port')}")
 
@@ -196,7 +200,7 @@ def demo_advanced_features():
             print(f"  ❌ {env}: 不可用")
 
     # 配置统计
-    print(f"\n📊 详细统计信息:")
+    print("\n📊 详细统计信息:")
     stats = config_center.get_stats()
     for key, value in stats.items():
         print(f"  {key}: {value}")
@@ -259,7 +263,7 @@ def main():
         for key, value in final_stats.items():
             print(f"  {key}: {value}")
 
-        print(f"\n🎉 ConfigCenter 演示完成!")
+        print("\n🎉 ConfigCenter 演示完成!")
         print(f"✅ 总变更次数: {final_stats['total_changes']}")
         print(f"✅ 总重载次数: {final_stats['total_reloads']}")
 

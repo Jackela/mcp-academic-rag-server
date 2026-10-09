@@ -83,21 +83,21 @@ def test_environment_access():
 def test_optional_dependencies():
     """Test availability of optional dependencies."""
     try:
-        import anthropic
+        __import__("anthropic")
 
         print("✅ Anthropic package available")
     except ImportError:
         print("⚠️ Anthropic package not available")
 
     try:
-        import openai
+        __import__("openai")
 
         print("✅ OpenAI package available")
     except ImportError:
         print("⚠️ OpenAI package not available")
 
     try:
-        import pytest
+        __import__("pytest")
 
         print("✅ Pytest package available")
     except ImportError:

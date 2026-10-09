@@ -168,7 +168,7 @@ class TestRAGSystem:
         """测试会话管理功能"""
         # 创建多个会话
         session1 = session_manager.create_session(session_id="session1")
-        session2 = session_manager.create_session(session_id="session2")
+        session_manager.create_session(session_id="session2")
 
         # 验证会话存储
         assert "session1" in session_manager.sessions

@@ -14,7 +14,7 @@ import sys
 import time
 import traceback
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -79,6 +79,11 @@ class HealthChecker:
         except Exception as e:
             return HealthCheckResult("python_environment", "unhealthy", f"Failed to check Python environment: {str(e)}")
 
+    def _package_version(self, package):
+        module_name = {"opencv-python": "cv2", "pillow": "PIL"}.get(package, package.replace("-", "_"))
+        module = __import__(module_name)
+        return getattr(module, "__version__", "unknown")
+
     def check_required_packages(self) -> HealthCheckResult:
         """Check if required packages are installed"""
         required_packages = ["haystack", "sentence_transformers", "torch", "numpy", "pandas", "mcp"]
@@ -89,37 +94,12 @@ class HealthChecker:
         missing_optional = []
         installed_versions = {}
 
-        # Check required packages
-        for package in required_packages:
-            try:
-                if package == "opencv-python":
-                    import cv2
-
-                    installed_versions[package] = cv2.__version__
-                else:
-                    module = __import__(package.replace("-", "_"))
-                    version = getattr(module, "__version__", "unknown")
-                    installed_versions[package] = version
-            except ImportError:
-                missing_required.append(package)
-
-        # Check optional packages
-        for package in optional_packages:
-            try:
-                if package == "opencv-python":
-                    import cv2
-
-                    installed_versions[package] = cv2.__version__
-                elif package == "pymilvus":
-                    import pymilvus
-
-                    installed_versions[package] = pymilvus.__version__
-                else:
-                    module = __import__(package.replace("-", "_"))
-                    version = getattr(module, "__version__", "unknown")
-                    installed_versions[package] = version
-            except ImportError:
-                missing_optional.append(package)
+        for packages, missing in [(required_packages, missing_required), (optional_packages, missing_optional)]:
+            for package in packages:
+                try:
+                    installed_versions[package] = self._package_version(package)
+                except ImportError:
+                    missing.append(package)
 
         if missing_required:
             return HealthCheckResult(
@@ -342,7 +322,7 @@ class HealthChecker:
 
             # Test RAG pipeline creation
             rag_config = config_manager.get_value("rag_settings", {})
-            rag_pipeline = RAGPipelineFactory.create_pipeline(llm_connector=llm_connector, config=rag_config)
+            RAGPipelineFactory.create_pipeline(llm_connector=llm_connector, config=rag_config)
 
             return HealthCheckResult(
                 "rag_pipeline",

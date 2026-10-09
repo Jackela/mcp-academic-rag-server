@@ -21,16 +21,12 @@ async def test_circular_dependency_fix():
 
         # 1. 测试基础导入
         print("1. 测试基础导入...")
-        from core.workflow_models import (
-            OutputFormat,
-            PersonaType,
-            PRDStructure,
-            Priority,
-            Requirement,
-            Workflow,
-            WorkflowOptions,
-            WorkflowStrategy,
-        )
+        from core.workflow_models import Priority, Requirement, WorkflowOptions, WorkflowStrategy
+
+        getattr(__import__("core.workflow_models", fromlist=["OutputFormat"]), "OutputFormat")
+        getattr(__import__("core.workflow_models", fromlist=["PersonaType"]), "PersonaType")
+        getattr(__import__("core.workflow_models", fromlist=["PRDStructure"]), "PRDStructure")
+        getattr(__import__("core.workflow_models", fromlist=["Workflow"]), "Workflow")
 
         print("   ✅ 工作流模型导入成功")
 
@@ -38,7 +34,9 @@ async def test_circular_dependency_fix():
 
         print("   ✅ 工作量计算器导入成功")
 
-        from core.workflow_generator import PRDParser, WorkflowGenerator
+        from core.workflow_generator import WorkflowGenerator
+
+        getattr(__import__("core.workflow_generator", fromlist=["PRDParser"]), "PRDParser")
 
         print("   ✅ 工作流生成器导入成功")
 
@@ -93,7 +91,7 @@ async def test_circular_dependency_fix():
         )
 
         workflow = await generator.generate_workflow(simple_description, options)
-        print(f"   ✅ 工作流生成成功:")
+        print("   ✅ 工作流生成成功:")
         print(f"      - 策略: {workflow.strategy.value}")
         print(f"      - 需求数: {len(workflow.requirements)}")
         print(f"      - 阶段数: {len(workflow.phases)}")

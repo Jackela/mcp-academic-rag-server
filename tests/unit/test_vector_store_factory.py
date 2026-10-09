@@ -157,7 +157,7 @@ class TestVectorStoreFactory:
         # 创建一个无法写入的路径（在某些系统上可能需要调整）
         invalid_path = "/invalid/path/that/cannot/be/created"
 
-        config = {"type": "faiss", "vector_dimension": 384, "faiss": {"storage_path": invalid_path}}
+        {"type": "faiss", "vector_dimension": 384, "faiss": {"storage_path": invalid_path}}
 
         # 在Windows上，可能不会抛出异常，所以我们使用有效路径来测试成功情况
         valid_config = {"type": "faiss", "vector_dimension": 384, "faiss": {"storage_path": temp_storage_path}}

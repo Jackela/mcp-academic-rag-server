@@ -20,7 +20,8 @@ from models.document import Document
 from models.process_result import ProcessResult
 from processors.base_processor import BaseProcessor
 from servers import mcp_server_sdk as server
-from tests.integration.test_rag_integration import rag_system
+
+pytest_plugins = ("tests.integration.test_rag_integration",)
 
 
 class FixtureProcessor(BaseProcessor):
@@ -60,6 +61,7 @@ async def test_real_stdio_discovery_and_errors(tmp_path):
             assert "offline-boundary" in echo.content[0].text
             missing = await session.call_tool("process_document", {"file_path": str(tmp_path / "missing.pdf")})
             assert "not found" in missing.content[0].text
+            assert missing.isError
             bad_args = await session.call_tool("process_document", {})
             assert bad_args.isError
 
@@ -153,5 +155,26 @@ async def test_batch_failure_preserves_each_document_outcome():
         assert len(result) == 3
         assert all(not outcome.is_successful() for outcome in result.values())
         assert all("controlled processing failure" in outcome.get_message() for outcome in result.values())
+    finally:
+        pipeline._executor.shutdown(wait=True)
+
+
+@pytest.mark.asyncio
+async def test_registered_tool_marks_failed_pipeline_and_recovers(monkeypatch, tmp_path):
+    path = tmp_path / "controlled.txt"
+    path.write_text("Controlled source")
+    pipeline = Pipeline("controlled-failure")
+    processor = FixtureProcessor(fail=True)
+    pipeline.add_processor(processor)
+    context = SimpleNamespace(is_initialized=True, document_pipeline=pipeline)
+    monkeypatch.setattr(server, "server_context", context)
+    try:
+        failed = await server.handle_call_tool("process_document", {"file_path": str(path)})
+        assert failed.isError and "controlled processing failure" in failed.content[0].text
+        processor.fail = False
+        recovered = await server.handle_call_tool("process_document", {"file_path": str(path)})
+        assert isinstance(recovered, list) and "处理成功" in recovered[0].text
+        unknown = await server.handle_call_tool("unknown", {})
+        assert unknown.isError
     finally:
         pipeline._executor.shutdown(wait=True)

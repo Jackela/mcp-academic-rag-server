@@ -11,10 +11,9 @@ import logging
 import os
 import signal
 import sys
-import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
 # 添加项目根目录
 sys.path.insert(0, os.path.abspath("."))
@@ -487,7 +486,7 @@ class DocumentPipelineIntegrityTester:
 
             for test_case in error_test_cases:
                 try:
-                    result = test_case["test_func"]()
+                    test_case["test_func"]()
 
                     if test_case["expected_error_type"] is None:
                         # 期望成功的测试

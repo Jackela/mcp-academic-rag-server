@@ -14,15 +14,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 def test_models_only():
     """Test just the data models"""
     try:
-        from core.workflow_models import (
-            OutputFormat,
-            PersonaType,
-            PRDStructure,
-            Priority,
-            Requirement,
-            Workflow,
-            WorkflowStrategy,
-        )
+        from core.workflow_models import PRDStructure, Priority, Requirement, Workflow, WorkflowStrategy
+
+        getattr(__import__("core.workflow_models", fromlist=["OutputFormat"]), "OutputFormat")
+        getattr(__import__("core.workflow_models", fromlist=["PersonaType"]), "PersonaType")
 
         print("✅ Successfully imported workflow models")
 

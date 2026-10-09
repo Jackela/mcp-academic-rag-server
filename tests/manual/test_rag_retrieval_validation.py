@@ -10,7 +10,35 @@ import sys
 # 添加项目路径
 sys.path.insert(0, os.getcwd())
 
-from mcp_server_standalone import MCPServer
+from mcp_server_standalone import MCPServer  # noqa: E402 - import follows source-script or runtime bootstrap.
+
+
+def _print_retrieval_response(response):
+    # 检查是否真的使用了文档检索
+    print("响应长度:", len(response))
+
+    if "🤖 智能RAG查询结果:" in response:
+        print("✅ 使用智能RAG模式")
+
+        # 检查是否包含文档引用
+        if "文档ID:" in response or "来源：" in response:
+            print("✅ 包含文档引用")
+        else:
+            print("⚠️ 没有文档引用")
+
+        # 检查相关文档片段部分
+        if "📁 相关文档片段 (前0个)" in response:
+            print("❌ 没有检索到文档片段!")
+        elif "📁 相关文档片段" in response:
+            # 提取文档片段数量
+            if "(前" in response and "个)" in response:
+                start = response.find("(前") + 2
+                end = response.find("个)", start)
+                count = response[start:end]
+                print(f"✅ 检索到 {count} 个文档片段")
+
+    else:
+        print("❌ 没有使用智能RAG")
 
 
 async def test_rag_retrieval():
@@ -44,31 +72,7 @@ async def test_rag_retrieval():
         if "error" not in result:
             response = result["result"]["content"][0]["text"]
 
-            # 检查是否真的使用了文档检索
-            print("响应长度:", len(response))
-
-            if "🤖 智能RAG查询结果:" in response:
-                print("✅ 使用智能RAG模式")
-
-                # 检查是否包含文档引用
-                if "文档ID:" in response or "来源：" in response:
-                    print("✅ 包含文档引用")
-                else:
-                    print("⚠️ 没有文档引用")
-
-                # 检查相关文档片段部分
-                if "📁 相关文档片段 (前0个)" in response:
-                    print("❌ 没有检索到文档片段!")
-                elif "📁 相关文档片段" in response:
-                    # 提取文档片段数量
-                    if "(前" in response and "个)" in response:
-                        start = response.find("(前") + 2
-                        end = response.find("个)", start)
-                        count = response[start:end]
-                        print(f"✅ 检索到 {count} 个文档片段")
-
-            else:
-                print("❌ 没有使用智能RAG")
+            _print_retrieval_response(response)
 
         print("-" * 40)
 

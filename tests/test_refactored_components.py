@@ -20,11 +20,19 @@ import pytest
 # 添加项目根目录到路径
 sys.path.append(str(Path(__file__).parent.parent))
 
-from core.config_manager import ConfigManager
-from core.config_validator import ConfigValidator, generate_default_config
-from models.document import Document
-from rag.chat_session import ChatSession, ChatSessionManager
-from utils.text_utils import DocumentStructureExtractor
+from core.config_manager import ConfigManager  # noqa: E402 - import follows source-script or runtime bootstrap.
+from core.config_validator import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    ConfigValidator,
+    generate_default_config,
+)
+from models.document import Document  # noqa: E402 - import follows source-script or runtime bootstrap.
+from rag.chat_session import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    ChatSession,
+    ChatSessionManager,
+)
+from utils.text_utils import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    DocumentStructureExtractor,
+)
 
 
 class TestConfigManagement:
@@ -70,11 +78,11 @@ class TestConfigManagement:
 
         # 有效配置
         valid_config = generate_default_config()
-        assert validator.validate_config(valid_config) == True
+        assert validator.validate_config(valid_config) is True
 
         # 无效配置 - 缺少必需字段
         invalid_config = {"invalid": "config"}
-        assert validator.validate_config(invalid_config) == False
+        assert validator.validate_config(invalid_config) is False
 
     def test_config_manager_with_temp_file(self):
         """测试配置管理器与临时文件"""
@@ -86,7 +94,7 @@ class TestConfigManagement:
         try:
             config_manager = ConfigManager(temp_path)
             assert config_manager.get_value("storage.base_path") == "./data"
-            assert config_manager.get_value("processors.pre_processor.enabled") == True
+            assert config_manager.get_value("processors.pre_processor.enabled") is True
         finally:
             os.unlink(temp_path)
 
@@ -103,12 +111,12 @@ class TestDocumentStructureExtractor:
         """测试结构提取功能"""
         sample_text = """
         Title: Test Document
-        
+
         Abstract: This is a test document.
-        
+
         1. Introduction
         This is the introduction section.
-        
+
         2. Methodology
         This describes the methods used.
         """

@@ -15,7 +15,11 @@ import pytest
 # Add project root to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from servers.mcp_server_secure import setup_secure_logging, validate_api_key, validate_environment
+from servers.mcp_server_secure import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    setup_secure_logging,
+    validate_api_key,
+    validate_environment,
+)
 
 
 class TestApiKeyValidation:
@@ -24,62 +28,62 @@ class TestApiKeyValidation:
     def test_valid_api_key(self):
         """Test validation of valid OpenAI API keys."""
         # Test minimum valid key
-        assert validate_api_key("sk-" + "x" * 18) == True
+        assert validate_api_key("sk-" + "x" * 18) is True
 
         # Test typical length key
-        assert validate_api_key("sk-" + "a" * 48) == True
+        assert validate_api_key("sk-" + "a" * 48) is True
 
         # Test longer key
-        assert validate_api_key("sk-" + "1" * 100) == True
+        assert validate_api_key("sk-" + "1" * 100) is True
 
     def test_invalid_api_key_format(self):
         """Test validation rejects invalid API key formats."""
         # Test wrong prefix
-        assert validate_api_key("ak-1234567890123456789") == False
-        assert validate_api_key("key-1234567890123456789") == False
+        assert validate_api_key("ak-1234567890123456789") is False
+        assert validate_api_key("key-1234567890123456789") is False
 
         # Test no prefix
-        assert validate_api_key("1234567890123456789") == False
+        assert validate_api_key("1234567890123456789") is False
 
         # Test empty prefix
-        assert validate_api_key("-1234567890123456789") == False
+        assert validate_api_key("-1234567890123456789") is False
 
     def test_invalid_api_key_length(self):
         """Test validation rejects API keys that are too short."""
         # Test too short
-        assert validate_api_key("sk-123") == False
-        assert validate_api_key("sk-1234567890") == False
+        assert validate_api_key("sk-123") is False
+        assert validate_api_key("sk-1234567890") is False
 
         # Test exactly at boundary (20 chars total = 17 after prefix)
-        assert validate_api_key("sk-" + "x" * 17) == False
+        assert validate_api_key("sk-" + "x" * 17) is False
 
         # Test exactly at minimum (21 chars total = 18 after prefix)
-        assert validate_api_key("sk-" + "x" * 18) == True
+        assert validate_api_key("sk-" + "x" * 18) is True
 
     def test_empty_and_none_api_key(self):
         """Test validation handles empty and None values correctly."""
-        assert validate_api_key("") == False
-        assert validate_api_key(None) == False
+        assert validate_api_key("") is False
+        assert validate_api_key(None) is False
 
     def test_whitespace_api_key(self):
         """Test validation handles whitespace correctly."""
         # Test leading/trailing whitespace
-        assert validate_api_key("  sk-" + "x" * 18 + "  ") == False
+        assert validate_api_key("  sk-" + "x" * 18 + "  ") is False
 
         # Test internal whitespace
-        assert validate_api_key("sk- " + "x" * 18) == False
+        assert validate_api_key("sk- " + "x" * 18) is False
 
     def test_special_characters(self):
         """Test validation with special characters."""
         # Test with various special characters
-        valid_key_base = "sk-" + "x" * 18
+        "sk-" + "x" * 18
 
         # These should be valid (alphanumeric and common characters)
-        assert validate_api_key("sk-abc123XYZ789012345") == True
-        assert validate_api_key("sk-ABC123xyz789012345") == True
+        assert validate_api_key("sk-abc123XYZ789012345") is True
+        assert validate_api_key("sk-ABC123xyz789012345") is True
 
         # Unicode characters (should still validate format, though may not be real keys)
-        assert validate_api_key("sk-" + "🔑" * 18) == True
+        assert validate_api_key("sk-" + "🔑" * 18) is True
 
 
 class TestEnvironmentValidation:

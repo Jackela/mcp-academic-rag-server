@@ -5,7 +5,6 @@
 验证MCP Academic RAG Server的核心重构是否成功，不依赖外部包。
 """
 
-import os
 import sys
 import traceback
 from pathlib import Path

@@ -10,18 +10,14 @@ import json
 import logging
 import os
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.abspath("."))
 
-from connectors.base_llm_connector import BaseLLMConnector
-from core.config_center import ConfigCenter
-from document_stores import VectorStoreFactory
-from rag.haystack_pipeline import create_pipeline
-from servers.mcp_server import app
+from core.config_center import ConfigCenter  # noqa: E402 - import follows source-script or runtime bootstrap.
+from document_stores import VectorStoreFactory  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -107,10 +103,10 @@ class MCPIntegrationTester:
         try:
             # 创建向量存储
             config = self.config_center.get_config()
-            vector_store = VectorStoreFactory.create_store(config["vector_db"])
+            VectorStoreFactory.create_store(config["vector_db"])
 
             # 测试基本操作
-            test_document = {
+            {
                 "id": "test-doc-1",
                 "content": "This is a test document for vector storage.",
                 "metadata": {"source": "test", "timestamp": str(datetime.now())},

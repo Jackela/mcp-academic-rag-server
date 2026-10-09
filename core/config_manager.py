@@ -114,9 +114,11 @@ class ConfigManager:
 
     def apply_config(self, config: Dict[str, Any]) -> bool:
         """Install a validated effective snapshot without writing its source file."""
-        candidate = self.validator.normalize_processor_config(copy.deepcopy(config))
-        if not self.validator.validate_config(candidate):
+        validator = ConfigValidator()
+        candidate = validator.normalize_processor_config(copy.deepcopy(config))
+        if not validator.validate_config(candidate):
             return False
+        self.validator = validator
         self.config = candidate
         self._is_validated = True
         self._load_error = None
@@ -305,7 +307,7 @@ class ConfigManager:
         Returns:
             如果配置有效则返回True，否则返回False
         """
-        return self._is_validated and len(self.validator.validation_errors) == 0
+        return self.validate_current_config()
 
     def fix_config_issues(self) -> bool:
         """

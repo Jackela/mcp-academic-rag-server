@@ -18,7 +18,6 @@ import numpy as np
 import pytest
 from haystack import Document as HaystackDocument
 
-from document_stores.implementations.base_vector_store import BaseVectorStore
 from document_stores.vector_store_factory import create_vector_store
 
 
@@ -118,6 +117,54 @@ class VectorStorageBenchmark:
 
         return docs, embeddings
 
+    def _benchmark_document_operations(self, store, docs, embeddings, result):
+        # 测试单个文档操作
+        if len(docs) > 0:
+            test_doc_id = docs[0].id
+
+            # 获取文档
+            start_time = time.time()
+            retrieved_doc = store.get_document_by_id(test_doc_id)
+            get_time = time.time() - start_time
+            result.add_metric("get_document_time", get_time, "seconds")
+
+            # 更新文档
+            if retrieved_doc:
+                updated_doc = HaystackDocument(
+                    content="Updated content for benchmark", meta=retrieved_doc.meta, id=test_doc_id
+                )
+
+                start_time = time.time()
+                store.update_document(test_doc_id, updated_doc, embeddings[0])
+                update_time = time.time() - start_time
+                result.add_metric("update_document_time", update_time, "seconds")
+
+            # 删除文档
+            start_time = time.time()
+            store.delete_document(test_doc_id)
+            delete_time = time.time() - start_time
+            result.add_metric("delete_document_time", delete_time, "seconds")
+
+    def _benchmark_persistence(self, store, store_config, result):
+        # 测试持久化（如果支持）
+        if hasattr(store, "save_index") and store_config.get("test_persistence", True):
+            save_path = self.create_temp_dir()
+
+            start_time = time.time()
+            save_success = store.save_index(save_path)
+            save_time = time.time() - start_time
+
+            if save_success:
+                result.add_metric("save_index_time", save_time, "seconds")
+
+                # 测试加载
+                start_time = time.time()
+                load_success = store.load_index(save_path)
+                load_time = time.time() - start_time
+
+                if load_success:
+                    result.add_metric("load_index_time", load_time, "seconds")
+
     def benchmark_store_operations(self, store_config: Dict[str, Any], test_params: Dict[str, Any]) -> BenchmarkResult:
         """基准测试存储操作"""
         result = BenchmarkResult(f"{store_config['type']}_benchmark")
@@ -190,51 +237,9 @@ class VectorStorageBenchmark:
                 "searches_per_second", 1.0 / avg_search_time if avg_search_time > 0 else 0, "searches/sec"
             )
 
-            # 测试单个文档操作
-            if len(docs) > 0:
-                test_doc_id = docs[0].id
+            self._benchmark_document_operations(store, docs, embeddings, result)
 
-                # 获取文档
-                start_time = time.time()
-                retrieved_doc = store.get_document_by_id(test_doc_id)
-                get_time = time.time() - start_time
-                result.add_metric("get_document_time", get_time, "seconds")
-
-                # 更新文档
-                if retrieved_doc:
-                    updated_doc = HaystackDocument(
-                        content="Updated content for benchmark", meta=retrieved_doc.meta, id=test_doc_id
-                    )
-
-                    start_time = time.time()
-                    update_success = store.update_document(test_doc_id, updated_doc, embeddings[0])
-                    update_time = time.time() - start_time
-                    result.add_metric("update_document_time", update_time, "seconds")
-
-                # 删除文档
-                start_time = time.time()
-                delete_success = store.delete_document(test_doc_id)
-                delete_time = time.time() - start_time
-                result.add_metric("delete_document_time", delete_time, "seconds")
-
-            # 测试持久化（如果支持）
-            if hasattr(store, "save_index") and store_config.get("test_persistence", True):
-                save_path = self.create_temp_dir()
-
-                start_time = time.time()
-                save_success = store.save_index(save_path)
-                save_time = time.time() - start_time
-
-                if save_success:
-                    result.add_metric("save_index_time", save_time, "seconds")
-
-                    # 测试加载
-                    start_time = time.time()
-                    load_success = store.load_index(save_path)
-                    load_time = time.time() - start_time
-
-                    if load_success:
-                        result.add_metric("load_index_time", load_time, "seconds")
+            self._benchmark_persistence(store, store_config, result)
 
             # 添加存储信息
             storage_info = store.get_storage_info()
@@ -324,7 +329,7 @@ class VectorStorageBenchmark:
                 query_embedding = embeddings[i % len(embeddings)]
 
                 start_time = time.time()
-                results = store.search(query_embedding, top_k=5)
+                store.search(query_embedding, top_k=5)
                 search_time = time.time() - start_time
 
                 concurrent_times.append(search_time)
@@ -338,14 +343,29 @@ class VectorStorageBenchmark:
         result.calculate_stats()
         return result
 
-    def generate_report(self, results: List[BenchmarkResult], output_file: str = None) -> Dict[str, Any]:
-        """生成基准测试报告"""
-        report = {
-            "benchmark_timestamp": datetime.now().isoformat(),
-            "results": [result.to_dict() for result in results],
-            "summary": {},
-        }
+    def _mean_metrics(self, type_results):
+        # 计算平均指标
+        avg_metrics = {}
+        for result in type_results:
+            for metric, data in result.metrics.items():
+                if isinstance(data, dict) and "mean" in data:
+                    if metric not in avg_metrics:
+                        avg_metrics[metric] = []
+                    avg_metrics[metric].append(data["mean"])
 
+        # 计算总体平均值
+        for metric, values in avg_metrics.items():
+            if values:
+                avg_metrics[metric] = {
+                    "mean": statistics.mean(values),
+                    "std": statistics.stdev(values) if len(values) > 1 else 0,
+                    "count": len(values),
+                }
+
+        return avg_metrics
+
+    def _benchmark_summary(self, results):
+        report = {"summary": {}}
         # 计算汇总统计
         if results:
             # 按存储类型分组
@@ -360,27 +380,23 @@ class VectorStorageBenchmark:
             comparison = {}
             for store_type, type_results in by_type.items():
                 if type_results:
-                    # 计算平均指标
-                    avg_metrics = {}
-                    for result in type_results:
-                        for metric, data in result.metrics.items():
-                            if isinstance(data, dict) and "mean" in data:
-                                if metric not in avg_metrics:
-                                    avg_metrics[metric] = []
-                                avg_metrics[metric].append(data["mean"])
-
-                    # 计算总体平均值
-                    for metric, values in avg_metrics.items():
-                        if values:
-                            avg_metrics[metric] = {
-                                "mean": statistics.mean(values),
-                                "std": statistics.stdev(values) if len(values) > 1 else 0,
-                                "count": len(values),
-                            }
+                    avg_metrics = self._mean_metrics(type_results)
 
                     comparison[store_type] = avg_metrics
 
             report["summary"]["comparison"] = comparison
+
+        return report["summary"]
+
+    def generate_report(self, results: List[BenchmarkResult], output_file: str = None) -> Dict[str, Any]:
+        """生成基准测试报告"""
+        report = {
+            "benchmark_timestamp": datetime.now().isoformat(),
+            "results": [result.to_dict() for result in results],
+            "summary": {},
+        }
+
+        report["summary"] = self._benchmark_summary(results)
 
         # 保存报告
         if output_file:
@@ -408,7 +424,7 @@ class TestVectorStorageBenchmark:
 
         # 如果FAISS可用，添加FAISS配置
         try:
-            import faiss
+            __import__("faiss")
 
             configs.append(
                 {
@@ -581,7 +597,7 @@ class TestVectorStorageBenchmark:
 
 
 # 导入gc用于内存测试
-import gc
+import gc  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 if __name__ == "__main__":
     # 运行特定的基准测试

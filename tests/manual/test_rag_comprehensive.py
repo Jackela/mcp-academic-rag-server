@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, os.getcwd())
 
 # 导入服务器
-from mcp_server_standalone import MCPServer
+from mcp_server_standalone import MCPServer  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 async def test_rag_pipeline():

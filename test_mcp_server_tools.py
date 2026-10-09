@@ -14,7 +14,6 @@ import signal
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
 
 # 添加项目根目录
 sys.path.insert(0, os.path.abspath("."))
@@ -87,8 +86,8 @@ class MCPServerToolsTester:
 
             # 检查MCP协议相关导入
             try:
-                from mcp import types
-                from mcp.server import Server
+                getattr(__import__("mcp", fromlist=["types"]), "types")
+                getattr(__import__("mcp.server", fromlist=["Server"]), "Server")
 
                 mcp_imports_available = True
             except ImportError as e:
@@ -284,6 +283,36 @@ class MCPServerToolsTester:
             self.test_results.append({"test": "tool_call_simulation", "status": "FAILED", "error": str(e)})
             return False
 
+    def _tool_protocol_checks(self):
+        protocol_checks = []
+        # 3. 检查工具注册机制
+        tool_registration_available = False
+        try:
+            # 检查是否有工具注册装饰器或函数
+            from servers.mcp_server import get_available_tools
+
+            tools = get_available_tools()
+            tool_registration_available = isinstance(tools, list)
+        except Exception:
+            pass
+
+        protocol_checks.append(
+            {"check": "tool_registration_mechanism", "passed": tool_registration_available, "details": {}}
+        )
+
+        # 4. 检查消息处理
+        message_handling_available = False
+        try:
+            from servers.mcp_server import process_tool_call
+
+            message_handling_available = callable(process_tool_call)
+        except Exception:
+            pass
+
+        protocol_checks.append({"check": "message_handling", "passed": message_handling_available, "details": {}})
+
+        return protocol_checks
+
     async def test_mcp_protocol_compliance(self):
         """测试MCP协议合规性"""
         logger.info("📋 测试MCP协议合规性...")
@@ -295,8 +324,9 @@ class MCPServerToolsTester:
             # 1. 检查MCP库可用性
             try:
                 import mcp
-                from mcp import types
-                from mcp.server import Server
+
+                getattr(__import__("mcp", fromlist=["types"]), "types")
+                getattr(__import__("mcp.server", fromlist=["Server"]), "Server")
 
                 mcp_library_available = True
                 mcp_version = getattr(mcp, "__version__", "unknown")
@@ -330,31 +360,7 @@ class MCPServerToolsTester:
                 }
             )
 
-            # 3. 检查工具注册机制
-            tool_registration_available = False
-            try:
-                # 检查是否有工具注册装饰器或函数
-                from servers.mcp_server import get_available_tools
-
-                tools = get_available_tools()
-                tool_registration_available = isinstance(tools, list)
-            except:
-                pass
-
-            protocol_checks.append(
-                {"check": "tool_registration_mechanism", "passed": tool_registration_available, "details": {}}
-            )
-
-            # 4. 检查消息处理
-            message_handling_available = False
-            try:
-                from servers.mcp_server import process_tool_call
-
-                message_handling_available = callable(process_tool_call)
-            except:
-                pass
-
-            protocol_checks.append({"check": "message_handling", "passed": message_handling_available, "details": {}})
+            protocol_checks.extend(self._tool_protocol_checks())
 
             # 计算合规性分数
             passed_checks = sum(1 for check in protocol_checks if check["passed"])
@@ -363,7 +369,7 @@ class MCPServerToolsTester:
             self.test_results.append(
                 {
                     "test": "mcp_protocol_compliance",
-                    "status": "PASSED",
+                    "status": "PASSED" if compliance_score > 0.5 else "FAILED",
                     "details": {
                         "protocol_checks": protocol_checks,
                         "passed_checks": passed_checks,
@@ -382,6 +388,47 @@ class MCPServerToolsTester:
             self.test_results.append({"test": "mcp_protocol_compliance", "status": "FAILED", "error": str(e)})
             return False
 
+    def _read_inspector_config(self, inspector_config_path, config_validation):
+        config_file_exists = inspector_config_path.exists()
+        if config_file_exists:
+            try:
+                with open(inspector_config_path, "r", encoding="utf-8") as f:
+                    config_data = json.load(f)
+
+                # 验证配置结构
+                if "mcpServers" in config_data:
+                    config_validation["config_valid"] = True
+
+                    for server_name, server_config in config_data["mcpServers"].items():
+                        server_validation = {
+                            "name": server_name,
+                            "has_command": "command" in server_config,
+                            "has_args": "args" in server_config,
+                            "has_cwd": "cwd" in server_config,
+                            "has_env": "env" in server_config,
+                            "python_command": server_config.get("command") == "python",
+                            "correct_module": any(
+                                "-m" in str(arg) and "servers.mcp_server" in str(arg)
+                                for arg in server_config.get("args", [])
+                            ),
+                        }
+                        config_validation["server_configs"].append(server_validation)
+
+                    # 检查环境变量配置
+                    for server_config in config_data["mcpServers"].values():
+                        env_vars = server_config.get("env", {})
+                        for var_name, var_value in env_vars.items():
+                            config_validation["environment_vars"].append(
+                                {
+                                    "name": var_name,
+                                    "is_template": var_value.startswith("${") and var_value.endswith("}"),
+                                    "value_preview": var_value[:20] + "..." if len(var_value) > 20 else var_value,
+                                }
+                            )
+
+            except json.JSONDecodeError as e:
+                config_validation["config_parse_error"] = str(e)
+
     async def test_mcp_configuration_validation(self):
         """测试MCP配置验证"""
         logger.info("⚙️ 测试MCP配置验证...")
@@ -398,44 +445,7 @@ class MCPServerToolsTester:
                 "environment_vars": [],
             }
 
-            if config_file_exists:
-                try:
-                    with open(inspector_config_path, "r", encoding="utf-8") as f:
-                        config_data = json.load(f)
-
-                    # 验证配置结构
-                    if "mcpServers" in config_data:
-                        config_validation["config_valid"] = True
-
-                        for server_name, server_config in config_data["mcpServers"].items():
-                            server_validation = {
-                                "name": server_name,
-                                "has_command": "command" in server_config,
-                                "has_args": "args" in server_config,
-                                "has_cwd": "cwd" in server_config,
-                                "has_env": "env" in server_config,
-                                "python_command": server_config.get("command") == "python",
-                                "correct_module": any(
-                                    "-m" in str(arg) and "servers.mcp_server" in str(arg)
-                                    for arg in server_config.get("args", [])
-                                ),
-                            }
-                            config_validation["server_configs"].append(server_validation)
-
-                        # 检查环境变量配置
-                        for server_config in config_data["mcpServers"].values():
-                            env_vars = server_config.get("env", {})
-                            for var_name, var_value in env_vars.items():
-                                config_validation["environment_vars"].append(
-                                    {
-                                        "name": var_name,
-                                        "is_template": var_value.startswith("${") and var_value.endswith("}"),
-                                        "value_preview": var_value[:20] + "..." if len(var_value) > 20 else var_value,
-                                    }
-                                )
-
-                except json.JSONDecodeError as e:
-                    config_validation["config_parse_error"] = str(e)
+            self._read_inspector_config(inspector_config_path, config_validation)
 
             # 检查实际环境变量
             actual_env_vars = []
@@ -463,7 +473,7 @@ class MCPServerToolsTester:
             self.test_results.append(
                 {
                     "test": "mcp_configuration_validation",
-                    "status": "PASSED",
+                    "status": "PASSED" if quality_score > 0.6 else "FAILED",
                     "details": {**config_validation, "quality_score": quality_score},
                 }
             )

@@ -14,8 +14,30 @@ from pathlib import Path
 # 添加项目根目录到路径
 sys.path.append(str(Path(__file__).parent.parent))
 
-from core.config_manager import ConfigManager
-from core.config_validator import ConfigValidator, generate_default_config, validate_config_file
+from core.config_manager import ConfigManager  # noqa: E402 - import follows source-script or runtime bootstrap.
+from core.config_validator import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    generate_default_config,
+    validate_config_file,
+)
+
+
+def _print_validation_result(is_valid, report):
+    # 输出验证结果
+    if is_valid:
+        print("✅ 配置验证通过！")
+    else:
+        print("❌ 配置验证失败！")
+
+        if report.get("errors"):
+            print("\n🚨 错误:")
+            for error in report["errors"]:
+                print(f"  • {error}")
+
+    # 输出警告
+    if report.get("warnings"):
+        print("\n⚠️  警告:")
+        for warning in report["warnings"]:
+            print(f"  • {warning}")
 
 
 def main():
@@ -67,22 +89,7 @@ def main():
     # 执行验证
     is_valid, report = validate_config_file(config_path)
 
-    # 输出验证结果
-    if is_valid:
-        print("✅ 配置验证通过！")
-    else:
-        print("❌ 配置验证失败！")
-
-        if report.get("errors"):
-            print("\n🚨 错误:")
-            for error in report["errors"]:
-                print(f"  • {error}")
-
-    # 输出警告
-    if report.get("warnings"):
-        print("\n⚠️  警告:")
-        for warning in report["warnings"]:
-            print(f"  • {warning}")
+    _print_validation_result(is_valid, report)
 
     # 生成详细报告
     if args.report:
@@ -107,7 +114,7 @@ def generate_default_config_file(output_path: str):
         default_config = generate_default_config()
 
         # 确保输出目录存在
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(default_config, f, indent=2, ensure_ascii=False)
@@ -117,6 +124,15 @@ def generate_default_config_file(output_path: str):
     except Exception as e:
         print(f"❌ 生成默认配置失败: {str(e)}")
         sys.exit(1)
+
+
+def _write_report_items(file, title, items):
+    if items:
+        file.write(title + "\n")
+        file.write("-" * 20 + "\n")
+        for index, item in enumerate(items, 1):
+            file.write(f"{index}. {item}\n")
+        file.write("\n")
 
 
 def generate_validation_report(config_path: str, report: dict, output_path: str = None):
@@ -139,21 +155,8 @@ def generate_validation_report(config_path: str, report: dict, output_path: str 
             else:
                 f.write("❌ 配置无效\n\n")
 
-            # 错误列表
-            if report.get("errors"):
-                f.write("错误列表:\n")
-                f.write("-" * 20 + "\n")
-                for i, error in enumerate(report["errors"], 1):
-                    f.write(f"{i}. {error}\n")
-                f.write("\n")
-
-            # 警告列表
-            if report.get("warnings"):
-                f.write("警告列表:\n")
-                f.write("-" * 20 + "\n")
-                for i, warning in enumerate(report["warnings"], 1):
-                    f.write(f"{i}. {warning}\n")
-                f.write("\n")
+            _write_report_items(f, "错误列表", report.get("errors", []))
+            _write_report_items(f, "警告列表", report.get("warnings", []))
 
             # 建议
             f.write("建议:\n")

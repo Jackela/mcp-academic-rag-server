@@ -15,12 +15,11 @@ import argparse
 import os
 import sys
 import time
-from pathlib import Path
 
 # 添加项目根目录到系统路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cli.document_cli import DocumentCLI
+from cli.document_cli import DocumentCLI  # noqa: E402 - import follows source-script or runtime bootstrap.
 
 
 def run_examples(config_path):

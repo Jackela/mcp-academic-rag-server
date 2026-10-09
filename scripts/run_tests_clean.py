@@ -26,7 +26,11 @@ from typing import Any, Dict, List
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from tests.utils.cleanup import emergency_cleanup, kill_port, register_process
+from tests.utils.cleanup import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    emergency_cleanup,
+    kill_port,
+    register_process,
+)
 
 # 配置日志
 (project_root / "logs").mkdir(exist_ok=True)

@@ -15,19 +15,22 @@ import argparse
 import json
 import os
 import sys
-from pathlib import Path
 from typing import List
 
 # 添加项目根目录到系统路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.config_manager import ConfigManager
-from core.pipeline import Pipeline
-from models.document import Document
-from processors.knowledge_graph_processor import KnowledgeGraphProcessor
-from processors.ocr_processor import OCRProcessor
-from processors.pre_processor import PreProcessor
-from processors.structure_processor import StructureProcessor
+from core.config_manager import ConfigManager  # noqa: E402 - import follows source-script or runtime bootstrap.
+from core.pipeline import Pipeline  # noqa: E402 - import follows source-script or runtime bootstrap.
+from models.document import Document  # noqa: E402 - import follows source-script or runtime bootstrap.
+from processors.knowledge_graph_processor import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    KnowledgeGraphProcessor,
+)
+from processors.ocr_processor import OCRProcessor  # noqa: E402 - import follows source-script or runtime bootstrap.
+from processors.pre_processor import PreProcessor  # noqa: E402 - import follows source-script or runtime bootstrap.
+from processors.structure_processor import (  # noqa: E402 - import follows source-script or runtime bootstrap.
+    StructureProcessor,
+)
 
 
 def create_knowledge_graph_pipeline(config_path: str) -> Pipeline:
@@ -91,43 +94,43 @@ def create_sample_document() -> Document:
     # 创建包含学术内容的样本文档
     sample_content = """
     Machine Learning Approaches for Natural Language Processing
-    
+
     Abstract
-    This paper presents a comprehensive study on machine learning approaches for natural language processing tasks. 
-    We compare various neural network architectures including convolutional neural networks, recurrent neural networks, 
-    and transformer models. Our experiments demonstrate that transformer-based models achieve superior performance 
+    This paper presents a comprehensive study on machine learning approaches for natural language processing tasks.
+    We compare various neural network architectures including convolutional neural networks, recurrent neural networks,
+    and transformer models. Our experiments demonstrate that transformer-based models achieve superior performance
     on text classification and sentiment analysis tasks.
-    
+
     1. Introduction
-    Natural language processing (NLP) has witnessed significant advancements with the introduction of deep learning 
-    techniques. Convolutional neural networks (CNNs) and recurrent neural networks (RNNs) have been widely used 
-    for various NLP tasks. Recently, transformer architectures have revolutionized the field by introducing 
+    Natural language processing (NLP) has witnessed significant advancements with the introduction of deep learning
+    techniques. Convolutional neural networks (CNNs) and recurrent neural networks (RNNs) have been widely used
+    for various NLP tasks. Recently, transformer architectures have revolutionized the field by introducing
     attention mechanisms that enable better understanding of contextual relationships.
-    
+
     2. Related Work
-    Smith et al. (2020) proposed a novel CNN architecture for text classification. Johnson and Brown (2021) 
-    developed an improved RNN model for sentiment analysis. The transformer model introduced by Vaswani et al. (2017) 
+    Smith et al. (2020) proposed a novel CNN architecture for text classification. Johnson and Brown (2021)
+    developed an improved RNN model for sentiment analysis. The transformer model introduced by Vaswani et al. (2017)
     has become the foundation for many state-of-the-art NLP systems.
-    
+
     3. Methodology
-    Our approach combines multiple machine learning algorithms to create an ensemble model. We use feature extraction 
-    techniques to process textual data and apply dimensionality reduction to improve computational efficiency. 
+    Our approach combines multiple machine learning algorithms to create an ensemble model. We use feature extraction
+    techniques to process textual data and apply dimensionality reduction to improve computational efficiency.
     The proposed method achieves 95% accuracy on the benchmark dataset.
-    
+
     Table 1: Performance Comparison
     Model       Accuracy    Precision   Recall
     CNN         0.85        0.82        0.87
     RNN         0.88        0.86        0.89
     Transformer 0.95        0.94        0.96
-    
+
     Figure 1: Architecture Diagram
-    The figure shows the overall system architecture with three main components: feature extraction, 
+    The figure shows the overall system architecture with three main components: feature extraction,
     model training, and evaluation.
-    
+
     4. Conclusion
-    In this work, we demonstrated that transformer-based approaches outperform traditional CNN and RNN models 
+    In this work, we demonstrated that transformer-based approaches outperform traditional CNN and RNN models
     for NLP tasks. The attention mechanism enables better capture of long-range dependencies in text.
-    
+
     References
     [1] Smith, J., et al. (2020). Advanced CNN architectures for text processing. Journal of Machine Learning.
     [2] Johnson, A., Brown, B. (2021). Improved RNN models for sentiment analysis. Conference on NLP.
@@ -185,6 +188,10 @@ def analyze_knowledge_graph(kg_data: dict) -> None:
         for relation_type, count in relation_types.items():
             print(f"  {relation_type}: {count}")
 
+    _print_graph_items(knowledge_graph)
+
+
+def _print_graph_items(knowledge_graph):
     # 展示主要实体
     entities = knowledge_graph.get("entities", {})
     if entities:
@@ -299,7 +306,7 @@ def run_knowledge_graph_example(config_path: str) -> None:
 
     try:
         # 1. 创建处理流水线
-        pipeline = create_knowledge_graph_pipeline(config_path)
+        create_knowledge_graph_pipeline(config_path)
 
         # 2. 创建样本文档
         print("创建样本学术文档...")

@@ -45,9 +45,9 @@ def check_api_key():
 def check_mcp_packages():
     """Check if MCP packages are available"""
     try:
-        import mcp
+        __import__("mcp")
 
-        return True, f"MCP version available"
+        return True, "MCP version available"
     except ImportError:
         return False, "MCP package not installed"
 
@@ -137,7 +137,7 @@ def main():
         print("🎉 All checks passed! Your MCP server is ready.")
         print("\n📋 Claude Desktop Configuration:")
         print(suggest_claude_config())
-        print(f"\n💡 Add this to your claude_desktop_config.json")
+        print("\n💡 Add this to your claude_desktop_config.json")
     else:
         print("⚠️  Some checks failed. Please resolve the issues above.")
         print("\n🔧 Common solutions:")
