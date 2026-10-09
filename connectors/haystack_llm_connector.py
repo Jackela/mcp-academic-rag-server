@@ -8,6 +8,7 @@ import logging
 import os
 from typing import Any, Callable, Dict, List, Optional
 
+from haystack import component
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
@@ -182,3 +183,29 @@ class HaystackLLMFactory:
             streaming_callback=streaming_callback,
             parameters=parameters,
         )
+
+
+@component
+class ConnectorChatGenerator:
+    """Expose the existing provider-neutral generate contract to Haystack."""
+
+    def __init__(self, connector: BaseLLMConnector) -> None:
+        self.connector = connector
+
+    @component.output_types(replies=List[ChatMessage])
+    def run(
+        self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, List[ChatMessage]]:
+        normalized = []
+        for message in messages:
+            text = message.text
+            if not isinstance(text, str):
+                raise ValueError("RAG generation requires text chat messages")
+            normalized.append({"role": message.role.value, "content": text})
+        result = self.connector.generate(normalized, generation_kwargs=generation_kwargs)
+        if result.get("error"):
+            raise RuntimeError(str(result["error"]))
+        content = result.get("content")
+        if not isinstance(content, str) or not content:
+            raise ValueError("Provider reply does not contain text")
+        return {"replies": [ChatMessage.from_assistant(content)]}

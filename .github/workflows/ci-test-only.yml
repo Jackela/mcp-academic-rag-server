@@ -32,3 +32,7 @@ jobs:
         run: |
           .venv-wheel/bin/python -m unittest discover -s tests/contracts -v
           .venv-wheel/bin/python -m unittest discover -s tests/unit -p test_ocr_processor.py -v
+      - name: Install and verify optional monitoring wheel
+        run: |
+          .venv-wheel/bin/python -m pip install 'mcp-academic-rag-server[monitoring]'
+          PYTHONDONTWRITEBYTECODE=1 .venv-wheel/bin/python scripts/check_monitoring_wheel.py

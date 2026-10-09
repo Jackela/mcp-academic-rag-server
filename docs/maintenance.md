@@ -108,3 +108,27 @@ migration lines. It does not additionally name the dotted migration submodule:
 coverage's early lookup imported native Torch a second time and caused a locally
 reproduced exit 139. No coverage files or valid test cases are excluded by removing
 that duplicate. See [Coverage source selection](https://coverage.readthedocs.io/en/latest/source.html).
+
+## Monitoring runtime and provider boundary
+
+`pyproject.toml` owns runtime and development dependency constraints; `requirements.txt`
+installs the declared development and monitoring extras. MCP-only wheel installation
+keeps monitoring optional. The monitoring HTML source is `core/templates/dashboard.html`;
+dashboard initialization only reads this packaged template. `scripts/check_monitoring_wheel.py`
+checks actual HTML and metrics/alerts/health HTTP routes with a read-only installed package.
+
+Telemetry requires the actual OpenTelemetry SDK when initialized. Disabled tracing or metrics
+use the SDK API's explicit no-op providers; a missing SDK or explicitly enabled missing
+exporter fails initialization and leaves no initialized singleton. Legacy Jaeger Thrift imports
+are loaded only when explicitly selected. Modern Jaeger supports OTLP, as documented by
+[OpenTelemetry](https://opentelemetry.io/docs/compatibility/migration/).
+`PrometheusMetricReader` registers a collector but does not host HTTP; the obsolete `endpoint`
+constructor option is rejected explicitly. Hosts configure their HTTP server separately, following
+the [Python exporter documentation](https://opentelemetry.io/docs/languages/python/exporters/).
+SDK tests collect actual in-memory spans and metric data without external telemetry services.
+
+RAG invokes the existing `BaseLLMConnector.generate` contract through a typed Haystack component,
+so providers with client-only implementations do not need a nonexistent native `generator`.
+Per-call generation options reach that execution path; OpenAI native messages use `ChatMessage.text`.
+Controlled provider fixtures validate retrieval, options, native reply text and explicit provider errors;
+normal browser tests retain the production HTTP and JavaScript flow.

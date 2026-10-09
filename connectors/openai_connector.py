@@ -91,25 +91,14 @@ class OpenAIConnector(BaseLLMConnector):
             if generation_kwargs:
                 params.update(generation_kwargs)
 
-            # Update generator parameters if needed
-            if generation_kwargs:
-                temp_generator = OpenAIChatGenerator(
-                    api_key=Secret.from_token(self.api_key),
-                    model=self.model,
-                    api_base_url=self.api_base_url,
-                    timeout=self.timeout,
-                    streaming_callback=self.streaming_callback,
-                    generation_kwargs=params,
-                )
-            else:
-                temp_generator = self.generator
-
-            # Generate response
             logger.debug(f"Generating OpenAI response with {len(chat_messages)} messages")
-            response = temp_generator.run(messages=chat_messages)
+            response = self.generator.run(messages=chat_messages, generation_kwargs=params)
+            content = response["replies"][0].text
+            if not isinstance(content, str) or not content:
+                raise ValueError("OpenAI reply does not contain text")
 
             return {
-                "content": response["replies"][0].content,
+                "content": content,
                 "role": "assistant",
                 "model": self.model,
                 "provider": "openai",

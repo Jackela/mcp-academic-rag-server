@@ -10,7 +10,8 @@ from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
 
-from connectors.haystack_llm_connector import HaystackLLMConnector
+from connectors.base_llm_connector import BaseLLMConnector
+from connectors.haystack_llm_connector import ConnectorChatGenerator
 from rag.prompt_builder import ChatPromptBuilder
 
 # 配置日志
@@ -22,7 +23,7 @@ class RAGPipeline:
 
     def __init__(
         self,
-        llm_connector: HaystackLLMConnector,
+        llm_connector: BaseLLMConnector,
         document_store: Optional[InMemoryDocumentStore] = None,
         retriever_top_k: int = 5,
         prompt_builder: Optional[ChatPromptBuilder] = None,
@@ -32,7 +33,7 @@ class RAGPipeline:
         初始化RAG管道
 
         Args:
-            llm_connector (HaystackLLMConnector): LLM连接器
+            llm_connector (BaseLLMConnector): LLM连接器
             document_store (InMemoryDocumentStore, optional): 当前Haystack检索器使用内存文档存储，如果为None则创建InMemoryDocumentStore
             retriever_top_k (int): 检索器返回的最大文档数量
             prompt_builder (ChatPromptBuilder, optional): 提示构建器，如果为None则创建默认构建器
@@ -61,7 +62,7 @@ class RAGPipeline:
         self.pipeline.add_component("query_embedder", self.query_embedder)
         self.pipeline.add_component("retriever", self.retriever)
         self.pipeline.add_component("prompt_builder", self.prompt_builder)
-        self.pipeline.add_component("llm", self.llm_connector.generator)
+        self.pipeline.add_component("llm", ConnectorChatGenerator(self.llm_connector))
 
         # 定义组件之间的连接
         self.pipeline.connect("query_embedder.embedding", "retriever.query_embedding")
@@ -94,6 +95,7 @@ class RAGPipeline:
             inputs = {
                 "query_embedder": {"text": query},
                 "retriever": {"filters": filters},
+                "llm": {"generation_kwargs": generation_kwargs or {}},
                 "prompt_builder": {"query": query, "chat_history": chat_history or []},
             }
 
@@ -151,12 +153,12 @@ class RAGPipeline:
 
         logger.info(f"已更新检索器: top_k={self.retriever_top_k}")
 
-    def update_llm_connector(self, llm_connector: HaystackLLMConnector) -> None:
+    def update_llm_connector(self, llm_connector: BaseLLMConnector) -> None:
         """
         更新LLM连接器
 
         Args:
-            llm_connector (HaystackLLMConnector): 新的LLM连接器
+            llm_connector (BaseLLMConnector): 新的LLM连接器
         """
         self.llm_connector = llm_connector
         self._create_pipeline()
@@ -168,7 +170,7 @@ class RAGPipelineFactory:
 
     @staticmethod
     def create_pipeline(
-        llm_connector: HaystackLLMConnector,
+        llm_connector: BaseLLMConnector,
         document_store: Optional[InMemoryDocumentStore] = None,
         retriever_top_k: int = 5,
         prompt_builder: Optional[ChatPromptBuilder] = None,
@@ -178,7 +180,7 @@ class RAGPipelineFactory:
         创建RAG管道
 
         Args:
-            llm_connector (HaystackLLMConnector): LLM连接器
+            llm_connector (BaseLLMConnector): LLM连接器
             document_store (InMemoryDocumentStore, optional): 当前Haystack检索器使用内存文档存储
             retriever_top_k (int): 检索器返回的最大文档数量
             prompt_builder (ChatPromptBuilder, optional): 提示构建器
@@ -189,7 +191,10 @@ class RAGPipelineFactory:
         """
         # 处理配置参数
         if config:
-            retriever_top_k = config.get("retriever_top_k", retriever_top_k)
+            retriever_top_k = config.get("retriever_top_k", config.get("top_k", retriever_top_k))
+
+        if isinstance(retriever_top_k, bool) or not isinstance(retriever_top_k, int) or retriever_top_k <= 0:
+            raise ValueError("retriever_top_k/top_k must be a positive integer")
 
         return RAGPipeline(
             llm_connector=llm_connector,
