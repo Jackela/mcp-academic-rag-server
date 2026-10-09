@@ -8,14 +8,14 @@
 import logging
 import time
 from dataclasses import replace
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 from haystack.components.retrievers import InMemoryBM25Retriever, InMemoryEmbeddingRetriever
 from haystack.dataclasses import Document as HaystackDocument
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
 
 from document_stores.implementations.haystack_store import HaystackDocumentStore
-from models.document import Document
 
 
 class HaystackRetriever:
@@ -46,7 +46,10 @@ class HaystackRetriever:
         self.config = config or {}
 
         # 获取文档存储
-        self.document_store = document_store.get_document_store()
+        selected_store = document_store.get_document_store()
+        if not isinstance(selected_store, InMemoryDocumentStore):
+            raise ValueError("HaystackRetriever requires InMemoryDocumentStore; use the native Milvus search API")
+        self.document_store = selected_store
 
         # 从配置中获取参数
         self.model_name_or_path = self.config.get("model_name_or_path", model_name_or_path)
@@ -187,9 +190,9 @@ class HaystackRetriever:
         results = self.retrieve_batch(queries, top_k)
 
         # 计算评估指标
-        precision_sum = 0
-        recall_sum = 0
-        f1_sum = 0
+        precision_sum = 0.0
+        recall_sum = 0.0
+        f1_sum = 0.0
 
         for i, (query_results, relevant) in enumerate(zip(results, relevant_docs)):
             # 提取检索结果ID
@@ -235,33 +238,12 @@ class HaystackRetriever:
             如果成功更新则返回True，否则返回False
         """
         try:
-            need_reinit = False
-
-            # 检查关键配置是否变化
-            if "model_name_or_path" in config and config["model_name_or_path"] != self.model_name_or_path:
-                self.model_name_or_path = config["model_name_or_path"]
-                need_reinit = True
-
-            if "batch_size" in config and config["batch_size"] != self.batch_size:
-                self.batch_size = config["batch_size"]
-                need_reinit = True
-
-            if "enable_hybrid" in config and config["enable_hybrid"] != self.enable_hybrid:
-                self.enable_hybrid = config["enable_hybrid"]
-                need_reinit = True
-
-            # 更新其他配置
-            if "top_k" in config:
-                self.top_k = config["top_k"]
-
-            if "threshold" in config:
-                self.threshold = config["threshold"]
-
-            if "dense_weight" in config:
-                self.dense_weight = config["dense_weight"]
-
-            if "sparse_weight" in config:
-                self.sparse_weight = config["sparse_weight"]
+            reinitializing_fields = ("model_name_or_path", "batch_size", "enable_hybrid")
+            need_reinit = any(key in config and config[key] != getattr(self, key) for key in reinitializing_fields)
+            fields = (*reinitializing_fields, "top_k", "threshold", "dense_weight", "sparse_weight")
+            for key in fields:
+                if key in config:
+                    setattr(self, key, config[key])
 
             # 更新配置字典
             self.config.update(config)

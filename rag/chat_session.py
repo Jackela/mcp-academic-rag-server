@@ -4,10 +4,9 @@
 
 import json
 import logging
-import os
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from haystack.dataclasses import Document
 
@@ -24,8 +23,8 @@ class Message:
         self,
         role: str,
         content: str,
-        message_id: str = None,
-        timestamp: float = None,
+        message_id: Optional[str] = None,
+        timestamp: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -125,7 +124,7 @@ class ChatSession:
 
     def __init__(
         self,
-        session_id: str = None,
+        session_id: Optional[str] = None,
         rag_pipeline: Optional[RAGPipeline] = None,
         max_history_length: int = 10,
         metadata: Optional[Dict[str, Any]] = None,
@@ -143,13 +142,13 @@ class ChatSession:
         self.rag_pipeline = rag_pipeline
         self.max_history_length = max_history_length
         self.metadata = metadata or {}
-        self.messages = []
-        self.citations = {}  # 消息ID到引用列表的映射
+        self.messages: List[Message] = []
+        self.citations: Dict[str, List[Citation]] = {}  # 消息ID到引用列表的映射
         self.created_at = datetime.now().timestamp()
         self.last_active_at = self.created_at
 
     def add_message(
-        self, role: str, content: str, message_id: str = None, metadata: Optional[Dict[str, Any]] = None
+        self, role: str, content: str, message_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
     ) -> Message:
         """
         添加消息
@@ -227,7 +226,7 @@ class ChatSession:
             raise ValueError("RAG管道未设置，无法处理查询")
 
         # 添加用户消息
-        user_message = self.add_message(role="user", content=query)
+        self.add_message(role="user", content=query)
 
         # 获取聊天历史
         chat_history = []
@@ -310,13 +309,13 @@ class ChatSession:
 
         return message
 
-    def clear_history(self):
+    def clear_history(self) -> None:
         """清空历史记录"""
         self.messages = []
         self.citations = {}
         logger.info(f"会话{self.session_id}清空了历史记录")
 
-    def set_rag_pipeline(self, rag_pipeline: RAGPipeline):
+    def set_rag_pipeline(self, rag_pipeline: RAGPipeline) -> None:
         """
         设置RAG管道
 
@@ -438,10 +437,13 @@ class ChatSessionManager:
         self.rag_pipeline = rag_pipeline
         self.max_sessions = max_sessions
         self.default_max_history_length = default_max_history_length
-        self.sessions = {}  # 会话ID到会话实例的映射
+        self.sessions: Dict[str, ChatSession] = {}  # 会话ID到会话实例的映射
 
     def create_session(
-        self, session_id: str = None, metadata: Optional[Dict[str, Any]] = None, max_history_length: int = None
+        self,
+        session_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        max_history_length: Optional[int] = None,
     ) -> ChatSession:
         """
         创建会话

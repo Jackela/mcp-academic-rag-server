@@ -2,11 +2,9 @@
 聊天会话管理单元测试
 """
 
-import json
 import os
 import tempfile
-from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

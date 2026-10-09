@@ -10,12 +10,11 @@
 """
 
 import ast
-import importlib.util
 import os
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
 
 project_root = Path(__file__).parent.parent
 

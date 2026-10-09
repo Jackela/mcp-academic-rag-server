@@ -5,7 +5,6 @@ Document processing pipeline component test
 import os
 import shutil
 import tempfile
-from unittest.mock import MagicMock, patch
 
 import pytest
 

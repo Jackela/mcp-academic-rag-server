@@ -6,9 +6,8 @@
 """
 
 import logging
-import os
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 from haystack import Pipeline
 from haystack.components.preprocessors import DocumentSplitter

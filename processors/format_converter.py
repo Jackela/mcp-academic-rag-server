@@ -7,9 +7,8 @@
 
 import logging
 import os
-import re
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import markdown
 import pdfkit
@@ -32,7 +31,7 @@ class FormatConverterProcessor(BaseProcessor):
     同时保持文档的结构、布局和特殊元素（如公式、引用等）。
     """
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化FormatConverterProcessor对象。
 
@@ -161,7 +160,7 @@ class FormatConverterProcessor(BaseProcessor):
         logger.warning(f"未找到可用的OCR内容: {document.document_id}")
         return ""
 
-    def _convert_to_markdown(self, text: str, doc_structure: Dict[str, Any] = None) -> str:
+    def _convert_to_markdown(self, text: str, doc_structure: Optional[Dict[str, Any]] = None) -> str:
         """
         将文本转换为Markdown格式。
 

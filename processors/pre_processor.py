@@ -7,7 +7,7 @@
 
 import logging
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional
 
 from models.document import Document
 from models.process_result import ProcessResult
@@ -23,7 +23,7 @@ class PreProcessor(BaseProcessor):
     图像预处理器，优化OCR前的图像质量
     """
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化预处理器
 

@@ -10,7 +10,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from mcp.server import NotificationOptions, Server
 
@@ -33,7 +33,7 @@ logger = logging.getLogger("mcp-academic-rag-sdk")
 server_context = ServerContext()
 
 
-def validate_api_key(api_key: str) -> bool:
+def validate_api_key(api_key: Optional[str]) -> bool:
     """Validate OpenAI API key format"""
     if not api_key or not isinstance(api_key, str):
         return False
@@ -46,7 +46,7 @@ def validate_api_key(api_key: str) -> bool:
     return True
 
 
-def validate_environment():
+def validate_environment() -> None:
     """Validate required environment variables"""
     logger.info("Validating environment...")
 
@@ -67,7 +67,6 @@ def validate_environment():
 app = Server("academic-rag-sdk")
 
 
-@app.list_tools()
 async def handle_list_tools() -> List[Tool]:
     """List available MCP tools using SDK"""
     logger.info("Listing tools via SDK")
@@ -125,7 +124,6 @@ async def handle_list_tools() -> List[Tool]:
     ]
 
 
-@app.call_tool()
 async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     """Handle tool calls using SDK"""
     logger.info(f"Handling tool call: {name} with args: {list(arguments.keys())}")
@@ -150,6 +148,12 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
     except Exception as e:
         logger.error(f"Tool execution error: {str(e)}", exc_info=True)
         return [TextContent(type="text", text=f"❌ Error executing tool '{name}': {str(e)}")]
+
+
+# SDK v1 registration decorators are untyped. Register the typed handlers explicitly
+# so the checker retains their interfaces without suppressing type diagnostics.
+app.list_tools()(handle_list_tools)
+app.call_tool()(handle_call_tool)
 
 
 async def handle_test_connection(arguments: Dict[str, Any]) -> List[TextContent]:
@@ -198,7 +202,7 @@ async def handle_validate_system(arguments: Dict[str, Any]) -> List[TextContent]
 
     # Python environment
     validation_results.append(f"🐍 Python版本: {sys.version.split()[0]}")
-    validation_results.append(f"📦 MCP SDK: ✅ 已安装")
+    validation_results.append("📦 MCP SDK: ✅ 已安装")
 
     response_text = "🔍 系统验证报告:\n\n" + "\n".join(validation_results)
 
@@ -258,6 +262,32 @@ async def handle_process_document(arguments: Dict[str, Any]) -> List[TextContent
         return [TextContent(type="text", text=f"❌ 文档处理异常: {str(e)}")]
 
 
+def _format_query_result(result: Dict[str, Any], query: str, session_id: str, top_k: int) -> str:
+    answer = result.get("answer", "无法生成答案")
+    sources = result.get("documents", [])[:top_k]
+
+    response_text = f"""🤖 RAG查询结果:
+
+❓ 问题: {query}
+💬 答案: {answer}
+
+📚 相关文档片段 (前{len(sources)}个):
+"""
+
+    for i, doc in enumerate(sources, 1):
+        content = doc.get("content", "")
+        if len(content) > 150:
+            content = content[:150] + "..."
+        response_text += f"\n{i}. {content}"
+
+        metadata = doc.get("metadata", {})
+        if metadata:
+            response_text += f"\n   📋 元数据: {metadata}"
+
+    response_text += f"\n\n🆔 会话ID: {session_id}"
+    return response_text
+
+
 async def handle_query_documents(arguments: Dict[str, Any]) -> List[TextContent]:
     """Handle document query tool"""
     query = arguments.get("query")
@@ -286,28 +316,7 @@ async def handle_query_documents(arguments: Dict[str, Any]) -> List[TextContent]
             # Execute query
             result = session.query(query)
 
-            answer = result.get("answer", "无法生成答案")
-            sources = result.get("documents", [])[:top_k]
-
-            response_text = f"""🤖 RAG查询结果:
-
-❓ 问题: {query}
-💬 答案: {answer}
-
-📚 相关文档片段 (前{len(sources)}个):
-"""
-
-            for i, doc in enumerate(sources, 1):
-                content = doc.get("content", "")
-                if len(content) > 150:
-                    content = content[:150] + "..."
-                response_text += f"\n{i}. {content}"
-
-                metadata = doc.get("metadata", {})
-                if metadata:
-                    response_text += f"\n   📋 元数据: {metadata}"
-
-            response_text += f"\n\n🆔 会话ID: {session_id}"
+            response_text = _format_query_result(result, query, session_id, top_k)
 
         else:
             response_text = f"""❌ RAG管道未就绪
@@ -324,7 +333,7 @@ RAG功能需要完整的文档处理管道。请先处理一些文档。"""
         return [TextContent(type="text", text=f"❌ 查询异常: {str(e)}")]
 
 
-async def main():
+async def main() -> None:
     """Main entry point using MCP SDK"""
     logger.info("Starting MCP Academic RAG Server (SDK Version)")
 
@@ -350,7 +359,7 @@ async def main():
         sys.exit(1)
 
 
-def cli_main():
+def cli_main() -> None:
     """CLI entry point for uvx installation"""
     parser = argparse.ArgumentParser(description="MCP academic document OCR and RAG server (stdio)")
     parser.add_argument("--validate-only", action="store_true", help="Validate environment without starting stdio")

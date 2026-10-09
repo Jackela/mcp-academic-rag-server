@@ -5,12 +5,11 @@
 性能基准测试和实际使用场景验证。
 """
 
-import logging
 import os
 import shutil
 import tempfile
 import time
-from typing import Any, Dict, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import pytest

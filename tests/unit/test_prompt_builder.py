@@ -2,7 +2,7 @@
 提示构建器单元测试
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from haystack.dataclasses import ChatMessage

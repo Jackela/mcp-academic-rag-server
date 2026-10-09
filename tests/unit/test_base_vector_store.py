@@ -4,11 +4,8 @@
 测试BaseVectorStore抽象基类和通用功能。
 """
 
-import os
-import tempfile
 from dataclasses import replace
 from typing import Any, Dict, List, Optional, Tuple
-from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest

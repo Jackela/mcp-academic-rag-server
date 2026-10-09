@@ -85,6 +85,23 @@ class TestAPIConnector:
         # 验证请求被调用了三次
         assert mock_request.call_count == 3
 
+    @patch("requests.request")
+    def test_json_charset_and_malformed_json_object(self, mock_request, mock_response):
+        class Connector(APIConnector):
+            def _build_headers(self):
+                return {}
+
+        connector = Connector("https://fixture.invalid", "fixture-only")
+        mock_request.return_value = mock_response
+        mock_response.headers["content-type"] = "application/json; charset=utf-8"
+        assert connector.make_request("GET", "fixture") == mock_response.json.return_value
+        mock_response.json.return_value = ["invalid outer response shape"]
+        with pytest.raises(ValueError, match="JSON object"):
+            connector.make_request("GET", "fixture")
+        with pytest.raises(ValueError, match="max_retries"):
+            connector.make_request("GET", "fixture", max_retries=0)
+        assert mock_request.call_count == 2
+
 
 class TestMistralAPIConnector:
     """Mistral API连接器单元测试类"""

@@ -10,12 +10,9 @@ import logging
 import os
 import signal
 import subprocess
-import sys
 import threading
-import time
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, List, Union
 
 import psutil
 

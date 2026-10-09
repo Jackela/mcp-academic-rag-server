@@ -4,13 +4,11 @@ FAISS向量存储测试
 测试FAISSVectorStore的功能、性能和持久化特性。
 """
 
-import json
 import os
 import shutil
 import tempfile
 from dataclasses import replace
-from typing import Any, Dict, List
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest

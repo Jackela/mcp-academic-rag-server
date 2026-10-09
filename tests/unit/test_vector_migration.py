@@ -4,7 +4,6 @@
 测试VectorStoreMigrator的迁移、备份、恢复和验证功能。
 """
 
-import hashlib
 import json
 import os
 import shutil
@@ -12,7 +11,7 @@ import tempfile
 from dataclasses import replace
 from datetime import datetime
 from typing import Any, Dict, List
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from haystack import Document as HaystackDocument

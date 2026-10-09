@@ -3,7 +3,6 @@
 最简化的MCP Academic RAG Server - 绕过复杂依赖
 """
 
-import asyncio
 import json
 import os
 import sys

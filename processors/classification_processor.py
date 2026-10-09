@@ -29,7 +29,7 @@ class ClassificationProcessor(BaseProcessor):
     生成主题分类和关键标签，并将结果存储到文档元数据中。
     """
 
-    def __init__(self, api_connector: APIConnector, config: Dict[str, Any] = None):
+    def __init__(self, api_connector: APIConnector, config: Optional[Dict[str, Any]] = None):
         """
         初始化ClassificationProcessor对象。
 
@@ -357,7 +357,7 @@ class TagGenerationProcessor(BaseProcessor):
     提取关键词、主题标签、引用和参考文献，并将结果存储到文档中。
     """
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化TagGenerationProcessor对象。
 

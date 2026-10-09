@@ -2,9 +2,8 @@
 提示构建器模块 - 实现基于Haystack的提示模板构建器
 """
 
-import json
 import logging
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from haystack import component
 from haystack.dataclasses import ChatMessage, Document
@@ -19,7 +18,7 @@ class ChatPromptBuilder:
 
     def __init__(
         self,
-        system_prompt: str = None,
+        system_prompt: Optional[str] = None,
         document_separator: str = "\n---\n",
         include_citation: bool = True,
         max_context_length: int = 4000,
@@ -85,7 +84,7 @@ class ChatPromptBuilder:
 
         for doc in documents:
             # 获取文档内容
-            content = doc.content
+            content = doc.content or ""
 
             # 获取文档元数据
             metadata = doc.meta or {}
@@ -246,7 +245,7 @@ class ChatPromptBuilder:
 
             return {"messages": messages}
 
-    def set_system_prompt(self, system_prompt: str):
+    def set_system_prompt(self, system_prompt: str) -> None:
         """
         设置系统提示
 
@@ -256,7 +255,7 @@ class ChatPromptBuilder:
         self.system_prompt = system_prompt
         logger.info("已更新系统提示")
 
-    def set_template_type(self, template_type: str):
+    def set_template_type(self, template_type: str) -> None:
         """
         设置模板类型
 
@@ -276,7 +275,7 @@ class PromptBuilderFactory:
     @staticmethod
     def create_builder(
         template_type: str = "academic",
-        system_prompt: str = None,
+        system_prompt: Optional[str] = None,
         include_citation: bool = True,
         max_context_length: int = 4000,
         config: Optional[Dict[str, Any]] = None,

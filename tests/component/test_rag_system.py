@@ -5,7 +5,7 @@ RAG系统组件测试 - 测试RAG管道与会话管理的集成
 import json
 import os
 import tempfile
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import ANY, MagicMock
 
 import pytest
 from haystack.dataclasses import Document as HaystackDocument

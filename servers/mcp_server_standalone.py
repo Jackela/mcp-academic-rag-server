@@ -12,7 +12,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # 配置日志到stderr (MCP要求) - 必须在其他模块引用logger之前
 logging.basicConfig(
@@ -143,7 +143,6 @@ class SimpleDocumentProcessor:
                     processor = OCRProcessor()
                     # 这里需要先将PDF转换为图像，然后OCR
                     # 为简化，我们暂时跳过这个方法
-                    pass
                 except ImportError:
                     pass
 

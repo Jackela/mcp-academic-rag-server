@@ -7,7 +7,7 @@
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from models.document import Document
 from models.process_result import ProcessResult
@@ -32,7 +32,6 @@ class IProcessor(ABC):
         Returns:
             表示处理结果的ProcessResult对象
         """
-        pass
 
     async def process_async(self, document: Document) -> ProcessResult:
         """
@@ -57,7 +56,6 @@ class IProcessor(ABC):
         Returns:
             处理器名称
         """
-        pass
 
     @abstractmethod
     def get_description(self) -> str:
@@ -67,7 +65,6 @@ class IProcessor(ABC):
         Returns:
             处理器描述
         """
-        pass
 
     def get_stage(self) -> str:
         """
@@ -119,7 +116,9 @@ class BaseProcessor(IProcessor):
     该类实现了接口中的大部分方法，只保留process方法为抽象方法，需要子类实现。
     """
 
-    def __init__(self, name: str = None, description: str = None, config: Dict[str, Any] = None):
+    def __init__(
+        self, name: Optional[str] = None, description: Optional[str] = None, config: Optional[Dict[str, Any]] = None
+    ):
         """
         初始化BaseProcessor对象。
 
@@ -161,7 +160,6 @@ class BaseProcessor(IProcessor):
         Returns:
             表示处理结果的ProcessResult对象
         """
-        pass
 
     async def process_async(self, document: Document) -> ProcessResult:
         """

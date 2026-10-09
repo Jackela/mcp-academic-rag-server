@@ -9,9 +9,8 @@ Comprehensive test suite covering Pipeline class functionality including:
 """
 
 import asyncio
-import logging
 from typing import List
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 

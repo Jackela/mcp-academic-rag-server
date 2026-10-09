@@ -6,11 +6,8 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from haystack import Pipeline
-from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
-from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.document_stores.types import DocumentStore
 from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
 
 from connectors.haystack_llm_connector import HaystackLLMConnector
@@ -26,9 +23,9 @@ class RAGPipeline:
     def __init__(
         self,
         llm_connector: HaystackLLMConnector,
-        document_store: Optional[DocumentStore] = None,
+        document_store: Optional[InMemoryDocumentStore] = None,
         retriever_top_k: int = 5,
-        prompt_builder=None,
+        prompt_builder: Optional[ChatPromptBuilder] = None,
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
     ):
         """
@@ -36,7 +33,7 @@ class RAGPipeline:
 
         Args:
             llm_connector (HaystackLLMConnector): LLM连接器
-            document_store (DocumentStore, optional): 文档存储，如果为None则创建InMemoryDocumentStore
+            document_store (InMemoryDocumentStore, optional): 当前Haystack检索器使用内存文档存储，如果为None则创建InMemoryDocumentStore
             retriever_top_k (int): 检索器返回的最大文档数量
             prompt_builder (ChatPromptBuilder, optional): 提示构建器，如果为None则创建默认构建器
             embedding_model (str): 嵌入模型名称
@@ -56,7 +53,7 @@ class RAGPipeline:
         # 创建Pipeline
         self._create_pipeline()
 
-    def _create_pipeline(self):
+    def _create_pipeline(self) -> None:
         """创建Haystack Pipeline"""
         self.pipeline = Pipeline()
 
@@ -71,7 +68,7 @@ class RAGPipeline:
         self.pipeline.connect("retriever.documents", "prompt_builder.documents")
         self.pipeline.connect("prompt_builder.messages", "llm.messages")
 
-        logger.info(f"成功创建Haystack RAG Pipeline (含查询嵌入器)")
+        logger.info("成功创建Haystack RAG Pipeline (含查询嵌入器)")
 
     def run(
         self,
@@ -128,7 +125,9 @@ class RAGPipeline:
             logger.error(f"RAG管道运行失败: {str(e)}")
             return {"answer": f"查询处理失败: {str(e)}", "documents": [], "query": query, "error": str(e)}
 
-    def update_retriever(self, document_store: DocumentStore = None, top_k: int = None):
+    def update_retriever(
+        self, document_store: Optional[InMemoryDocumentStore] = None, top_k: Optional[int] = None
+    ) -> None:
         """
         更新检索器
 
@@ -152,7 +151,7 @@ class RAGPipeline:
 
         logger.info(f"已更新检索器: top_k={self.retriever_top_k}")
 
-    def update_llm_connector(self, llm_connector: HaystackLLMConnector):
+    def update_llm_connector(self, llm_connector: HaystackLLMConnector) -> None:
         """
         更新LLM连接器
 
@@ -170,9 +169,9 @@ class RAGPipelineFactory:
     @staticmethod
     def create_pipeline(
         llm_connector: HaystackLLMConnector,
-        document_store: Optional[DocumentStore] = None,
+        document_store: Optional[InMemoryDocumentStore] = None,
         retriever_top_k: int = 5,
-        prompt_builder=None,
+        prompt_builder: Optional[ChatPromptBuilder] = None,
         config: Optional[Dict[str, Any]] = None,
     ) -> RAGPipeline:
         """
@@ -180,7 +179,7 @@ class RAGPipelineFactory:
 
         Args:
             llm_connector (HaystackLLMConnector): LLM连接器
-            document_store (DocumentStore, optional): 文档存储
+            document_store (InMemoryDocumentStore, optional): 当前Haystack检索器使用内存文档存储
             retriever_top_k (int): 检索器返回的最大文档数量
             prompt_builder (ChatPromptBuilder, optional): 提示构建器
             config (dict, optional): 配置参数

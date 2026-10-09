@@ -6,13 +6,10 @@
 """
 
 import argparse
-import json
-import os
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict, List
 
 
 class TestRunner:

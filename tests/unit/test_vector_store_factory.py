@@ -4,11 +4,10 @@
 测试VectorStoreFactory的后端选择、配置验证、自动回退等功能。
 """
 
-import os
 import shutil
 import tempfile
 from typing import Any, Dict
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

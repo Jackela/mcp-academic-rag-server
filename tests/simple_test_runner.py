@@ -4,10 +4,8 @@ Simple test runner that bypasses the complex conftest.py
 直接测试运行器，绕过复杂的 conftest.py
 """
 
-import json
 import os
 import sys
-import tempfile
 
 import pytest
 

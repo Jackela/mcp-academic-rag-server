@@ -8,7 +8,7 @@ OCR处理器模块 - 实现文档OCR文本识别功能
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from connectors.api_connector import OCRAPIFactory
 from models.document import Document
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class OCRProcessor(BaseProcessor):
     """OCR处理器，通过外部API进行文本识别"""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化OCR处理器
 

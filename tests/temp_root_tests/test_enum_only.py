@@ -6,7 +6,7 @@ Test just the enum imports
 print("Testing enum imports...")
 
 try:
-    from enum import Enum
+    pass
 
     print("✅ Built-in enum works")
 

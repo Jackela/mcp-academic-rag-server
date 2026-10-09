@@ -201,7 +201,7 @@ class VectorStoreFactory:
                 f"{store_type} 存储需要以下依赖: {deps_str}\n" f"请运行: pip install {' '.join(missing_deps)}"
             )
 
-    def _create_fallback_store(self, config: Dict[str, Any], exclude: List[str] = None) -> BaseVectorStore:
+    def _create_fallback_store(self, config: Dict[str, Any], exclude: Optional[List[str]] = None) -> BaseVectorStore:
         """
         创建回退存储后端。
 
@@ -335,7 +335,7 @@ class VectorStoreFactory:
         return available
 
     @classmethod
-    def get_recommended_backend(cls, requirements: Dict[str, Any] = None) -> str:
+    def get_recommended_backend(cls, requirements: Optional[Dict[str, Any]] = None) -> str:
         """
         根据需求推荐最佳存储后端。
 
@@ -430,7 +430,7 @@ def get_available_backends() -> Dict[str, Dict[str, Any]]:
     return VectorStoreFactory.get_available_backends()
 
 
-def recommend_backend(requirements: Dict[str, Any] = None) -> str:
+def recommend_backend(requirements: Optional[Dict[str, Any]] = None) -> str:
     """
     推荐存储后端的便捷函数。
 

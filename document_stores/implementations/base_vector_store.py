@@ -7,7 +7,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from haystack import Document as HaystackDocument
 
@@ -41,7 +41,6 @@ class BaseVectorStore(ABC):
         Returns:
             初始化成功返回True，失败返回False
         """
-        pass
 
     @abstractmethod
     def add_documents(self, documents: List[HaystackDocument], embeddings: Optional[List[List[float]]] = None) -> bool:
@@ -55,7 +54,6 @@ class BaseVectorStore(ABC):
         Returns:
             添加成功返回True，失败返回False
         """
-        pass
 
     @abstractmethod
     def search(
@@ -72,7 +70,6 @@ class BaseVectorStore(ABC):
         Returns:
             包含(文档, 相似度得分)的元组列表
         """
-        pass
 
     @abstractmethod
     def get_document_by_id(self, doc_id: str) -> Optional[HaystackDocument]:
@@ -85,7 +82,6 @@ class BaseVectorStore(ABC):
         Returns:
             文档对象，不存在则返回None
         """
-        pass
 
     @abstractmethod
     def update_document(self, doc_id: str, document: HaystackDocument, embedding: Optional[List[float]] = None) -> bool:
@@ -100,7 +96,6 @@ class BaseVectorStore(ABC):
         Returns:
             更新成功返回True，失败返回False
         """
-        pass
 
     @abstractmethod
     def delete_document(self, doc_id: str) -> bool:
@@ -113,7 +108,6 @@ class BaseVectorStore(ABC):
         Returns:
             删除成功返回True，失败返回False
         """
-        pass
 
     @abstractmethod
     def delete_all_documents(self) -> bool:
@@ -123,7 +117,6 @@ class BaseVectorStore(ABC):
         Returns:
             删除成功返回True，失败返回False
         """
-        pass
 
     @abstractmethod
     def get_document_count(self) -> int:
@@ -133,7 +126,6 @@ class BaseVectorStore(ABC):
         Returns:
             文档总数
         """
-        pass
 
     @abstractmethod
     def save_index(self, path: str) -> bool:
@@ -146,7 +138,6 @@ class BaseVectorStore(ABC):
         Returns:
             保存成功返回True，失败返回False
         """
-        pass
 
     @abstractmethod
     def load_index(self, path: str) -> bool:
@@ -159,7 +150,6 @@ class BaseVectorStore(ABC):
         Returns:
             加载成功返回True，失败返回False
         """
-        pass
 
     def get_storage_info(self) -> Dict[str, Any]:
         """
@@ -229,22 +219,14 @@ class BaseVectorStore(ABC):
 class VectorStoreError(Exception):
     """向量存储相关异常类"""
 
-    pass
-
 
 class VectorStoreConnectionError(VectorStoreError):
     """向量存储连接异常"""
-
-    pass
 
 
 class VectorStoreOperationError(VectorStoreError):
     """向量存储操作异常"""
 
-    pass
-
 
 class VectorStoreConfigError(VectorStoreError):
     """向量存储配置异常"""
-
-    pass

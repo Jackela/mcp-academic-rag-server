@@ -3,7 +3,7 @@ LLM Factory - Central factory for creating LLM connectors
 """
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 from .base_llm_connector import BaseLLMConnector
 

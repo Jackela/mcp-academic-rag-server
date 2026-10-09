@@ -6,7 +6,7 @@
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from models.document import Document
 from models.process_result import ProcessResult
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class StructureProcessor(BaseProcessor):
     """结构识别处理器，识别文档的结构元素"""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化结构识别处理器
 

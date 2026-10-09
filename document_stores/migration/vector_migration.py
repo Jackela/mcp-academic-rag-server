@@ -10,9 +10,8 @@ import json
 import logging
 import os
 import shutil
-import tempfile
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional
 
 from haystack import Document as HaystackDocument
 

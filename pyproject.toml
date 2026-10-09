@@ -74,12 +74,14 @@ dev = [
     "pytest-xdist>=3.3,<4",
     "pytest-html>=4.1,<5",
     "pytest-benchmark>=5,<6",
+    "playwright>=1.63,<2",
     "flask>=3.0.0",
     "python-magic>=0.4.27",
     "black>=23.0.0",
     "isort>=5.12.0",
     "mypy>=1.5.0",
     "flake8>=6.0.0",
+    "types-Markdown>=3.5",
 ]
 
 # Enhanced processing (optional for advanced users)
@@ -182,29 +184,7 @@ module = [
 ]
 ignore_missing_imports = true
 
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = [
-    "-ra",
-    "--strict-markers",
-    "--cov=.",
-    "--cov-branch",
-    "--cov-report=term-missing:skip-covered",
-    "--cov-report=html",
-    "--cov-report=xml",
-    "--junitxml=test-results/junit.xml",
-]
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-    "e2e: marks tests as end-to-end tests",
-    "performance: marks tests as performance tests",
-]
+# pytest.ini owns pytest discovery, markers and execution settings.
 
 [tool.coverage.run]
 source = ["."]
@@ -229,20 +209,8 @@ severity = "medium"
 confidence = "medium"
 skips = ["B101", "B601"]
 
-[tool.flake8]
-max-line-length = 120
-extend-ignore = ["E203", "W503", "E501"]
-exclude = [
-    ".git",
-    "__pycache__",
-    "docs/source/conf.py",
-    "old",
-    "build",
-    "dist",
-    "venv",
-    "env",
-]
-max-complexity = 10
+# .flake8 owns lint settings; flake8 does not read pyproject.toml.
+
 # rstcheck checks base RST; Sphinx -W validates these extension directives
 # including autodoc targets and generated autosummary pages.
 [tool.rstcheck]

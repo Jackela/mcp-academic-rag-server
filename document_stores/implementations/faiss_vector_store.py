@@ -6,9 +6,7 @@ FAISS向量存储实现
 """
 
 import json
-import logging
 import os
-import pickle
 from dataclasses import replace
 from typing import Any, Dict, List, Optional, Tuple, Union
 

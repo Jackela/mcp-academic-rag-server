@@ -4,9 +4,8 @@
 测试知识图谱处理器的各项功能，包括实体提取、关系提取、概念提取等。
 """
 
-import json
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from models.document import Document
 from models.process_result import ProcessResult

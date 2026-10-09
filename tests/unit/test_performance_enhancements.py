@@ -10,10 +10,8 @@ Tests the performance optimization components including:
 """
 
 import asyncio
-import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -372,7 +370,6 @@ class TestPerformanceProfiling:
     def test_profile_performance_context_manager(self):
         """Test using profile_performance as context manager"""
         # This would be implemented if we add context manager support
-        pass
 
 
 class TestOptimizeBatchSize:

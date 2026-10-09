@@ -18,9 +18,8 @@ import shutil
 import sys
 import tempfile
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, Generator, List
-from unittest.mock import MagicMock, Mock, patch
+from typing import Any, Dict, List
+from unittest.mock import MagicMock, patch
 
 import pytest
 

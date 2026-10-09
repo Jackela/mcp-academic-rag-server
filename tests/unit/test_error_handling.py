@@ -2,7 +2,6 @@
 Unit tests for error handling utilities
 """
 
-import asyncio
 import time
 from datetime import datetime
 from unittest.mock import Mock, patch

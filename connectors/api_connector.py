@@ -8,12 +8,19 @@ import logging
 import os
 import time
 from abc import ABC, abstractmethod
-from typing import Any, BinaryIO, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import requests
 
 # 配置日志
 logger = logging.getLogger(__name__)
+
+
+def _json_object(text: str) -> Dict[str, Any]:
+    value = json.loads(text)
+    if not isinstance(value, dict):
+        raise ValueError("API response must be a JSON object")
+    return value
 
 
 class APIConnector(ABC):
@@ -36,7 +43,6 @@ class APIConnector(ABC):
     @abstractmethod
     def _build_headers(self) -> Dict[str, str]:
         """构建API请求头"""
-        pass
 
     def make_request(
         self,
@@ -68,6 +74,8 @@ class APIConnector(ABC):
         Raises:
             Exception: 请求失败时抛出
         """
+        if max_retries < 1:
+            raise ValueError("max_retries must be at least 1")
         url = f"{self.api_url.rstrip('/')}/{endpoint.lstrip('/')}"
         current_try = 0
 
@@ -90,8 +98,12 @@ class APIConnector(ABC):
                 # 检查HTTP状态码
                 response.raise_for_status()
 
-                if response.headers.get("content-type") == "application/json":
-                    return response.json()
+                content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                if content_type == "application/json":
+                    value = response.json()
+                    if not isinstance(value, dict):
+                        raise ValueError("API response must be a JSON object")
+                    return value
                 else:
                     return {"status": "success", "text": response.text}
 
@@ -103,28 +115,23 @@ class APIConnector(ABC):
                     logger.error(f"API请求失败，已达到最大重试次数: {url}")
                     raise Exception(f"API请求失败: {str(e)}")
 
-                # 获取响应内容（如果有）
-                response_text = None
-                response_json = None
-
-                try:
-                    if hasattr(e, "response") and e.response is not None:
-                        response_text = e.response.text
-                        try:
-                            response_json = e.response.json()
-                        except:
-                            pass
-                except:
-                    pass
-
-                # 记录错误响应
-                if response_json:
-                    logger.error(f"API错误响应: {json.dumps(response_json, ensure_ascii=False)}")
-                elif response_text:
-                    logger.error(f"API错误响应: {response_text}")
+                self._log_error_response(e)
 
                 # 等待后重试
                 time.sleep(retry_delay)
+        raise RuntimeError("API request retries exhausted")
+
+    @staticmethod
+    def _log_error_response(error: requests.RequestException) -> None:
+        """Diagnostic decoding never replaces the original request failure."""
+        response = error.response
+        if response is None:
+            return
+        try:
+            details = response.json()
+        except ValueError:
+            details = response.text
+        logger.error("API错误响应: %s", details)
 
 
 class MistralAPIConnector(APIConnector):
@@ -254,7 +261,9 @@ class OpenAIAPIConnector(APIConnector):
             "Content-Type": "application/json",
         }
 
-    def classify_document(self, content: str, categories: List[str] = None, model: str = "gpt-4") -> Dict[str, Any]:
+    def classify_document(
+        self, content: str, categories: Optional[List[str]] = None, model: str = "gpt-4"
+    ) -> Dict[str, Any]:
         """
         使用OpenAI API进行文档分类
 
@@ -301,8 +310,8 @@ class OpenAIAPIConnector(APIConnector):
         # 提取分类结果
         try:
             response_content = result["choices"][0]["message"]["content"]
-            return json.loads(response_content)
-        except (KeyError, json.JSONDecodeError) as e:
+            return _json_object(response_content)
+        except (KeyError, ValueError) as e:
             logger.error(f"解析分类结果失败: {str(e)}")
             return {}
 
@@ -345,8 +354,8 @@ class OpenAIAPIConnector(APIConnector):
         # 提取结果
         try:
             response_content = result["choices"][0]["message"]["content"]
-            return json.loads(response_content)
-        except (KeyError, json.JSONDecodeError) as e:
+            return _json_object(response_content)
+        except (KeyError, ValueError) as e:
             logger.error(f"解析主题提取结果失败: {str(e)}")
             return {}
 
@@ -390,8 +399,8 @@ class OpenAIAPIConnector(APIConnector):
         # 提取结果
         try:
             response_content = result["choices"][0]["message"]["content"]
-            return json.loads(response_content)
-        except (KeyError, json.JSONDecodeError) as e:
+            return _json_object(response_content)
+        except (KeyError, ValueError) as e:
             logger.error(f"解析结构识别结果失败: {str(e)}")
             return {}
 

@@ -6,14 +6,17 @@ Haystack LLM 连接器模块 - 提供与Haystack框架集成的LLM接口
 import json
 import logging
 import os
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
 
 from .base_llm_connector import BaseLLMConnector
-from .llm_factory import LLMFactory
+from .llm_factory import LLMFactory as _LLMFactory
+
+# Preserve the documented legacy factory import without a second implementation.
+LLMFactory = _LLMFactory
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -52,7 +55,7 @@ class HaystackLLMConnector(BaseLLMConnector):
     def _get_provider_name(self) -> str:
         return "openai"
 
-    def _init_generator(self):
+    def _init_generator(self) -> None:
         """初始化OpenAI Chat生成器"""
         try:
             self.generator = OpenAIChatGenerator(
@@ -74,7 +77,7 @@ class HaystackLLMConnector(BaseLLMConnector):
         content = message["content"]
 
         # 角色映射到对应的ChatMessage工厂方法
-        role_mapping = {
+        role_mapping: Dict[str, Callable[[str], ChatMessage]] = {
             "user": ChatMessage.from_user,
             "assistant": ChatMessage.from_assistant,
             "system": ChatMessage.from_system,
@@ -107,19 +110,17 @@ class HaystackLLMConnector(BaseLLMConnector):
             if generation_kwargs:
                 params.update(generation_kwargs)
 
-            # 设置临时生成参数
-            temp_generator = self.generator
-            if generation_kwargs:
-                temp_generator.generation_kwargs = params
-
             # 生成响应
             logger.debug(
-                f"开始生成对话响应: {json.dumps([m.dict() for m in chat_messages], ensure_ascii=False)[:200]}..."
+                f"开始生成对话响应: {json.dumps([m.to_dict() for m in chat_messages], ensure_ascii=False)[:200]}..."
             )
-            response = temp_generator.run(messages=chat_messages)
+            response = self.generator.run(messages=chat_messages, generation_kwargs=params)
 
             # 提取结果
-            result = {"content": response["replies"][0].content, "role": "assistant", "model": self.model}
+            text = response["replies"][0].text
+            if not isinstance(text, str) or not text:
+                raise ValueError("LLM reply does not contain text")
+            result = {"content": text, "role": "assistant", "model": self.model}
             logger.debug(f"生成对话响应成功: {result['content'][:100]}...")
 
             return result
@@ -128,7 +129,7 @@ class HaystackLLMConnector(BaseLLMConnector):
             logger.error(f"生成对话响应失败: {str(e)}")
             return {"content": f"生成对话响应失败: {str(e)}", "role": "assistant", "model": self.model, "error": str(e)}
 
-    def update_parameters(self, parameters: Dict[str, Any]):
+    def update_parameters(self, parameters: Dict[str, Any]) -> None:
         """
         更新LLM参数
 
@@ -139,7 +140,7 @@ class HaystackLLMConnector(BaseLLMConnector):
         self.generator.generation_kwargs = self.parameters
         logger.info(f"已更新LLM参数: {json.dumps(parameters, ensure_ascii=False)}")
 
-    def set_model(self, model: str):
+    def set_model(self, model: str) -> None:
         """
         设置模型
 

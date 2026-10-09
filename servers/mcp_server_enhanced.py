@@ -5,16 +5,14 @@ Enhanced MCP Academic RAG Server - 渐进式功能实现
 """
 
 import asyncio
-import base64
 import json
 import logging
 import os
-import subprocess
 import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # 配置日志到stderr (MCP要求)
 logging.basicConfig(

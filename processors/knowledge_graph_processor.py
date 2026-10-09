@@ -8,7 +8,7 @@
 import logging
 import re
 from collections import Counter, defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
 from models.document import Document
 from models.process_result import ProcessResult
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class KnowledgeGraphProcessor(BaseProcessor):
     """知识图谱处理器，从文档中提取实体和关系"""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化知识图谱处理器
 
