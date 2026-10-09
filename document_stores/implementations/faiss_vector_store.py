@@ -5,6 +5,8 @@ FAISS向量存储实现
 支持持久化存储、索引优化和增量更新。
 """
 
+from __future__ import annotations
+
 import json
 import os
 from dataclasses import replace
@@ -18,11 +20,10 @@ try:
     FAISS_AVAILABLE = True
 except ImportError:
     FAISS_AVAILABLE = False
-    faiss = None
 
 from haystack import Document as HaystackDocument
 
-from .base_vector_store import BaseVectorStore, VectorStoreConnectionError, VectorStoreError
+from .base_vector_store import BaseVectorStore, VectorStoreConnectionError
 
 
 class FAISSVectorStore(BaseVectorStore):
@@ -33,7 +34,7 @@ class FAISSVectorStore(BaseVectorStore):
     适用于中到大规模的向量检索场景。
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]) -> None:
         """
         初始化FAISS向量存储。
 
@@ -58,14 +59,14 @@ class FAISSVectorStore(BaseVectorStore):
         self.search_params = faiss_config.get("search_params", {})
 
         # 内部状态
-        self.index = None
-        self.documents = {}  # doc_id -> document mapping
-        self.id_to_idx = {}  # doc_id -> faiss index mapping
-        self.idx_to_id = {}  # faiss index -> doc_id mapping
+        self.index: Optional[faiss.Index] = None
+        self.documents: Dict[str, HaystackDocument] = {}  # doc_id -> document mapping
+        self.id_to_idx: Dict[str, int] = {}  # doc_id -> faiss index mapping
+        self.idx_to_id: Dict[int, str] = {}  # faiss index -> doc_id mapping
         self.next_idx = 0
 
         # GPU资源（如果使用GPU）
-        self.gpu_resources = None
+        self.gpu_resources: Optional[faiss.StandardGpuResources] = None
 
         # 确保存储目录存在
         os.makedirs(self.storage_path, exist_ok=True)
@@ -97,22 +98,17 @@ class FAISSVectorStore(BaseVectorStore):
             self.logger.error(f"初始化FAISS索引失败: {str(e)}")
             return False
 
-    def _create_index(self):
+    def _create_index(self) -> faiss.Index:
         """
         根据配置创建FAISS索引。
 
         Returns:
             FAISS索引对象
         """
-        # 根据相似度函数选择度量类型
-        if self.similarity_function == "cosine":
-            metric = faiss.METRIC_INNER_PRODUCT  # 对于归一化向量，内积等同于余弦相似度
-        elif self.similarity_function == "euclidean":
-            metric = faiss.METRIC_L2
-        else:  # dot_product
-            metric = faiss.METRIC_INNER_PRODUCT
+        metric = faiss.METRIC_L2 if self.similarity_function == "euclidean" else faiss.METRIC_INNER_PRODUCT
 
         # 创建基础索引
+        index: faiss.Index
         if self.index_type.lower() == "flat":
             index = (
                 faiss.IndexFlatIP(self.vector_dim)
@@ -142,9 +138,10 @@ class FAISSVectorStore(BaseVectorStore):
         elif self.index_type.startswith("HNSW"):
             # HNSW参数
             M = self.index_params.get("M", 16)
-            index = faiss.IndexHNSWFlat(self.vector_dim, M, metric)
+            hnsw_index = faiss.IndexHNSWFlat(self.vector_dim, M, metric)
             if "efConstruction" in self.index_params:
-                index.hnsw.efConstruction = self.index_params["efConstruction"]
+                hnsw_index.hnsw.efConstruction = self.index_params["efConstruction"]
+            index = hnsw_index
 
         else:
             self.logger.warning(f"未知索引类型 {self.index_type}，使用Flat索引")
@@ -176,7 +173,7 @@ class FAISSVectorStore(BaseVectorStore):
         Returns:
             添加成功返回True，失败返回False
         """
-        if not self.is_initialized:
+        if not self.is_initialized or self.index is None:
             self.logger.error("FAISS索引未初始化")
             return False
 
@@ -188,39 +185,7 @@ class FAISSVectorStore(BaseVectorStore):
             return False
 
         try:
-            vectors_to_add = []
-            doc_ids = []
-
-            for i, doc in enumerate(documents):
-                # 获取或生成文档ID
-                doc_id = doc.id if doc.id else f"doc_{self.next_idx}"
-
-                # 检查向量嵌入
-                if embeddings:
-                    embedding = embeddings[i]
-                elif doc.embedding:
-                    embedding = doc.embedding
-                else:
-                    self.logger.warning(f"文档 {doc_id} 缺少向量嵌入，跳过")
-                    continue
-
-                # 验证向量
-                if not self.validate_embedding(embedding):
-                    self.logger.warning(f"文档 {doc_id} 的向量嵌入无效，跳过")
-                    continue
-
-                # 余弦相似度需要归一化向量
-                if self.similarity_function == "cosine":
-                    embedding = self._normalize_vector(embedding)
-
-                vectors_to_add.append(embedding)
-                doc_ids.append(doc_id)
-
-                # 存储文档和映射关系
-                self.documents[doc_id] = doc
-                self.id_to_idx[doc_id] = self.next_idx
-                self.idx_to_id[self.next_idx] = doc_id
-                self.next_idx += 1
+            vectors_to_add = self._prepare_documents(documents, embeddings)
 
             # 添加向量到索引
             if vectors_to_add:
@@ -249,6 +214,40 @@ class FAISSVectorStore(BaseVectorStore):
             self.logger.error(f"添加文档到FAISS索引失败: {str(e)}")
             return False
 
+    def _prepare_documents(
+        self, documents: List[HaystackDocument], embeddings: Optional[List[List[float]]]
+    ) -> List[Union[List[float], np.ndarray]]:
+        vectors_to_add: List[Union[List[float], np.ndarray]] = []
+
+        for i, doc in enumerate(documents):
+            # 获取或生成文档ID
+            doc_id = doc.id if doc.id else f"doc_{self.next_idx}"
+
+            # 检查向量嵌入
+            if embeddings:
+                embedding = embeddings[i]
+            elif doc.embedding:
+                embedding = doc.embedding
+            else:
+                self.logger.warning(f"文档 {doc_id} 缺少向量嵌入，跳过")
+                continue
+
+            # 验证向量
+            if not self.validate_embedding(embedding):
+                self.logger.warning(f"文档 {doc_id} 的向量嵌入无效，跳过")
+                continue
+
+            vector = self._normalize_vector(embedding) if self.similarity_function == "cosine" else embedding
+            vectors_to_add.append(vector)
+
+            # 存储文档和映射关系
+            self.documents[doc_id] = doc
+            self.id_to_idx[doc_id] = self.next_idx
+            self.idx_to_id[self.next_idx] = doc_id
+            self.next_idx += 1
+
+        return vectors_to_add
+
     def search(
         self, query_embedding: List[float], top_k: int = 5, filters: Optional[Dict[str, Any]] = None
     ) -> List[Tuple[HaystackDocument, float]]:
@@ -263,7 +262,7 @@ class FAISSVectorStore(BaseVectorStore):
         Returns:
             包含(文档, 相似度得分)的元组列表
         """
-        if not self.is_initialized:
+        if not self.is_initialized or self.index is None:
             self.logger.error("FAISS索引未初始化")
             return []
 
@@ -289,32 +288,41 @@ class FAISSVectorStore(BaseVectorStore):
             # 执行搜索
             scores, indices = self.index.search(query_vector, min(top_k, self.index.ntotal))
 
-            results = []
-            for i, (score, idx) in enumerate(zip(scores[0], indices[0])):
-                if idx == -1:  # FAISS返回-1表示无效结果
-                    break
-
-                doc_id = self.idx_to_id.get(idx)
-                if doc_id and doc_id in self.documents:
-                    document = self.documents[doc_id]
-
-                    # 应用元数据过滤（如果提供）
-                    if filters and not self._apply_filters(document, filters):
-                        continue
-
-                    # 转换分数（FAISS内积分数可能需要调整）
-                    similarity_score = float(score)
-                    if self.similarity_function == "euclidean":
-                        # L2距离转换为相似度
-                        similarity_score = 1.0 / (1.0 + similarity_score)
-
-                    results.append((document, similarity_score))
-
-            return results[:top_k]
+            return self._collect_search_results(scores[0], indices[0], filters, top_k)
 
         except Exception as e:
             self.logger.error(f"FAISS搜索失败: {str(e)}")
             return []
+
+    def _collect_search_results(
+        self,
+        scores: np.ndarray,
+        indices: np.ndarray,
+        filters: Optional[Dict[str, Any]],
+        top_k: int,
+    ) -> List[Tuple[HaystackDocument, float]]:
+        results = []
+        for i, (score, idx) in enumerate(zip(scores, indices)):
+            if idx == -1:  # FAISS返回-1表示无效结果
+                break
+
+            doc_id = self.idx_to_id.get(idx)
+            if doc_id and doc_id in self.documents:
+                document = self.documents[doc_id]
+
+                # 应用元数据过滤（如果提供）
+                if filters and not self._apply_filters(document, filters):
+                    continue
+
+                # 转换分数（FAISS内积分数可能需要调整）
+                similarity_score = float(score)
+                if self.similarity_function == "euclidean":
+                    # L2距离转换为相似度
+                    similarity_score = 1.0 / (1.0 + similarity_score)
+
+                results.append((document, similarity_score))
+
+        return results[:top_k]
 
     def get_document_by_id(self, doc_id: str) -> Optional[HaystackDocument]:
         """
@@ -434,6 +442,10 @@ class FAISSVectorStore(BaseVectorStore):
         Returns:
             保存成功返回True，失败返回False
         """
+        if self.index is None:
+            self.logger.error("FAISS索引未初始化")
+            return False
+
         try:
             os.makedirs(path, exist_ok=True)
 
@@ -542,7 +554,7 @@ class FAISSVectorStore(BaseVectorStore):
         norm = np.linalg.norm(vector)
         if norm == 0:
             return vector
-        return vector / norm
+        return np.asarray(vector / norm)
 
     def _apply_filters(self, document: HaystackDocument, filters: Dict[str, Any]) -> bool:
         """
@@ -570,7 +582,7 @@ class FAISSVectorStore(BaseVectorStore):
         except Exception:
             return False
 
-    def _auto_save(self):
+    def _auto_save(self) -> None:
         """
         自动保存索引（如果启用）。
         """
@@ -580,7 +592,7 @@ class FAISSVectorStore(BaseVectorStore):
             except Exception as e:
                 self.logger.warning(f"自动保存失败: {str(e)}")
 
-    def close(self):
+    def close(self) -> None:
         """
         关闭FAISS存储，释放资源。
         """
@@ -606,7 +618,7 @@ class FAISSVectorStore(BaseVectorStore):
         Returns:
             包含索引统计信息的字典
         """
-        if not self.is_initialized:
+        if not self.is_initialized or self.index is None:
             return {}
 
         stats = {

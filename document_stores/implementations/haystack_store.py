@@ -8,7 +8,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from haystack import Document as HaystackDocument
 from haystack.document_stores.in_memory import InMemoryDocumentStore
@@ -16,11 +16,7 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from core.config_manager import ConfigManager
 from models.document import Document
 
-try:
-    from .milvus_store import MILVUS_AVAILABLE, MilvusDocumentStore
-except ImportError:
-    MILVUS_AVAILABLE = False
-    MilvusDocumentStore = None
+from .milvus_store import MILVUS_AVAILABLE, MilvusDocumentStore
 
 
 class HaystackDocumentStore:
@@ -35,7 +31,7 @@ class HaystackDocumentStore:
     - MilvusDocumentStore: Milvus向量数据库，适用于生产环境和大规模场景
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None, config_manager: Optional[ConfigManager] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, config_manager: Optional[ConfigManager] = None) -> None:
         """
         初始化HaystackDocumentStore对象。
 
@@ -59,12 +55,12 @@ class HaystackDocumentStore:
         self.return_embedding = self.config.get("return_embedding", True)
 
         # 初始化文档存储
-        self.document_store = None
-        self.milvus_store = None
+        self.document_store: InMemoryDocumentStore
+        self.milvus_store: Optional[MilvusDocumentStore] = None
         self._initialize_document_store()
 
         # 记录文档ID映射，用于跟踪系统Document对象与Haystack Document的对应关系
-        self.id_mapping = {}
+        self.id_mapping: Dict[str, str] = {}
 
         self.logger.info(f"HaystackDocumentStore初始化完成，存储类型: {self.store_type}")
 
@@ -152,7 +148,7 @@ class HaystackDocumentStore:
         for i, document in enumerate(documents):
             try:
                 # 获取文档内容
-                text = document.get_content("EmbeddingProcessor") or document.get_content("OCRProcessor") or ""
+                text = document.get_text_content()
 
                 if not text:
                     self.logger.warning(f"文档 {document.document_id} 没有可用的文本内容，跳过")
@@ -185,25 +181,27 @@ class HaystackDocumentStore:
                 self.logger.error(f"处理文档 {document.document_id} 失败: {str(e)}")
                 fail_count += 1
 
-        # 将文档写入存储
-        if haystack_docs:
-            try:
-                # 同时写入内存存储和Milvus存储
-                if self.document_store:
-                    self.document_store.write_documents(haystack_docs)
-
-                if self.milvus_store:
-                    milvus_success = self.milvus_store.add_documents(haystack_docs)
-                    if not milvus_success:
-                        self.logger.warning("向Milvus写入文档失败，仅保存到内存存储")
-
-                self.logger.info(f"成功批量添加 {len(haystack_docs)} 个文档到文档存储")
-
-            except Exception as e:
-                self.logger.error(f"批量写入文档失败: {str(e)}")
-                return 0, len(documents)
+        if haystack_docs and not self._write_documents(haystack_docs):
+            return 0, len(documents)
 
         return success_count, fail_count
+
+    def _write_documents(self, haystack_docs: List[HaystackDocument]) -> bool:
+        try:
+            # 同时写入内存存储和Milvus存储
+            self.document_store.write_documents(haystack_docs)
+
+            if self.milvus_store:
+                milvus_success = self.milvus_store.add_documents(haystack_docs)
+                if not milvus_success:
+                    self.logger.warning("向Milvus写入文档失败，仅保存到内存存储")
+
+            self.logger.info(f"成功批量添加 {len(haystack_docs)} 个文档到文档存储")
+
+            return True
+        except Exception as e:
+            self.logger.error(f"批量写入文档失败: {str(e)}")
+            return False
 
     def get_document(self, document_id: str) -> Optional[HaystackDocument]:
         """
@@ -365,15 +363,13 @@ class HaystackDocumentStore:
             self.logger.error(f"加载文档存储状态失败: {str(e)}")
             return False
 
-    def get_document_store(self) -> Union[InMemoryDocumentStore, MilvusDocumentStore]:
+    def get_document_store(self) -> InMemoryDocumentStore:
         """
         获取底层文档存储对象。
 
         Returns:
             InMemoryDocumentStore或MilvusDocumentStore对象
         """
-        if self.milvus_store:
-            return self.milvus_store
         return self.document_store
 
     def get_haystack_store(self) -> InMemoryDocumentStore:

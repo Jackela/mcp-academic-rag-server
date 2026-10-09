@@ -18,7 +18,6 @@ from document_stores.implementations.haystack_store import HaystackDocumentStore
 from models.document import Document
 from models.process_result import ProcessResult
 from processors.base_processor import BaseProcessor
-from utils.vector_utils import chunk_text
 
 
 class HaystackEmbeddingProcessor(BaseProcessor):
@@ -36,7 +35,7 @@ class HaystackEmbeddingProcessor(BaseProcessor):
         document_store: Optional[HaystackDocumentStore] = None,
         model_name_or_path: str = "sentence-transformers/all-MiniLM-L6-v2",
         config: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """
         初始化HaystackEmbeddingProcessor对象。
 
@@ -112,7 +111,7 @@ class HaystackEmbeddingProcessor(BaseProcessor):
             start_time = time.time()
 
             # 从文档中获取文本内容
-            text = document.get_content("OCRProcessor") or document.get_content("StructureProcessor")
+            text = document.get_text_content("ocr", "structure", "OCRProcessor", "StructureProcessor")
 
             if not text:
                 return ProcessResult.error_result(f"文档 {document.document_id} 没有可用的文本内容")
@@ -186,28 +185,14 @@ class HaystackEmbeddingProcessor(BaseProcessor):
         Returns:
             字典，键为文档ID，值为对应的ProcessResult对象
         """
-        results = {}
+        results: Dict[str, ProcessResult] = {}
 
         try:
             # 记录开始时间
             start_time = time.time()
 
             # 准备所有文档的Haystack文档对象
-            haystack_docs = []
-
-            for doc in documents:
-                text = doc.get_content("OCRProcessor") or doc.get_content("StructureProcessor")
-
-                if not text:
-                    results[doc.document_id] = ProcessResult.error_result(f"文档 {doc.document_id} 没有可用的文本内容")
-                    continue
-
-                haystack_doc = HaystackDocument(
-                    content=text,
-                    meta={"file_path": doc.file_path, "file_name": doc.file_name, "original_id": doc.document_id},
-                )
-
-                haystack_docs.append(haystack_doc)
+            haystack_docs = self._prepare_batch_documents(documents, results)
 
             if not haystack_docs:
                 self.logger.warning("批处理中没有可处理的文档")
@@ -218,27 +203,11 @@ class HaystackEmbeddingProcessor(BaseProcessor):
             docs_with_embeddings = batch_result["embedder"]["documents"]
 
             if not docs_with_embeddings:
-                for doc in documents:
-                    if doc.document_id not in results:
-                        results[doc.document_id] = ProcessResult.error_result(f"文档处理后没有生成任何块")
+                self._mark_batch_errors(documents, results, "文档处理后没有生成任何块")
                 return results
 
             # 按原始文档分组结果
-            doc_chunks = {}
-            doc_embeddings = {}
-
-            for doc in docs_with_embeddings:
-                original_id = doc.meta.get("original_id")
-                if not original_id:
-                    continue
-
-                if original_id not in doc_chunks:
-                    doc_chunks[original_id] = []
-                    doc_embeddings[original_id] = []
-
-                doc_chunks[original_id].append(doc.content)
-                if doc.embedding is not None:
-                    doc_embeddings[original_id].append(doc.embedding)
+            doc_chunks, doc_embeddings = self._group_batch_embeddings(docs_with_embeddings)
 
             # 处理每个文档的结果
             for doc in documents:
@@ -249,29 +218,7 @@ class HaystackEmbeddingProcessor(BaseProcessor):
                         results[doc_id] = ProcessResult.error_result(f"文档 {doc_id} 处理后没有生成块或嵌入向量")
                     continue
 
-                # 计算平均嵌入向量
-                import numpy as np
-
-                avg_embedding = np.mean(doc_embeddings[doc_id], axis=0).tolist() if doc_embeddings[doc_id] else None
-
-                # 存储处理结果
-                doc.store_content(self.get_stage(), doc_chunks[doc_id])
-
-                # 添加到文档存储
-                if self.document_store:
-                    self.document_store.add_document(doc, avg_embedding)
-
-                # 创建成功结果
-                result_data = {
-                    "chunks": len(doc_chunks[doc_id]),
-                    "processed_texts": doc_chunks[doc_id],
-                    "embeddings": doc_embeddings[doc_id],
-                    "average_embedding": avg_embedding,
-                }
-
-                results[doc_id] = ProcessResult.success_result(
-                    f"文档嵌入生成成功：{len(doc_chunks[doc_id])} 个块", result_data
-                )
+                results[doc_id] = self._store_batch_document(doc, doc_chunks[doc_id], doc_embeddings[doc_id])
 
             # 记录处理时间
             processing_time = time.time() - start_time
@@ -283,12 +230,87 @@ class HaystackEmbeddingProcessor(BaseProcessor):
         except Exception as e:
             self.logger.error(f"批量处理文档时发生异常: {str(e)}")
 
-            # 为所有未处理的文档设置错误结果
-            for doc in documents:
-                if doc.document_id not in results:
-                    results[doc.document_id] = ProcessResult.error_result(f"文档嵌入生成失败: {str(e)}", error=e)
-
+            self._mark_batch_errors(documents, results, f"文档嵌入生成失败: {str(e)}", error=e)
             return results
+
+    @staticmethod
+    def _mark_batch_errors(
+        documents: List[Document],
+        results: Dict[str, ProcessResult],
+        message: str,
+        error: Optional[Exception] = None,
+    ) -> None:
+        for doc in documents:
+            if doc.document_id not in results:
+                results[doc.document_id] = ProcessResult.error_result(message, error=error)
+
+    def _prepare_batch_documents(
+        self, documents: List[Document], results: Dict[str, ProcessResult]
+    ) -> List[HaystackDocument]:
+        haystack_docs: List[HaystackDocument] = []
+
+        for doc in documents:
+            text = doc.get_text_content("ocr", "structure", "OCRProcessor", "StructureProcessor")
+
+            if not text:
+                results[doc.document_id] = ProcessResult.error_result(f"文档 {doc.document_id} 没有可用的文本内容")
+                continue
+
+            haystack_doc = HaystackDocument(
+                content=text,
+                meta={"file_path": doc.file_path, "file_name": doc.file_name, "original_id": doc.document_id},
+            )
+
+            haystack_docs.append(haystack_doc)
+
+        return haystack_docs
+
+    @staticmethod
+    def _group_batch_embeddings(
+        documents: List[HaystackDocument],
+    ) -> tuple[Dict[str, List[Optional[str]]], Dict[str, List[List[float]]]]:
+        doc_chunks: Dict[str, List[Optional[str]]] = {}
+        doc_embeddings: Dict[str, List[List[float]]] = {}
+
+        for doc in documents:
+            original_id = doc.meta.get("original_id")
+            if not original_id:
+                continue
+
+            if original_id not in doc_chunks:
+                doc_chunks[original_id] = []
+                doc_embeddings[original_id] = []
+
+            doc_chunks[original_id].append(doc.content)
+            if doc.embedding is not None:
+                doc_embeddings[original_id].append(doc.embedding)
+
+        return doc_chunks, doc_embeddings
+
+    def _store_batch_document(
+        self, doc: Document, chunks: List[Optional[str]], embeddings: List[List[float]]
+    ) -> ProcessResult:
+        # 计算平均嵌入向量
+        import numpy as np
+
+        avg_embedding = np.mean(embeddings, axis=0).tolist() if embeddings else None
+
+        # 存储处理结果
+        doc.store_content(self.get_stage(), chunks)
+
+        # 添加到文档存储
+        if self.document_store:
+            self.document_store.add_document(doc, avg_embedding)
+
+        # 创建成功结果
+        result_data = {
+            "chunks": len(chunks),
+            "processed_texts": chunks,
+            "embeddings": embeddings,
+            "average_embedding": avg_embedding,
+        }
+
+        return ProcessResult.success_result(f"文档嵌入生成成功：{len(chunks)} 个块", result_data)
 
     def update_config(self, config: Dict[str, Any]) -> bool:
         """

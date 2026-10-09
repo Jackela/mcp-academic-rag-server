@@ -444,7 +444,7 @@ class OCRAPIFactory:
     """OCR API工厂类，创建不同OCR服务的连接器"""
 
     @staticmethod
-    def create_connector(api_type: str, config: Dict[str, Any]) -> APIConnector:
+    def create_connector(api_type: str, config: Dict[str, Any]) -> MistralAPIConnector:
         """
         创建OCR API连接器
 
@@ -458,4 +458,10 @@ class OCRAPIFactory:
         Raises:
             ValueError: 不支持的API类型
         """
-        return APIFactory.create_connector(api_type, config)
+        if api_type.lower() != "mistral":
+            raise ValueError(f"不支持的OCR API类型: {api_type}")
+        return MistralAPIConnector(
+            api_url=config.get("api_url", "https://api.mistral.ai/v1"),
+            api_key=config.get("api_key", ""),
+            timeout=config.get("timeout", 60),
+        )

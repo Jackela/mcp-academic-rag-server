@@ -11,12 +11,23 @@ import logging
 import os
 import shutil
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Protocol, runtime_checkable
 
 from haystack import Document as HaystackDocument
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from document_stores.implementations.base_vector_store import BaseVectorStore, VectorStoreError
-from document_stores.vector_store_factory import VectorStoreFactory, create_vector_store
+from document_stores.vector_store_factory import create_vector_store
+
+
+@runtime_checkable
+class _HaystackDocumentSource(Protocol):
+    def get_haystack_store(self) -> InMemoryDocumentStore: ...
+
+
+@runtime_checkable
+class _MappedDocumentSource(Protocol):
+    documents: Dict[str, HaystackDocument]
 
 
 class VectorStoreMigrator:
@@ -26,7 +37,7 @@ class VectorStoreMigrator:
     提供完整的迁移、备份、恢复和验证功能。
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化迁移工具"""
         self.logger = logging.getLogger("VectorStoreMigrator")
 
@@ -146,9 +157,9 @@ class VectorStoreMigrator:
         Yields:
             文档批次列表
         """
-        if hasattr(store, "get_haystack_store"):
+        if isinstance(store, _HaystackDocumentSource):
             all_docs = store.get_haystack_store().filter_documents({})
-        elif isinstance(getattr(store, "documents", None), dict):
+        elif isinstance(store, _MappedDocumentSource) and isinstance(store.documents, dict):
             all_docs = list(store.documents.values())
         else:
             raise VectorStoreError("Storage backend does not expose documents for migration")
@@ -258,6 +269,15 @@ class VectorStoreMigrator:
             self.logger.error(f"恢复失败: {str(e)}")
             return False
 
+    @staticmethod
+    def _documents_match(source: HaystackDocument, target: Optional[HaystackDocument]) -> bool:
+        return (
+            target is not None
+            and target.content == source.content
+            and target.meta == source.meta
+            and target.embedding == source.embedding
+        )
+
     def verify_migration(
         self, source_store: BaseVectorStore, target_store: BaseVectorStore, sample_ratio: float = 0.1
     ) -> bool:
@@ -295,25 +315,17 @@ class VectorStoreMigrator:
             for batch in self._get_documents_in_batches(source_store, max(1, sample_size)):
                 for source_doc in batch:
                     target_doc = target_store.get_document_by_id(source_doc.id)
-                    if (
-                        target_doc is None
-                        or target_doc.content != source_doc.content
-                        or target_doc.meta != source_doc.meta
-                    ):
-                        return False
-                    if source_doc.embedding != target_doc.embedding:
+                    if not self._documents_match(source_doc, target_doc):
                         return False
                     verified += 1
                     if verified >= sample_size:
                         break
                 if verified >= sample_size:
                     break
-            if verified == 0:
-                return False
             success_rate = verified / sample_size
 
             self.logger.info(f"迁移验证通过，成功率: {success_rate:.2%}")
-            return True
+            return verified > 0
 
         except Exception as e:
             self.logger.error(f"迁移验证失败: {str(e)}")
@@ -394,7 +406,7 @@ class VectorStoreMigrator:
         Returns:
             备份信息列表
         """
-        backups = []
+        backups: List[Dict[str, Any]] = []
 
         if not os.path.exists(backup_dir):
             return backups

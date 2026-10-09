@@ -10,7 +10,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 
-from connectors.api_connector import OCRAPIFactory
+from connectors.api_connector import MistralAPIConnector, OCRAPIFactory
 from models.document import Document
 from models.process_result import ProcessResult
 from processors.base_processor import BaseProcessor
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class OCRProcessor(BaseProcessor):
     """OCR处理器，通过外部API进行文本识别"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
         初始化OCR处理器
 
@@ -34,7 +34,7 @@ class OCRProcessor(BaseProcessor):
         super().__init__(name, description, config)
 
         # 默认配置
-        self.default_config = {
+        self.default_config: Dict[str, Any] = {
             "api_type": "mistral",  # OCR API类型，如mistral, azure, google
             "model": "mistral-ocr-latest",  # OCR模型
             "batch_size": 10,  # 批处理大小
@@ -51,6 +51,7 @@ class OCRProcessor(BaseProcessor):
         self.config["api_config"] = {**self.default_config["api_config"], **(config or {}).get("api_config", {})}
 
         # 创建API连接器
+        self.api_connector: Optional[MistralAPIConnector]
         try:
             self.api_connector = OCRAPIFactory.create_connector(self.config["api_type"], self.config["api_config"])
             logger.info(f"已创建OCR API连接器: {self.config['api_type']}")
@@ -198,7 +199,7 @@ class OCRProcessor(BaseProcessor):
             Optional[Dict[str, Any]]: OCR结果
         """
         # 根据OCR API类型选择处理方法
-        if self.config["api_type"] == "mistral":
+        if self.config["api_type"].lower() == "mistral" and self.api_connector is not None:
             try:
                 # 1. 上传文件
                 upload_response = self.api_connector.upload_file(pdf_path, purpose="ocr")
@@ -239,7 +240,7 @@ class OCRProcessor(BaseProcessor):
             Optional[Dict[str, Any]]: OCR结果
         """
         # 根据OCR API类型选择处理方法
-        if self.config["api_type"] == "mistral":
+        if self.config["api_type"].lower() == "mistral" and self.api_connector is not None:
             try:
                 # 调用Mistral图像OCR API
                 ocr_response = self.api_connector.process_image_ocr(image_path, model=self.config["model"])
@@ -271,7 +272,7 @@ class OCRProcessor(BaseProcessor):
                 continue
 
             # 提取文本内容
-            if self.config["api_type"] == "mistral":
+            if self.config["api_type"].lower() == "mistral" and self.api_connector is not None:
                 # Mistral API返回格式处理
                 if "content" in result:
                     page_text = result["content"].get("text", "")

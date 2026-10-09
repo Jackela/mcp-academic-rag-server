@@ -74,7 +74,7 @@ def rag_system():
 
 def add_document(processor):
     document = Document("fixture.txt")
-    document.store_content("OCRProcessor", "Controlled source text about fixture science.")
+    document.store_content("ocr", {"text": "Controlled source text about fixture science."})
     document.add_metadata("title", "Fixture title")
     result = processor.process(document)
     assert result.is_successful(), result.get_message()
@@ -159,3 +159,32 @@ def test_session_persistence_and_recovery(rag_system, tmp_path):
     assert response.message_id in loaded.citations
     next_response, _ = loaded.process_query("Next fixture")
     assert next_response.content == "Controlled fixture answer"
+
+
+def test_batch_embedding_keeps_per_document_results(rag_system):
+    store, processor, _, _, _ = rag_system
+    current = Document("current.txt")
+    current.store_content("ocr", {"text": "Current controlled fixture text."})
+    legacy = Document("legacy.txt")
+    legacy.store_content("OCRProcessor", "Legacy controlled fixture text.")
+    empty = Document("empty.txt")
+    results = processor.batch_process([current, legacy, empty])
+    assert set(results) == {current.document_id, legacy.document_id, empty.document_id}
+    assert results[current.document_id].is_successful()
+    assert results[legacy.document_id].is_successful()
+    assert results[current.document_id].get_data()["average_embedding"] == [1.0, 0.0]
+    assert not results[empty.document_id].is_successful()
+    assert store.get_document_count() == 2
+
+
+def test_batch_embedding_failure_preserves_missing_text_error(rag_system):
+    store, processor, _, _, _ = rag_system
+    current = Document("current.txt")
+    current.store_content("ocr", {"text": "Controlled fixture text."})
+    empty = Document("empty.txt")
+    with patch.object(processor.pipeline, "run", side_effect=RuntimeError("fixture embedding failure")):
+        results = processor.batch_process([empty, current])
+    assert not results[current.document_id].is_successful()
+    assert "fixture embedding failure" in results[current.document_id].get_message()
+    assert "没有可用的文本" in results[empty.document_id].get_message()
+    assert store.get_document_count() == 0

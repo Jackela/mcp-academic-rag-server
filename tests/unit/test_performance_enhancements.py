@@ -11,7 +11,7 @@ Tests the performance optimization components including:
 
 import asyncio
 import time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -214,6 +214,19 @@ class TestCacheManager:
         assert cache.get("key1") == "value1"  # Should still exist
         assert cache.get("key2") is None  # Should be evicted
         assert cache.get("key3") == "value3"  # Should exist
+
+    def test_lru_order_survives_equal_timestamps_and_updates(self):
+        with patch("utils.performance_enhancements.time.time", return_value=123.0):
+            cache = CacheManager(backend="memory", max_size=2, use_ttl=False)
+            cache.set("first", 1)
+            cache.set("second", 2)
+            assert cache.get("first") == 1
+            cache.set("third", 3)
+            assert cache.get("second") is None
+            assert cache.get("first") == 1
+            cache.set("third", 30)
+            assert cache.get("first") == 1
+            assert cache.get("third") == 30
 
     def test_cached_decorator_sync(self):
         """Test cached decorator with synchronous function"""

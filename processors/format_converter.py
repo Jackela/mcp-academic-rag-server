@@ -7,17 +7,21 @@
 
 import logging
 import os
+import re
 import tempfile
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple, Union, overload
+from xml.etree import ElementTree
 
 import markdown
 import pdfkit
+from markdown.blockprocessors import BlockProcessor
 from markdown.extensions import Extension
+from markdown.inlinepatterns import InlineProcessor
 
 from models.document import Document
 from models.process_result import ProcessResult
 from processors.base_processor import BaseProcessor
-from utils.text_utils import DocumentStructureExtractor, FormatConverter, KeywordExtractor, TextCleaner
+from utils.text_utils import DocumentStructureExtractor, FormatConverter
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -31,7 +35,7 @@ class FormatConverterProcessor(BaseProcessor):
     同时保持文档的结构、布局和特殊元素（如公式、引用等）。
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
         初始化FormatConverterProcessor对象。
 
@@ -145,8 +149,10 @@ class FormatConverterProcessor(BaseProcessor):
         if ocr_content:
             if isinstance(ocr_content, str):
                 return ocr_content
-            elif isinstance(ocr_content, dict) and ocr_content.get("text"):
-                return ocr_content.get("text")
+            elif isinstance(ocr_content, dict) and isinstance(ocr_content.get("text"), str):
+                text = ocr_content["text"]
+                if isinstance(text, str):
+                    return text
 
         # 如果没有OCR内容，尝试获取其他文本内容
         for stage in ["structure", "preprocessed"]:
@@ -154,8 +160,10 @@ class FormatConverterProcessor(BaseProcessor):
             if content:
                 if isinstance(content, str):
                     return content
-                elif isinstance(content, dict) and content.get("text"):
-                    return content.get("text")
+                elif isinstance(content, dict) and isinstance(content.get("text"), str):
+                    text = content["text"]
+                    if isinstance(text, str):
+                        return text
 
         logger.warning(f"未找到可用的OCR内容: {document.document_id}")
         return ""
@@ -285,39 +293,46 @@ class MathExtension(Extension):
     Markdown的数学公式扩展，用于正确处理LaTeX数学公式。
     """
 
-    def extendMarkdown(self, md):
+    def extendMarkdown(self, md: markdown.Markdown) -> None:
         # 处理行内公式
         inline_pattern = r"\$([^$\n]+)\$"
         md.inlinePatterns.register(MathInlineProcessor(inline_pattern, md), "math_inline", 175)
 
         # 处理块级公式
-        block_pattern = r"\$\$(.*?)\$\$"
-        md.inlinePatterns.register(MathBlockProcessor(block_pattern, md), "math_block", 176)
+        md.parser.blockprocessors.register(MathBlockProcessor(md.parser), "math_block", 175)
 
 
-class MathInlineProcessor(markdown.inlinepatterns.InlineProcessor):
+class MathInlineProcessor(InlineProcessor):
     """
     处理行内数学公式的Markdown处理器。
     """
 
-    def handleMatch(self, m, data):
+    @overload
+    def handleMatch(self, m: re.Match[str]) -> ElementTree.Element: ...
+
+    @overload
+    def handleMatch(self, m: re.Match[str], data: str) -> Tuple[ElementTree.Element, int, int]: ...
+
+    def handleMatch(
+        self, m: re.Match[str], data: Optional[str] = None
+    ) -> Union[ElementTree.Element, Tuple[ElementTree.Element, int, int]]:
         formula = m.group(1)
         span = m.span(0)
-        elem = markdown.util.etree.Element("span")
+        elem = ElementTree.Element("span")
         elem.set("class", "math")
         elem.text = formula
-        return elem, span[0], span[1]
+        return elem if data is None else (elem, span[0], span[1])
 
 
-class MathBlockProcessor(markdown.inlinepatterns.InlineProcessor):
-    """
-    处理块级数学公式的Markdown处理器。
-    """
+class MathBlockProcessor(BlockProcessor):
+    """Render a complete $$ formula block as a sibling of paragraphs."""
 
-    def handleMatch(self, m, data):
-        formula = m.group(1)
-        span = m.span(0)
-        elem = markdown.util.etree.Element("div")
-        elem.set("class", "math-block")
-        elem.text = formula
-        return elem, span[0], span[1]
+    def test(self, parent: ElementTree.Element, block: str) -> bool:
+        return re.fullmatch(r"\$\$(.*?)\$\$", block.strip(), re.DOTALL) is not None
+
+    def run(self, parent: ElementTree.Element, blocks: list[str]) -> None:
+        match = re.fullmatch(r"\$\$(.*?)\$\$", blocks.pop(0).strip(), re.DOTALL)
+        if match is None:
+            raise ValueError("Math block requires closing $$")
+        element = ElementTree.SubElement(parent, "div", {"class": "math-block"})
+        element.text = match.group(1).strip()

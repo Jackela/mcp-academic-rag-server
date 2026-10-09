@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class KnowledgeGraphProcessor(BaseProcessor):
     """知识图谱处理器，从文档中提取实体和关系"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
         初始化知识图谱处理器
 
@@ -193,7 +193,7 @@ class KnowledgeGraphProcessor(BaseProcessor):
         Returns:
             Dict[str, Any]: 知识图谱数据
         """
-        knowledge_graph = {"entities": {}, "relations": [], "concepts": [], "metadata": {}}
+        knowledge_graph: Dict[str, Any] = {"entities": {}, "relations": [], "concepts": [], "metadata": {}}
 
         # 提取实体
         if self.config["extract_entities"]:
@@ -567,7 +567,7 @@ class KnowledgeGraphProcessor(BaseProcessor):
         Returns:
             List[str]: 上下文列表
         """
-        contexts = []
+        contexts: List[str] = []
         sentences = re.split(r"[.!?]", text)
 
         for sentence in sentences:
@@ -779,12 +779,12 @@ class KnowledgeGraphProcessor(BaseProcessor):
         concepts = knowledge_graph.get("concepts", [])
 
         # 按类型统计实体
-        entity_types = defaultdict(int)
+        entity_types: Dict[str, int] = defaultdict(int)
         for entity_info in entities.values():
             entity_types[entity_info.get("type", "UNKNOWN")] += 1
 
         # 按类型统计关系
-        relation_types = defaultdict(int)
+        relation_types: Dict[str, int] = defaultdict(int)
         for relation in relations:
             relation_types[relation.get("predicate", "UNKNOWN")] += 1
 

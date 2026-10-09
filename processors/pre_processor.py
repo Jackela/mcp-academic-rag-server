@@ -9,6 +9,8 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+from PIL import Image
+
 from models.document import Document
 from models.process_result import ProcessResult
 from processors.base_processor import BaseProcessor
@@ -23,7 +25,7 @@ class PreProcessor(BaseProcessor):
     图像预处理器，优化OCR前的图像质量
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
         初始化预处理器
 
@@ -109,7 +111,7 @@ class PreProcessor(BaseProcessor):
                 processed_files = self._process_pdf(document, image_utils)
             else:
                 # 处理单个图像文件
-                processed_file = self._process_image(document.file_path, image_utils)
+                processed_file = self._process_image(str(document.file_path), image_utils)
                 if processed_file:
                     processed_files.append(processed_file)
 
@@ -208,7 +210,7 @@ class PreProcessor(BaseProcessor):
             logger.error(f"图像处理失败: {file_path}, 错误: {str(e)}", exc_info=True)
             return ""
 
-    def _enhance_image(self, image, image_utils: ImageUtils):
+    def _enhance_image(self, image: Image.Image, image_utils: ImageUtils) -> Optional[Image.Image]:
         """
         增强图像质量
 

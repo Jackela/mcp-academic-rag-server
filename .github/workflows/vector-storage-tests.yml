@@ -104,20 +104,14 @@ jobs:
           pip install faiss-cpu
           # Note: Milvus requires Docker, skip in CI
 
-      - name: Verify native imports before pytest plugins
+      - name: Verify native dependencies
         run: |
           python -X faulthandler -c "import torch; import faiss; print('native imports:', torch.__version__, faiss.__version__); assert torch.tensor([1, 2]).sum().item() == 3"
-          python -X faulthandler -c "import pytest_benchmark.plugin; import pytest_html.plugin; import torch; print('plugin imports:', torch.__version__)"
-
-      - name: Diagnose pytest startup against the unmodified baseline
-        run: python scripts/diagnose_pytest_startup.py
 
       - name: Run unit tests
-        if: always()
         run: |
           pytest tests/unit/ \
             --cov=document_stores \
-            --cov=document_stores.migration.vector_migration \
             --cov-report=xml \
             --cov-report=term-missing \
             --junitxml=test-results/junit-unit.xml \
@@ -171,7 +165,6 @@ jobs:
         run: |
           pytest tests/integration/ \
             --cov=document_stores \
-            --cov=document_stores.migration.vector_migration \
             --cov-report=xml \
             --cov-report=term-missing \
             --junitxml=test-results/junit-integration.xml \

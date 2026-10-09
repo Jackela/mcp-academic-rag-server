@@ -7,9 +7,8 @@
 
 import logging
 import re
-import string
 import unicodedata
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -153,7 +152,7 @@ class KeywordExtractor:
             ngrams.append(ngram)
 
         # 计算词频
-        ngram_freq = {}
+        ngram_freq: Dict[str, int] = {}
         for ngram in ngrams:
             ngram_freq[ngram] = ngram_freq.get(ngram, 0) + 1
 
@@ -261,7 +260,7 @@ class DocumentStructureExtractor:
     """文档结构提取工具类，提供统一的文档结构识别功能"""
 
     @staticmethod
-    def extract_structure(text: str, text_by_page: List[str] = None) -> Dict[str, Any]:
+    def extract_structure(text: str, text_by_page: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         统一的文档结构提取方法
 
@@ -272,7 +271,7 @@ class DocumentStructureExtractor:
         Returns:
             Dict[str, Any]: 识别的结构元素
         """
-        structure = {}
+        structure: Dict[str, Any] = {}
 
         # 识别标题
         structure["title"] = DocumentStructureExtractor._extract_title(text, text_by_page or [])
@@ -467,14 +466,13 @@ class DocumentStructureExtractor:
             List[Dict[str, Any]]: 章节列表
         """
         try:
-            sections = []
+            sections: List[Dict[str, Any]] = []
 
             # 使用正则表达式查找章节标题
             section_pattern = r"^\s*(\d+(?:\.\d+)*)\s+([A-Z][^\n]+)$"
             section_matches = re.finditer(section_pattern, text, re.MULTILINE)
 
             # 根据匹配结果创建章节结构
-            last_end = 0
             for i, match in enumerate(section_matches):
                 section_num = match.group(1)
                 section_title = match.group(2).strip()
@@ -489,7 +487,6 @@ class DocumentStructureExtractor:
                 }
 
                 sections.append(section)
-                last_end = match.end()
 
             # 提取章节内容
             if sections:
@@ -635,7 +632,7 @@ class FormatConverter:
     """格式转换工具类，提供文本格式转换功能"""
 
     @staticmethod
-    def text_to_markdown(text: str, doc_structure: Dict[str, Any] = None) -> str:
+    def text_to_markdown(text: str, doc_structure: Optional[Dict[str, Any]] = None) -> str:
         """
         将纯文本转换为Markdown格式
 
@@ -683,21 +680,7 @@ class FormatConverter:
 
             if section_content:
                 # 处理列表
-                lines = section_content.split("\n")
-                processed_lines = []
-
-                for line in lines:
-                    # 检测和转换列表项
-                    if re.match(r"^\s*\d+\.\s", line):
-                        # 有序列表
-                        processed_lines.append(line)
-                    elif re.match(r"^\s*[\-\*•]\s", line):
-                        # 无序列表
-                        processed_lines.append(line)
-                    else:
-                        processed_lines.append(line)
-
-                section_content = "\n".join(processed_lines)
+                section_content = "\n".join(section_content.split("\n"))
                 md_content.append(f"{section_content}\n")
 
         # 处理数学公式
@@ -737,7 +720,7 @@ class FormatConverter:
         text = re.sub(r"(\$[^$\n]+\$)", r"\1", text)
 
         # 转换行间公式，如 $$\int_a^b f(x) dx$$
-        def replace_block_formula(match):
+        def replace_block_formula(match: re.Match[str]) -> str:
             formula = match.group(1)
             return f"\n$$\n{formula}\n$$\n"
 

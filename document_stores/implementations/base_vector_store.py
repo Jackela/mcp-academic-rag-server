@@ -20,7 +20,7 @@ class BaseVectorStore(ABC):
     之间的一致性和可互换性。
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]) -> None:
         """
         初始化向量存储基类。
 
@@ -206,7 +206,7 @@ class BaseVectorStore(ABC):
         """
         return ["dot_product", "cosine", "euclidean"]
 
-    def close(self):
+    def close(self) -> None:
         """
         关闭存储连接，清理资源。
 

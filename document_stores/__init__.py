@@ -18,18 +18,15 @@ Document Stores Package
 
 from .implementations.base_vector_store import BaseVectorStore, VectorStoreConnectionError, VectorStoreError
 from .implementations.faiss_vector_store import FAISSVectorStore
+from .implementations.haystack_store import HaystackDocumentStore
 from .implementations.memory_vector_store import InMemoryVectorStore
+from .implementations.milvus_store import MILVUS_AVAILABLE
+from .implementations.milvus_store import MilvusDocumentStore as _MilvusDocumentStore
+from .migration.vector_migration import VectorStoreMigrator
 from .vector_store_factory import VectorStoreFactory
 
-try:
-    from .implementations.milvus_store import MilvusDocumentStore
-
-    MILVUS_AVAILABLE = True
-except ImportError:
-    MILVUS_AVAILABLE = False
-    MilvusDocumentStore = None
-from .implementations.haystack_store import HaystackDocumentStore
-from .migration.vector_migration import VectorStoreMigrator
+# Keep the explicit legacy export; availability comes from its implementation.
+MilvusDocumentStore = _MilvusDocumentStore
 
 __all__ = [
     "BaseVectorStore",

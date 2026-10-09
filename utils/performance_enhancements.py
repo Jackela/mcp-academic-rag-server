@@ -18,7 +18,7 @@ import os
 import threading
 import time
 import weakref
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
@@ -266,7 +266,7 @@ class CacheManager:
             self.redis_client = None
             # Memory cache implementation
             self._memory_cache = {}
-            self._access_times = {}
+            self._access_times: OrderedDict[str, float] = OrderedDict()
             self._ttl_cache = {}
             self._lock = threading.Lock()
 
@@ -309,6 +309,7 @@ class CacheManager:
             with self._lock:
                 if key in self._memory_cache and not self._is_expired(key):
                     self._access_times[key] = time.time()
+                    self._access_times.move_to_end(key)
                     return self._memory_cache[key]
                 elif key in self._memory_cache:
                     # Expired entry, remove it
@@ -329,11 +330,12 @@ class CacheManager:
         else:
             with self._lock:
                 # Evict old entries if cache is full
-                if len(self._memory_cache) >= self.max_size:
+                if key not in self._memory_cache and len(self._memory_cache) >= self.max_size:
                     self._evict_lru()
 
                 self._memory_cache[key] = value
                 self._access_times[key] = time.time()
+                self._access_times.move_to_end(key)
                 if self.use_ttl:
                     self._ttl_cache[key] = time.time() + ttl
 
@@ -342,7 +344,7 @@ class CacheManager:
         if not self._access_times:
             return
 
-        lru_key = min(self._access_times, key=self._access_times.get)
+        lru_key = next(iter(self._access_times))
         del self._memory_cache[lru_key]
         del self._access_times[lru_key]
         if lru_key in self._ttl_cache:

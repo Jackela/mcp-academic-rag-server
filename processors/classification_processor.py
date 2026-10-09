@@ -29,7 +29,7 @@ class ClassificationProcessor(BaseProcessor):
     生成主题分类和关键标签，并将结果存储到文档元数据中。
     """
 
-    def __init__(self, api_connector: APIConnector, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, api_connector: APIConnector, config: Optional[Dict[str, Any]] = None) -> None:
         """
         初始化ClassificationProcessor对象。
 
@@ -44,7 +44,7 @@ class ClassificationProcessor(BaseProcessor):
         self.categories = self.config.get("categories", [])
         self.max_content_length = self.config.get("max_content_length", 4000)
         self.local_keyword_extraction = self.config.get("local_keyword_extraction", True)
-        self.prompt_template = self.config.get("prompt_template", self._get_default_prompt_template())
+        self.prompt_template: str = self.config.get("prompt_template", self._get_default_prompt_template())
 
     def process(self, document: Document) -> ProcessResult:
         """
@@ -110,8 +110,10 @@ class ClassificationProcessor(BaseProcessor):
             if content:
                 if isinstance(content, str):
                     return content
-                elif isinstance(content, dict) and content.get("text"):
-                    return content.get("text")
+                elif isinstance(content, dict) and isinstance(content.get("text"), str):
+                    text = content["text"]
+                    if isinstance(text, str):
+                        return text
 
         # 如果没有找到内容，记录警告
         logger.warning(f"未找到文档内容: {document.document_id}")
@@ -200,7 +202,10 @@ class ClassificationProcessor(BaseProcessor):
             if "choices" in response and len(response["choices"]) > 0:
                 result_text = response["choices"][0]["message"]["content"]
                 try:
-                    return json.loads(result_text)
+                    value = json.loads(result_text)
+                    if not isinstance(value, dict):
+                        raise ValueError("Classification response must be a JSON object")
+                    return value
                 except json.JSONDecodeError:
                     logger.error(f"API返回的结果不是有效的JSON: {result_text}")
                     return self._extract_json_from_text(result_text)
@@ -231,7 +236,8 @@ class ClassificationProcessor(BaseProcessor):
 
             if start_idx >= 0 and end_idx > start_idx:
                 json_str = text[start_idx : end_idx + 1]
-                return json.loads(json_str)
+                value = json.loads(json_str)
+                return value if isinstance(value, dict) else {}
 
             return {}
         except Exception:
@@ -357,7 +363,7 @@ class TagGenerationProcessor(BaseProcessor):
     提取关键词、主题标签、引用和参考文献，并将结果存储到文档中。
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
         初始化TagGenerationProcessor对象。
 
@@ -461,8 +467,10 @@ class TagGenerationProcessor(BaseProcessor):
             if content:
                 if isinstance(content, str):
                     return content
-                elif isinstance(content, dict) and content.get("text"):
-                    return content.get("text")
+                elif isinstance(content, dict) and isinstance(content.get("text"), str):
+                    text = content["text"]
+                    if isinstance(text, str):
+                        return text
 
         # 如果没有找到内容，记录警告
         logger.warning(f"未找到文档内容: {document.document_id}")
@@ -480,7 +488,15 @@ class TagGenerationProcessor(BaseProcessor):
         if self.academic_terms_file and os.path.exists(self.academic_terms_file):
             try:
                 with open(self.academic_terms_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    value = json.load(f)
+                    if not isinstance(value, dict) or not all(
+                        isinstance(key, str)
+                        and isinstance(terms, list)
+                        and all(isinstance(term, str) for term in terms)
+                        for key, terms in value.items()
+                    ):
+                        raise ValueError("Academic terms must map strings to lists of strings")
+                    return value
             except Exception as e:
                 logger.error(f"加载学术术语文件失败: {str(e)}")
 

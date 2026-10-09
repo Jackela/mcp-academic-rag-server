@@ -78,3 +78,33 @@ Its migration test explicitly opts out of backup; source documents remain intact
 when backup fails. All 11 existing performance cases pass with correctly sized
 fixture batches and vector dimensions. These are local controlled benchmarks,
 not host deployment performance or research-quality evidence.
+
+
+## Current parser, storage and coverage boundaries
+
+`Document.get_text_content()` owns conversion of current OCR text dictionaries,
+embedding text chunks and historical string stages into stored text. Embedding
+and storage consume it together. Offline tests cover current and legacy inputs,
+partial batches and a failing embedding boundary without model or OCR requests.
+
+Math markup uses the current Python-Markdown InlineProcessor/BlockProcessor APIs
+and `xml.etree.ElementTree`; tests parse the actual rendered HTML and reject
+nontext OCR values. PDF rendering remains unverified. `typings/pdfkit.pyi` describes
+only the `from_file` call used here, based on the installed pdfkit 1.0.0 API; it does
+not replace runtime validation or claim a working external PDF renderer.
+[Python-Markdown extension API](https://python-markdown.github.io/extensions/api/)
+explains these parser contracts.
+
+Vector factory migration delegates to `VectorStoreMigrator.migrate`, performs the
+copy and verifies real target documents. Its historical no-op success path is
+removed. The compatibility helper has no backup parameter and explicitly performs
+migration without backup; the migrator's separate requested-backup failure stays
+observable. Milvus availability requires an actual backend class, not just an
+installed client dependency. The repository's Milvus document-store stub reports
+unavailable; installing its SDK does not implement that stub.
+
+Vector CI measures the complete `document_stores` directory, including executed
+migration lines. It does not additionally name the dotted migration submodule:
+coverage's early lookup imported native Torch a second time and caused a locally
+reproduced exit 139. No coverage files or valid test cases are excluded by removing
+that duplicate. See [Coverage source selection](https://coverage.readthedocs.io/en/latest/source.html).

@@ -8,9 +8,16 @@
 import importlib
 import logging
 import os
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, TypedDict
 
 from .implementations.base_vector_store import BaseVectorStore, VectorStoreConfigError, VectorStoreError
+
+
+class BackendInfo(TypedDict):
+    class_name: str
+    module: str
+    dependencies: List[str]
+    description: str
 
 
 class VectorStoreFactory:
@@ -22,7 +29,7 @@ class VectorStoreFactory:
     """
 
     # 支持的存储后端映射
-    _BACKENDS = {
+    _BACKENDS: Dict[str, BackendInfo] = {
         "memory": {
             "class_name": "InMemoryVectorStore",
             "module": "document_stores.implementations.memory_vector_store",
@@ -46,10 +53,10 @@ class VectorStoreFactory:
     # 回退策略：优先级从高到低
     _FALLBACK_ORDER = ["faiss", "memory"]
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化工厂类"""
         self.logger = logging.getLogger("VectorStoreFactory")
-        self._backend_cache = {}  # 缓存已加载的后端类
+        self._backend_cache: Dict[str, Type[BaseVectorStore]] = {}  # 缓存已加载的后端类
 
     @classmethod
     def create(
@@ -112,7 +119,7 @@ class VectorStoreFactory:
         if auto_fallback:
             return self._create_fallback_store(config, exclude=[store_type])
 
-        raise VectorStoreError(f"无法创建任何可用的向量存储后端")
+        raise VectorStoreError("无法创建任何可用的向量存储后端")
 
     def _create_backend(self, store_type: str, config: Dict[str, Any]) -> BaseVectorStore:
         """
@@ -139,7 +146,7 @@ class VectorStoreFactory:
         # 创建实例
         return store_class(config)
 
-    def _get_backend_class(self, store_type: str, backend_info: Dict[str, Any]) -> Type[BaseVectorStore]:
+    def _get_backend_class(self, store_type: str, backend_info: BackendInfo) -> Type[BaseVectorStore]:
         """
         获取存储后端类。
 
@@ -160,7 +167,7 @@ class VectorStoreFactory:
             store_class = getattr(module, backend_info["class_name"])
 
             # 验证类是否继承自BaseVectorStore
-            if not issubclass(store_class, BaseVectorStore):
+            if not isinstance(store_class, type) or not issubclass(store_class, BaseVectorStore):
                 raise VectorStoreError(f"{backend_info['class_name']} 必须继承自 BaseVectorStore")
 
             # 缓存类引用
@@ -173,7 +180,7 @@ class VectorStoreFactory:
         except AttributeError as e:
             raise VectorStoreError(f"模块中不存在类 {backend_info['class_name']}: {str(e)}")
 
-    def _check_dependencies(self, store_type: str, dependencies: List[str]):
+    def _check_dependencies(self, store_type: str, dependencies: List[str]) -> None:
         """
         检查存储后端的依赖是否满足。
 
@@ -187,9 +194,9 @@ class VectorStoreFactory:
             try:
                 # 处理包名映射
                 if dep == "faiss-cpu":
-                    import faiss
+                    importlib.import_module("faiss")
                 elif dep == "pymilvus":
-                    import pymilvus
+                    importlib.import_module("pymilvus")
                 else:
                     importlib.import_module(dep)
             except ImportError:
@@ -236,7 +243,7 @@ class VectorStoreFactory:
 
         raise VectorStoreError("所有存储后端都不可用")
 
-    def _validate_config(self, config: Dict[str, Any], store_type: str):
+    def _validate_config(self, config: Dict[str, Any], store_type: str) -> None:
         """
         验证存储配置。
 
@@ -267,7 +274,7 @@ class VectorStoreFactory:
         elif store_type == "milvus":
             self._validate_milvus_config(config.get("milvus", {}))
 
-    def _validate_faiss_config(self, faiss_config: Dict[str, Any]):
+    def _validate_faiss_config(self, faiss_config: Dict[str, Any]) -> None:
         """
         验证FAISS配置。
 
@@ -287,7 +294,7 @@ class VectorStoreFactory:
         if not any(index_type.startswith(t) for t in valid_index_types):
             raise VectorStoreConfigError(f"不支持的FAISS索引类型: {index_type}")
 
-    def _validate_milvus_config(self, milvus_config: Dict[str, Any]):
+    def _validate_milvus_config(self, milvus_config: Dict[str, Any]) -> None:
         """
         验证Milvus配置。
 
@@ -295,7 +302,6 @@ class VectorStoreFactory:
             milvus_config: Milvus配置字典
         """
         # 连接配置
-        host = milvus_config.get("host", "localhost")
         port = milvus_config.get("port", 19530)
 
         if not isinstance(port, int) or port <= 0:
@@ -320,6 +326,7 @@ class VectorStoreFactory:
         for backend_type, backend_info in cls._BACKENDS.items():
             try:
                 factory._check_dependencies(backend_type, backend_info["dependencies"])
+                factory._get_backend_class(backend_type, backend_info)
                 available[backend_type] = {
                     "description": backend_info["description"],
                     "dependencies": backend_info["dependencies"],
@@ -384,21 +391,15 @@ class VectorStoreFactory:
         logger = logging.getLogger("VectorStoreMigration")
 
         try:
-            # 创建源和目标存储
-            source_store = cls.create(source_config, auto_fallback=False)
-            target_store = cls.create(target_config, auto_fallback=False)
+            from .migration.vector_migration import VectorStoreMigrator
 
-            # 获取所有文档
-            total_docs = source_store.get_document_count()
-            logger.info(f"开始迁移 {total_docs} 个文档")
-
-            migrated_count = 0
-
-            # 批量迁移（这里简化实现，实际需要根据具体存储类型实现批量获取）
-            # 注意：BaseVectorStore接口中没有定义批量获取方法，需要扩展
-
-            logger.info(f"迁移完成，总共迁移 {migrated_count} 个文档")
-            return True
+            return VectorStoreMigrator().migrate(
+                source_config,
+                target_config,
+                batch_size=batch_size,
+                verify_migration=True,
+                backup_before_migration=False,
+            )
 
         except Exception as e:
             logger.error(f"存储迁移失败: {str(e)}")

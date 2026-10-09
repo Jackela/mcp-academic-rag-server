@@ -158,6 +158,7 @@ ensure_newline_before_comments = true
 skip_glob = [".venv*/**", ".wheel-smoke/**", "build/**", "dist/**"]
 
 [tool.mypy]
+mypy_path = "$MYPY_CONFIG_FILE_DIR/typings"
 python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true

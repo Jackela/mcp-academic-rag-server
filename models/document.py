@@ -95,6 +95,30 @@ class Document:
         """
         return self.content.get(stage)
 
+    def get_text_content(self, *stages: str) -> str:
+        """Read text from current processor results or historical string stages."""
+        selected = stages or (
+            "HaystackEmbeddingProcessor",
+            "EmbeddingProcessor",
+            "ocr",
+            "structure",
+            "OCRProcessor",
+            "StructureProcessor",
+        )
+        for stage in selected:
+            value = self.get_content(stage)
+            if isinstance(value, str) and value:
+                return value
+            if isinstance(value, dict):
+                text = value.get("text")
+                if isinstance(text, str) and text:
+                    return text
+            if isinstance(value, list) and all(part is None or isinstance(part, str) for part in value):
+                text = "\n".join(part for part in value if isinstance(part, str))
+                if text:
+                    return text
+        return ""
+
     def to_dict(self) -> Dict:
         """
         将文档对象转换为字典表示，便于序列化。

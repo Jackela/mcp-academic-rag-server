@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from connectors.api_connector import MistralAPIConnector
+from connectors.api_connector import MistralAPIConnector, OCRAPIFactory
 from models.document import Document
 from processors.ocr_processor import OCRProcessor
 
@@ -19,6 +19,14 @@ class OCRTests(unittest.TestCase):
         self.connector.process_document_ocr.return_value = {
             "pages": [{"index": 0, "markdown": "# First page"}, {"index": 1, "markdown": "Second page"}]
         }
+
+    def test_factory_requires_actual_ocr_capability(self):
+        connector = OCRAPIFactory.create_connector("MISTRAL", {"api_key": "fixture", "timeout": 17})
+        self.assertIsInstance(connector, MistralAPIConnector)
+        self.assertEqual(connector.timeout, 17)
+        for api_type in ["openai", "azure", "unknown"]:
+            with self.subTest(api_type=api_type), self.assertRaisesRegex(ValueError, "OCR API"):
+                OCRAPIFactory.create_connector(api_type, {})
 
     def test_current_api_pages_are_stored(self):
         result = self.processor.process(self.document)

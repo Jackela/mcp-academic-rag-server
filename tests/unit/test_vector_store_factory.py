@@ -10,8 +10,10 @@ from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
+from haystack import Document
 
 from document_stores.implementations.base_vector_store import BaseVectorStore, VectorStoreConfigError, VectorStoreError
+from document_stores.implementations.memory_vector_store import InMemoryVectorStore
 from document_stores.vector_store_factory import (
     VectorStoreFactory,
     create_vector_store,
@@ -362,3 +364,35 @@ class TestEdgeCases:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_factory_migration_copies_and_verifies_real_documents():
+    config = {"type": "memory", "vector_dimension": 2}
+    source, target = InMemoryVectorStore(config), InMemoryVectorStore(config)
+    assert source.initialize() and target.initialize()
+    assert source.add_documents([Document(id="fixture", content="Controlled migration text", embedding=[1.0, 0.0])])
+    with patch.object(VectorStoreFactory, "create", side_effect=[source, target]):
+        assert VectorStoreFactory.migrate_storage(config, config, batch_size=1)
+    copied = target.get_document_by_id("fixture")
+    assert copied is not None
+    assert copied.content == "Controlled migration text"
+    assert copied.embedding == [1.0, 0.0]
+
+
+def test_factory_migration_rejects_target_write_failure():
+    config = {"type": "memory", "vector_dimension": 2}
+    source, target = InMemoryVectorStore(config), InMemoryVectorStore(config)
+    assert source.initialize() and target.initialize()
+    assert source.add_documents([Document(id="fixture", content="Fixture text", embedding=[1.0, 0.0])])
+    with (
+        patch.object(VectorStoreFactory, "create", side_effect=[source, target]),
+        patch.object(target, "add_documents", return_value=False),
+    ):
+        assert not VectorStoreFactory.migrate_storage(config, config)
+    assert source.get_document_by_id("fixture") is not None
+    assert target.get_document_count() == 0
+
+
+def test_backend_availability_requires_implementation():
+    with patch.object(VectorStoreFactory, "_check_dependencies"):
+        assert not VectorStoreFactory.get_available_backends()["milvus"]["available"]

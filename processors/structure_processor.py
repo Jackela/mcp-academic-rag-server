@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class StructureProcessor(BaseProcessor):
     """结构识别处理器，识别文档的结构元素"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
         初始化结构识别处理器
 
@@ -93,7 +93,7 @@ class StructureProcessor(BaseProcessor):
             structure = self._recognize_structure(text, text_by_page)
 
             # 记录处理结果
-            result_data = {
+            result_data: Dict[str, Any] = {
                 "structure": structure,
                 "language": self._detect_language(text),
                 "document_type": self._detect_document_type(text, structure),
@@ -331,6 +331,29 @@ class StructureProcessor(BaseProcessor):
 
         return enhanced_figures
 
+    @staticmethod
+    def _detect_table_separator(lines: List[str]) -> Optional[str]:
+        # 尝试检测分隔符（制表符、多个空格、|等）
+        separators = ["\t", "|", "  ", "   ", "    "]
+        best_separator = None
+        max_columns = 0
+
+        for sep in separators:
+            test_columns = len(lines[0].split(sep))
+            if test_columns > max_columns and test_columns > 1:
+                max_columns = test_columns
+                best_separator = sep
+
+        if not best_separator:
+            # 如果无法检测分隔符，按单词分割第一行
+            words = lines[0].split()
+            if len(words) > 1:
+                best_separator = " "
+            else:
+                return None
+
+        return best_separator
+
     def _convert_table_to_markdown(self, table_content: str) -> str:
         """
         将表格内容转换为Markdown格式
@@ -349,24 +372,9 @@ class StructureProcessor(BaseProcessor):
         if not lines:
             return "空表格"
 
-        # 尝试检测分隔符（制表符、多个空格、|等）
-        separators = ["\t", "|", "  ", "   ", "    "]
-        best_separator = None
-        max_columns = 0
-
-        for sep in separators:
-            test_columns = len(lines[0].split(sep))
-            if test_columns > max_columns and test_columns > 1:
-                max_columns = test_columns
-                best_separator = sep
-
-        if not best_separator:
-            # 如果无法检测分隔符，按单词分割第一行
-            words = lines[0].split()
-            if len(words) > 1:
-                best_separator = " "
-            else:
-                return f"表格内容:\n{table_content}"
+        best_separator = self._detect_table_separator(lines)
+        if best_separator is None:
+            return f"表格内容:\n{table_content}"
 
         # 构建Markdown表格
         markdown_lines = []
@@ -399,22 +407,8 @@ class StructureProcessor(BaseProcessor):
 
         return "\n".join(markdown_lines)
 
-    def _generate_figure_description(self, figure: Dict[str, Any]) -> str:
-        """
-        生成图表的描述性文本
-
-        Args:
-            figure (Dict[str, Any]): 图表信息
-
-        Returns:
-            str: 描述性文本
-        """
-        figure_num = figure.get("number", "N/A")
-        caption = figure.get("caption", "无标题")
-
-        # 分析标题中的关键词来推断图表类型和内容
-        caption_lower = caption.lower()
-
+    @staticmethod
+    def _infer_figure_type(caption_lower: str) -> str:
         # 推断图表类型
         figure_type = "图表"
         if any(word in caption_lower for word in ["flow", "flowchart", "workflow", "流程"]):
@@ -431,6 +425,26 @@ class StructureProcessor(BaseProcessor):
             figure_type = "网络图"
         elif any(word in caption_lower for word in ["architecture", "架构", "structure", "结构"]):
             figure_type = "架构图"
+
+        return figure_type
+
+    def _generate_figure_description(self, figure: Dict[str, Any]) -> str:
+        """
+        生成图表的描述性文本
+
+        Args:
+            figure (Dict[str, Any]): 图表信息
+
+        Returns:
+            str: 描述性文本
+        """
+        figure_num = figure.get("number", "N/A")
+        caption = figure.get("caption", "无标题")
+
+        # 分析标题中的关键词来推断图表类型和内容
+        caption_lower = caption.lower()
+
+        figure_type = self._infer_figure_type(caption_lower)
 
         # 构建描述性文本
         description = f"图 {figure_num}: {caption}\n"

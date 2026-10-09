@@ -6,13 +6,13 @@
 """
 
 from dataclasses import replace
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 from haystack import Document as HaystackDocument
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
-from .base_vector_store import BaseVectorStore, VectorStoreError
+from .base_vector_store import BaseVectorStore
 
 
 class InMemoryVectorStore(BaseVectorStore):
@@ -22,7 +22,7 @@ class InMemoryVectorStore(BaseVectorStore):
     提供与现有系统的完全兼容性，适用于开发、测试和小规模场景。
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]) -> None:
         """
         初始化内存向量存储。
 
@@ -32,7 +32,7 @@ class InMemoryVectorStore(BaseVectorStore):
         super().__init__(config)
 
         # Haystack配置映射
-        similarity_map = {
+        similarity_map: Dict[str, Literal["dot_product", "cosine"]] = {
             "dot_product": "dot_product",
             "cosine": "cosine",
             "euclidean": "dot_product",  # InMemoryDocumentStore不直接支持欧氏距离
@@ -81,23 +81,14 @@ class InMemoryVectorStore(BaseVectorStore):
                 # 复制文档以避免修改原始对象
                 new_doc = HaystackDocument(content=doc.content, meta=doc.meta.copy() if doc.meta else {}, id=doc.id)
 
-                # 设置向量嵌入
-                if embeddings and i < len(embeddings):
-                    embedding = embeddings[i]
-                    if self.validate_embedding(embedding):
-                        new_doc = replace(new_doc, embedding=embedding)
-                    else:
-                        self.logger.warning(f"文档 {doc.id} 的向量嵌入无效，跳过")
-                        continue
-                elif doc.embedding:
-                    if self.validate_embedding(doc.embedding):
-                        new_doc = replace(new_doc, embedding=doc.embedding)
-                    else:
-                        self.logger.warning(f"文档 {doc.id} 的向量嵌入无效，跳过")
-                        continue
-                else:
+                embedding = embeddings[i] if embeddings and i < len(embeddings) else doc.embedding
+                if not embedding:
                     self.logger.warning(f"文档 {doc.id} 缺少向量嵌入，跳过")
                     continue
+                if not self.validate_embedding(embedding):
+                    self.logger.warning(f"文档 {doc.id} 的向量嵌入无效，跳过")
+                    continue
+                new_doc = replace(new_doc, embedding=embedding)
 
                 docs_to_add.append(new_doc)
 
@@ -209,7 +200,7 @@ class InMemoryVectorStore(BaseVectorStore):
             selected_embedding = embedding if embedding is not None else document.embedding
             if selected_embedding is None:
                 selected_embedding = existing.embedding
-            if not self.validate_embedding(selected_embedding):
+            if selected_embedding is None or not self.validate_embedding(selected_embedding):
                 return False
             replacement = replace(document, id=doc_id, embedding=selected_embedding)
             from haystack.document_stores.types import DuplicatePolicy

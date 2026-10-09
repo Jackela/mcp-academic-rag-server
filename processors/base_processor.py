@@ -118,7 +118,7 @@ class BaseProcessor(IProcessor):
 
     def __init__(
         self, name: Optional[str] = None, description: Optional[str] = None, config: Optional[Dict[str, Any]] = None
-    ):
+    ) -> None:
         """
         初始化BaseProcessor对象。
 
