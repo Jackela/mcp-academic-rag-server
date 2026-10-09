@@ -44,7 +44,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y libmagic1 \
             libhdf5-dev \
             libopenblas-dev \
             liblapack-dev \

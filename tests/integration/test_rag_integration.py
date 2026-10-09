@@ -13,7 +13,7 @@ import pytest
 from haystack.dataclasses import Document as HaystackDocument
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
-from connectors.haystack_llm_connector import HaystackLLMFactory
+from connectors.haystack_llm_connector import HaystackLLMConnectorFactory, HaystackLLMFactory
 from core.config_manager import ConfigManager
 from models.document import Document
 from processors.document_processor import DocumentProcessor

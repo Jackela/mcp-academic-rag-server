@@ -24,7 +24,7 @@ logger = logging.getLogger("mcp-academic-rag-standalone")
 try:
     from connectors.haystack_llm_connector import HaystackLLMConnector
     from core.server_context import ServerContext
-    from document_stores.haystack_store import HaystackDocumentStore
+    from document_stores.implementations.haystack_store import HaystackDocumentStore
     from models.document import Document
     from processors.haystack_embedding_processor import HaystackEmbeddingProcessor
     from rag.haystack_pipeline import RAGPipeline

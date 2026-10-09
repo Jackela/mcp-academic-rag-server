@@ -152,7 +152,7 @@ autosummary_generate = True
 autosummary_generate_overwrite = True
 
 # Mock imports for modules that might not be available during doc build
-autodoc_mock_imports = [
+_optional_doc_imports = [
     "faiss",
     "pymupdf",
     "pytesseract",
@@ -166,6 +166,10 @@ autodoc_mock_imports = [
     "redis",
     "watchdog",
 ]
+import importlib.util
+
+# Never replace installed SDKs with fake classes during import/type introspection.
+autodoc_mock_imports = [name for name in _optional_doc_imports if importlib.util.find_spec(name) is None]
 
 
 # Custom roles and directives

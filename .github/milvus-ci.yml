@@ -1,37 +1,15 @@
-# CI-only services: same Milvus image as the previous workflow, with its required command/backends.
+# CI-only local storage, supported by this existing Milvus version.
+# Avoid unavailable public MinIO images while retaining a real healthy Milvus service.
 services:
-  etcd:
-    image: quay.io/coreos/etcd:v3.5.5
-    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
-    healthcheck:
-      test: ["CMD", "etcdctl", "endpoint", "health"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-06T17-38-46Z
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: minio server /minio_data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
   milvus:
     image: milvusdb/milvus:v2.3.4
     command: ["milvus", "run", "standalone"]
     environment:
-      ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9000
+      ETCD_USE_EMBED: 'true'
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      COMMON_STORAGETYPE: local
     ports:
       - "19530:19530"
-    depends_on:
-      etcd:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
       interval: 5s

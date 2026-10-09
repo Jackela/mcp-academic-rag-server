@@ -67,9 +67,17 @@ class TestInputValidator:
 
         try:
             # Valid file
-            is_valid, error = validator.validate_file_content(temp_file)
-            assert is_valid is True
-            assert error is None
+            with patch("utils.security_utils.magic") as mime_backend:
+                mime_backend.from_file.return_value = "text/plain"
+                is_valid, error = validator.validate_file_content(temp_file)
+                assert is_valid is True
+                assert error is None
+                mime_backend.from_file.return_value = "application/x-executable"
+                assert validator.validate_file_content(temp_file)[0] is False
+                mime_backend.from_file.side_effect = RuntimeError("fixture unavailable")
+                assert validator.validate_file_content(temp_file)[0] is False
+            with patch("utils.security_utils.magic", None):
+                assert validator.validate_file_content(temp_file)[0] is False
         finally:
             os.unlink(temp_file)
 

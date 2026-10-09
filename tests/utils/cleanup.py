@@ -10,11 +10,14 @@ import logging
 import os
 import signal
 import subprocess
+import sys
 import threading
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import Any, Callable, List, Optional, Union
+
+import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,7 @@ class ResourceCleaner:
         self.sync_cleaners: List[CleanupFunc] = []
         self.async_cleaners: List[AsyncCleanupFunc] = []
         self.processes: List[subprocess.Popen] = []
+        self._process_started = {}
         self.threads: List[threading.Thread] = []
         self.timers: List[Any] = []
         self.servers: List[Any] = []
@@ -47,6 +51,10 @@ class ResourceCleaner:
 
     def register_process(self, process: subprocess.Popen):
         """注册需要清理的进程"""
+        child = psutil.Process(process.pid)
+        if child.ppid() != os.getpid():
+            raise ValueError("Only a subprocess created by this test process can be registered")
+        self._process_started[process.pid] = child.create_time()
         self.processes.append(process)
 
     def register_thread(self, thread: threading.Thread):
@@ -78,6 +86,10 @@ class ResourceCleaner:
         for process in self.processes:
             try:
                 if process.poll() is None:  # 进程仍在运行
+                    child = psutil.Process(process.pid)
+                    if child.ppid() != os.getpid() or child.create_time() != self._process_started.get(process.pid):
+                        logger.warning("Unowned/reused PID is not terminated: %s", process.pid)
+                        continue
                     # 优雅终止
                     process.terminate()
                     try:
@@ -90,6 +102,7 @@ class ResourceCleaner:
             except Exception as e:
                 logger.warning(f"清理进程失败: {e}")
         self.processes.clear()
+        self._process_started.clear()
 
     def cleanup_threads(self):
         """清理所有注册的线程"""
@@ -314,48 +327,30 @@ def managed_resource(resource, cleanup_func=None):
 
 
 def kill_port(port: int):
-    """杀死占用指定端口的进程"""
-    try:
-        if os.name == "nt":  # Windows
-            result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, check=True)
-            for line in result.stdout.split("\n"):
-                if f":{port}" in line and "LISTENING" in line:
-                    parts = line.split()
-                    if parts:
-                        pid = parts[-1]
-                        subprocess.run(["taskkill", "/F", "/PID", pid], check=False)
-                        logger.info(f"杀死端口 {port} 上的进程 PID: {pid}")
-        else:  # Unix-like
-            result = subprocess.run(["lsof", f"-ti:{port}"], capture_output=True, text=True, check=False)
-            pids = result.stdout.strip().split("\n")
-            for pid in pids:
-                if pid:
-                    subprocess.run(["kill", "-TERM", pid], check=False)
-                    logger.info(f"杀死端口 {port} 上的进程 PID: {pid}")
-    except Exception as e:
-        logger.warning(f"杀死端口 {port} 进程失败: {e}")
+    """Only stop registered owned processes listening on this port."""
+    for process in list(_global_cleaner.processes):
+        try:
+            child = psutil.Process(process.pid)
+            if child.ppid() != os.getpid() or child.create_time() != _global_cleaner._process_started.get(process.pid):
+                continue
+            if any(
+                connection.laddr.port == port for connection in child.net_connections(kind="inet") if connection.laddr
+            ):
+                process.terminate()
+                process.wait(timeout=5)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, subprocess.TimeoutExpired):
+            logger.warning("Registered port cleanup did not complete for PID %s", process.pid)
 
 
 def emergency_cleanup():
-    """紧急清理 - 杀死所有相关进程"""
-    logger.warning("执行紧急清理...")
-
-    try:
-        # 杀死常用端口的进程
-        common_ports = [5000, 8000, 8080, 3000, 9000]
-        for port in common_ports:
-            kill_port(port)
-
-        # 杀死Python相关进程（谨慎使用）
-        current_pid = os.getpid()
-        if os.name != "nt":  # Unix-like系统
-            subprocess.run(["pkill", "-f", "python.*test"], check=False)
-
-        # 清理全局资源
-        cleanup_sync()
-
-    except Exception as e:
-        logger.error(f"紧急清理失败: {e}")
+    """Release explicitly registered resources only; never scan names/ports/files."""
+    _global_cleaner.cleanup_sync()
+    _global_cleaner.cleanup_connections()
+    _global_cleaner.cleanup_servers()
+    _global_cleaner.cleanup_processes()
+    _global_cleaner.cleanup_timers()
+    _global_cleaner.cleanup_threads()
+    _global_cleaner.cleanup_temp_files()
 
 
 # 信号处理器
@@ -363,6 +358,7 @@ def _signal_handler(signum, frame):
     """信号处理器，执行清理"""
     logger.info(f"收到信号 {signum}，执行清理...")
     emergency_cleanup()
+    raise SystemExit(128 + signum)
 
 
 # 注册信号处理器

@@ -5,6 +5,7 @@ Provides a web interface for document upload, processing, retrieval, and intelli
 """
 
 import json
+import logging
 import os
 import threading
 import uuid

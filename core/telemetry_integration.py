@@ -181,7 +181,7 @@ class TelemetryIntegration:
             self.logger.error(f"Failed to initialize OpenTelemetry: {e}")
             self._setup_mock_telemetry()
 
-    def _create_resource(self) -> Resource:
+    def _create_resource(self) -> Any:
         """Create OpenTelemetry resource"""
         return Resource.create(
             {
@@ -192,7 +192,7 @@ class TelemetryIntegration:
             }
         )
 
-    def _setup_tracing(self, resource: Resource):
+    def _setup_tracing(self, resource: Any):
         """Setup tracing configuration"""
         self.tracer_provider = TracerProvider(
             resource=resource, sampler=trace.sampling.TraceIdRatioBased(self.config.trace_sampling_ratio)
@@ -242,7 +242,7 @@ class TelemetryIntegration:
             self.tracer_provider.add_span_processor(jaeger_processor)
             self._span_processors.append(jaeger_processor)
 
-    def _setup_metrics(self, resource: Resource):
+    def _setup_metrics(self, resource: Any):
         """Setup metrics configuration"""
         # Setup metric readers
         self._setup_metric_readers()

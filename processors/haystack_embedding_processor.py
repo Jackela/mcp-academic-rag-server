@@ -15,7 +15,7 @@ from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.dataclasses import Document as HaystackDocument
 
-from document_stores.haystack_store import HaystackDocumentStore
+from document_stores.implementations.haystack_store import HaystackDocumentStore
 from models.document import Document
 from models.process_result import ProcessResult
 from processors.base_processor import BaseProcessor

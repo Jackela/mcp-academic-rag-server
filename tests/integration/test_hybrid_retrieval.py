@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 
 from haystack.schema import Document as HaystackDocument
 
-from document_stores.haystack_store import HaystackDocumentStore
+from document_stores.implementations.haystack_store import HaystackDocumentStore
 from retrievers.haystack_retriever import HaystackRetriever
 
 

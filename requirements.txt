@@ -56,3 +56,6 @@ pytest-env>=1.1.0
 
 # Security utility tests exercise the optional web boundary
 flask>=3.0.0
+python-magic>=0.4.27
+markdown>=3.5
+pdfkit>=1.0.0

@@ -388,8 +388,8 @@ class TestFAISSVectorStore:
 
         store.close()
 
-    @patch("faiss.StandardGpuResources")
-    @patch("faiss.index_cpu_to_gpu")
+    @patch("faiss.StandardGpuResources", create=True)
+    @patch("faiss.index_cpu_to_gpu", create=True)
     def test_gpu_support(self, mock_cpu_to_gpu, mock_gpu_resources, temp_storage_path):
         """测试GPU支持（模拟）"""
         config = {

@@ -14,8 +14,8 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from email.mime.multipart import MimeMultipart
-from email.mime.text import MimeText
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
 from urllib.parse import urljoin
@@ -140,12 +140,12 @@ class EmailNotificationProvider(NotificationProvider):
             subject = f"[{alert.rule.level.value.upper()}] Alert: {alert.rule.metric_name}"
             body = self._create_email_body(alert, context)
 
-            msg = MimeMultipart()
+            msg = MIMEMultipart()
             msg["From"] = self.from_email
             msg["To"] = ", ".join(self.to_emails)
             msg["Subject"] = subject
 
-            msg.attach(MimeText(body, "html"))
+            msg.attach(MIMEText(body, "html"))
 
             # Send email in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
@@ -158,7 +158,7 @@ class EmailNotificationProvider(NotificationProvider):
             self.logger.error(f"Failed to send email alert: {e}")
             return False
 
-    def _send_email(self, msg: MimeMultipart):
+    def _send_email(self, msg: MIMEMultipart):
         """Send email using SMTP"""
         with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
             if self.use_tls:

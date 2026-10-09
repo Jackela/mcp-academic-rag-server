@@ -18,7 +18,7 @@ from markdown.extensions import Extension
 from models.document import Document
 from models.process_result import ProcessResult
 from processors.base_processor import BaseProcessor
-from utils.text_utils import FormatConverter, KeywordExtractor, TextCleaner
+from utils.text_utils import DocumentStructureExtractor, FormatConverter, KeywordExtractor, TextCleaner
 
 # 配置日志
 logger = logging.getLogger(__name__)

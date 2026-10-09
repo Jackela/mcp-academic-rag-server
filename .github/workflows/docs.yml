@@ -138,7 +138,7 @@ jobs:
       run: |
         # Run doctest to validate code examples in documentation
         cd docs
-        python -m doctest ../models/document.py ../processors/ocr_processor.py
+        PYTHONPATH=.. python -m doctest ../models/document.py ../processors/ocr_processor.py
         
         # Test example configurations
         python -c "

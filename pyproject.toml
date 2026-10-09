@@ -33,6 +33,9 @@ dependencies = [
     
     # Basic document processing
     "PyPDF2>=3.0.0",
+    "PyMuPDF>=1.23.0",
+    "markdown>=3.5",
+    "pdfkit>=1.0.0",
     "Pillow>=10.0.0",
     "pytesseract>=0.3.10",
     
@@ -68,6 +71,7 @@ dev = [
     "pytest-timeout>=2.3.0",
     "pytest-env>=1.1.0",
     "flask>=3.0.0",
+    "python-magic>=0.4.27",
     "black>=23.0.0",
     "isort>=5.12.0",
     "mypy>=1.5.0",
@@ -83,6 +87,7 @@ enhanced = [
 # Web interface (optional)
 web = [
     "flask>=3.0.0",
+    "python-magic>=0.4.27",
     "flask-cors>=4.0.0",
 ]
 

@@ -9,6 +9,7 @@ CI/CD失败检测测试
 """
 
 import os
+import sys
 import unittest
 
 import pytest

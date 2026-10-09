@@ -8,13 +8,14 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 from connectors.api_connector import APIConnector
 from models.document import Document
 from models.process_result import ProcessResult
 from processors.base_processor import BaseProcessor
-from utils.text_utils import KeywordExtractor, TextCleaner
+from utils.text_utils import FormatConverter, KeywordExtractor, TextCleaner
 
 # 配置日志
 logger = logging.getLogger(__name__)

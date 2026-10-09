@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from haystack.nodes import BM25Retriever, EmbeddingRetriever, SentenceTransformersDocumentEmbedder
 from haystack.schema import Document as HaystackDocument
 
-from document_stores.haystack_store import HaystackDocumentStore
+from document_stores.implementations.haystack_store import HaystackDocumentStore
 from models.document import Document
 
 

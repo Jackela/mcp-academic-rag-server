@@ -28,6 +28,7 @@ from .workflow_models import (
     Requirement,
     RequirementCategories,
     Risk,
+    RiskLevel,
     Workflow,
     WorkflowMilestone,
     WorkflowOptions,

@@ -26,9 +26,10 @@ from typing import Any, Dict, List, Optional
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from tests.utils.cleanup import emergency_cleanup, kill_port
+from tests.utils.cleanup import emergency_cleanup, kill_port, register_process
 
 # 配置日志
+(project_root / "logs").mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -101,36 +102,8 @@ class TestRunner:
         """清理测试残留文件和进程"""
         logger.info("清理测试残留...")
 
-        try:
-            # 1. 清理临时文件和目录
-            temp_patterns = [
-                "test_*",
-                "mcp_rag_test_*",
-                "pytest_cache",
-                "__pycache__",
-                "*.pyc",
-                ".coverage*",
-                "htmlcov",
-            ]
-
-            for pattern in temp_patterns:
-                cmd = f'find "{self.project_root}" -name "{pattern}" -type d -exec rm -rf {{}} + 2>/dev/null || true'
-                if os.name == "nt":  # Windows
-                    cmd = f'for /d /r "{self.project_root}" %i in ({pattern}) do @if exist "%i" rmdir /s /q "%i" 2>nul'
-                os.system(cmd)
-
-            # 2. 杀死相关Python进程
-            if os.name != "nt":  # Unix-like
-                subprocess.run(["pkill", "-f", "python.*test"], check=False)
-                subprocess.run(["pkill", "-f", "pytest"], check=False)
-
-            # 3. 清理端口
-            self.cleanup_ports()
-
-            logger.info("✅ 测试残留清理完成")
-
-        except Exception as e:
-            logger.warning(f"测试残留清理失败: {e}")
+        emergency_cleanup()
+        logger.info("Released registered resources; unregistered processes/files are preserved")
 
     def cleanup_ports(self):
         """清理占用的端口"""
@@ -238,6 +211,7 @@ class TestRunner:
             )
 
             self.test_processes.append(process)
+            register_process(process)
 
             # 实时输出测试结果
             for line in process.stdout:

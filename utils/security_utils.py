@@ -22,9 +22,12 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
-import magic
+try:
+    import magic
+except ImportError:
+    magic = None
 from flask import current_app, jsonify, request
 from werkzeug.utils import secure_filename
 
@@ -135,12 +138,13 @@ class InputValidator:
 
             # Check MIME type
             try:
+                if magic is None:
+                    return False, "MIME validation unavailable: install libmagic"
                 mime = magic.from_file(file_path, mime=True)
                 if mime not in SecurityConfig.ALLOWED_MIME_TYPES:
                     return False, f"File type not allowed: {mime}"
-            except Exception:
-                # Fallback to extension-based check
-                logger.warning("python-magic not available, using extension check only")
+            except Exception as exc:
+                return False, f"MIME validation failed: {exc}"
 
             return True, None
 

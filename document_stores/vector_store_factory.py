@@ -24,7 +24,7 @@ class VectorStoreFactory:
     # 支持的存储后端映射
     _BACKENDS = {
         "memory": {
-            "class_name": "MemoryVectorStore",
+            "class_name": "InMemoryVectorStore",
             "module": "document_stores.implementations.memory_vector_store",
             "dependencies": [],
             "description": "内存存储，适用于开发和小规模场景",

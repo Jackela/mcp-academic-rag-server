@@ -21,6 +21,16 @@ from document_stores.vector_store_factory import VectorStoreFactory, create_vect
 from utils.vector_migration import VectorStoreMigrator
 
 
+def _is_faiss_available() -> bool:
+    """检查FAISS是否可用"""
+    try:
+        import faiss
+
+        return True
+    except ImportError:
+        return False
+
+
 class TestVectorStorageIntegration:
     """向量存储系统集成测试"""
 
@@ -547,16 +557,6 @@ class TestVectorStorageErrorHandling:
 
         finally:
             store.close()
-
-
-def _is_faiss_available() -> bool:
-    """检查FAISS是否可用"""
-    try:
-        import faiss
-
-        return True
-    except ImportError:
-        return False
 
 
 # 导入模拟补丁用于测试
