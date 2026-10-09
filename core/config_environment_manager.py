@@ -8,14 +8,27 @@
 import copy
 import json
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 logger = logging.getLogger(__name__)
+
+
+class ConfigDiff(TypedDict):
+    added: List[Dict[str, Any]]
+    removed: List[Dict[str, Any]]
+    modified: List[Dict[str, Any]]
+    summary: Dict[str, int]
+
+
+def _config_object(value: object) -> Dict[str, Any]:
+    """Narrow a JSON object at the file boundary, rejecting arrays/scalars/null."""
+    if not isinstance(value, dict):
+        raise ValueError("配置必须是 JSON 对象")
+    return value
 
 
 class EnvironmentType(Enum):
@@ -39,9 +52,9 @@ class EnvironmentInfo:
     config_file: str
     parent_env: Optional[str] = None
     active: bool = False
-    created_at: str = None
+    created_at: Optional[str] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.created_at is None:
             self.created_at = datetime.now().isoformat()
 
@@ -49,7 +62,7 @@ class EnvironmentInfo:
 class ConfigEnvironmentManager:
     """环境配置管理器"""
 
-    def __init__(self, config_dir: str = "./config"):
+    def __init__(self, config_dir: str = "./config") -> None:
         self.config_dir = Path(config_dir)
         self.environments: Dict[str, EnvironmentInfo] = {}
         self.current_environment: Optional[str] = None
@@ -62,7 +75,7 @@ class ConfigEnvironmentManager:
         # 初始化
         self._initialize()
 
-    def _initialize(self):
+    def _initialize(self) -> None:
         """初始化环境管理器"""
         try:
             # 确保配置目录存在
@@ -86,7 +99,7 @@ class ConfigEnvironmentManager:
             logger.error(f"环境管理器初始化失败: {e}")
             raise
 
-    def _scan_environments(self):
+    def _scan_environments(self) -> None:
         """扫描现有环境配置"""
         self.environments.clear()
 
@@ -117,7 +130,7 @@ class ConfigEnvironmentManager:
         if not self.environments:
             self._create_default_environments()
 
-    def _create_default_environments(self):
+    def _create_default_environments(self) -> None:
         """创建默认环境配置"""
         default_envs = [
             (EnvironmentType.DEVELOPMENT, "开发环境 - 用于本地开发和调试"),
@@ -180,14 +193,14 @@ class ConfigEnvironmentManager:
 
         return base_config
 
-    def _load_base_config(self):
+    def _load_base_config(self) -> None:
         """加载基础配置"""
         base_config_file = self.config_dir / "config.json"
 
         if base_config_file.exists():
             try:
                 with open(base_config_file, "r", encoding="utf-8") as f:
-                    self.base_config = json.load(f)
+                    self.base_config = _config_object(json.load(f))
                 logger.debug("加载基础配置成功")
             except Exception as e:
                 logger.warning(f"加载基础配置失败: {e}")
@@ -269,6 +282,11 @@ class ConfigEnvironmentManager:
             return False
 
         try:
+            # Check freshly loaded JSON before changing the active environment.
+            self.config_cache.pop(env_name, None)
+            if self.get_environment_config(env_name) is None:
+                return False
+
             # 停用当前环境
             if self.current_environment:
                 self.environments[self.current_environment].active = False
@@ -277,10 +295,6 @@ class ConfigEnvironmentManager:
             self.environments[env_name].active = True
             self.current_environment = env_name
 
-            # 清除配置缓存以强制重新加载
-            if env_name in self.config_cache:
-                del self.config_cache[env_name]
-
             logger.info(f"切换到环境: {env_name}")
             return True
 
@@ -288,7 +302,7 @@ class ConfigEnvironmentManager:
             logger.error(f"切换环境失败: {e}")
             return False
 
-    def get_environment_config(self, env_name: str = None) -> Optional[Dict[str, Any]]:
+    def get_environment_config(self, env_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """获取环境配置"""
         if env_name is None:
             env_name = self.current_environment
@@ -310,7 +324,7 @@ class ConfigEnvironmentManager:
                 return None
 
             with open(config_file, "r", encoding="utf-8") as f:
-                env_config = json.load(f)
+                env_config = _config_object(json.load(f))
 
             # 合并基础配置
             merged_config = self._merge_configs(self.base_config, env_config)
@@ -351,9 +365,9 @@ class ConfigEnvironmentManager:
         self,
         env_name: str,
         env_type: EnvironmentType = EnvironmentType.CUSTOM,
-        description: str = None,
-        config: Dict[str, Any] = None,
-        parent_env: str = None,
+        description: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        parent_env: Optional[str] = None,
     ) -> bool:
         """创建新环境"""
         if env_name in self.environments:
@@ -369,10 +383,13 @@ class ConfigEnvironmentManager:
                 if parent_env and parent_env in self.environments:
                     # 从父环境继承
                     parent_config = self.get_environment_config(parent_env)
-                    config = parent_config.copy() if parent_config else {}
+                    config = copy.deepcopy(parent_config) if parent_config else {}
                 else:
                     # 使用默认配置
                     config = self._generate_default_config(env_type)
+
+            # Do not rewrite the caller or a parent's cached configuration.
+            config = copy.deepcopy(_config_object(config))
 
             # 添加环境标识
             config["environment"] = {"name": env_name, "type": env_type.value, "parent": parent_env}
@@ -435,7 +452,7 @@ class ConfigEnvironmentManager:
             logger.error(f"删除环境失败 {env_name}: {e}")
             return False
 
-    def copy_environment(self, source_env: str, target_env: str, description: str = None) -> bool:
+    def copy_environment(self, source_env: str, target_env: str, description: Optional[str] = None) -> bool:
         """复制环境"""
         if source_env not in self.environments:
             logger.error(f"源环境不存在: {source_env}")
@@ -466,7 +483,7 @@ class ConfigEnvironmentManager:
             return False
 
     def update_environment_config(
-        self, env_name: str, config_updates: Dict[str, Any], merge_strategy: str = None
+        self, env_name: str, config_updates: Dict[str, Any], merge_strategy: Optional[str] = None
     ) -> bool:
         """更新环境配置"""
         if env_name not in self.environments:
@@ -526,29 +543,36 @@ class ConfigEnvironmentManager:
                 if section not in config:
                     errors.append(f"缺少必需配置段: {section}")
 
-            # 路径验证
-            if "storage" in config:
-                storage_config = config["storage"]
-                for path_key in ["base_path", "output_path"]:
-                    if path_key in storage_config:
-                        path_value = storage_config[path_key]
-                        if not isinstance(path_value, str):
-                            errors.append(f"存储路径必须是字符串: {path_key}")
-
-            # 处理器配置验证
-            if "processors" in config:
-                for proc_name, proc_config in config["processors"].items():
-                    if not isinstance(proc_config, dict):
-                        errors.append(f"处理器配置必须是对象: {proc_name}")
-                    elif "enabled" not in proc_config:
-                        errors.append(f"处理器缺少enabled字段: {proc_name}")
+            self._validate_storage(config, errors)
+            self._validate_processors(config, errors)
 
             return len(errors) == 0, errors
 
         except Exception as e:
             return False, [f"验证过程异常: {str(e)}"]
 
-    def get_environment_diff(self, env1: str, env2: str) -> Optional[Dict[str, Any]]:
+    @staticmethod
+    def _validate_storage(config: Dict[str, Any], errors: List[str]) -> None:
+        # 路径验证
+        if "storage" in config:
+            storage_config = config["storage"]
+            for path_key in ["base_path", "output_path"]:
+                if path_key in storage_config:
+                    path_value = storage_config[path_key]
+                    if not isinstance(path_value, str):
+                        errors.append(f"存储路径必须是字符串: {path_key}")
+
+    @staticmethod
+    def _validate_processors(config: Dict[str, Any], errors: List[str]) -> None:
+        # 处理器配置验证
+        if "processors" in config:
+            for proc_name, proc_config in config["processors"].items():
+                if not isinstance(proc_config, dict):
+                    errors.append(f"处理器配置必须是对象: {proc_name}")
+                elif "enabled" not in proc_config:
+                    errors.append(f"处理器缺少enabled字段: {proc_name}")
+
+    def get_environment_diff(self, env1: str, env2: str) -> Optional[ConfigDiff]:
         """比较两个环境的配置差异"""
         if env1 not in self.environments or env2 not in self.environments:
             return None
@@ -568,9 +592,14 @@ class ConfigEnvironmentManager:
 
     def _calculate_config_diff(
         self, config1: Dict[str, Any], config2: Dict[str, Any], env1_name: str, env2_name: str, path: str = ""
-    ) -> Dict[str, Any]:
+    ) -> ConfigDiff:
         """计算配置差异"""
-        diff = {"added": [], "removed": [], "modified": [], "summary": {}}  # env2中新增的  # env1中删除的  # 修改的值
+        diff: ConfigDiff = {
+            "added": [],
+            "removed": [],
+            "modified": [],
+            "summary": {},
+        }  # env2中新增的  # env1中删除的  # 修改的值
 
         all_keys = set(config1.keys()) | set(config2.keys())
 
@@ -618,6 +647,8 @@ class ConfigEnvironmentManager:
         try:
             config = self.get_environment_config(env_name)
             env_info = self.environments[env_name]
+            if config is None:
+                return False
 
             export_data = {
                 "export_info": {
@@ -639,22 +670,25 @@ class ConfigEnvironmentManager:
             logger.error(f"导出环境配置失败 {env_name}: {e}")
             return False
 
-    def import_environment(self, import_path: str, env_name: str = None) -> Optional[str]:
+    def import_environment(self, import_path: str, env_name: Optional[str] = None) -> Optional[str]:
         """导入环境配置"""
         try:
             with open(import_path, "r", encoding="utf-8") as f:
-                import_data = json.load(f)
+                import_data = _config_object(json.load(f))
 
             if "environment_config" not in import_data:
                 logger.error("导入文件格式错误：缺少环境配置")
                 return None
 
-            config = import_data["environment_config"]
-            export_info = import_data.get("export_info", {})
+            config = _config_object(import_data["environment_config"])
+            export_info = _config_object(import_data.get("export_info", {}))
 
             # 确定环境名称
             if env_name is None:
-                env_name = export_info.get("environment_name", f"imported_{int(datetime.now().timestamp())}")
+                imported_name = export_info.get("environment_name", f"imported_{int(datetime.now().timestamp())}")
+                if not isinstance(imported_name, str) or not imported_name:
+                    raise ValueError("环境名称必须是非空字符串")
+                env_name = imported_name
 
             # 确定环境类型
             env_type_str = export_info.get("environment_type", "custom")
