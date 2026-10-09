@@ -124,3 +124,29 @@ class AdditionalUtilityTests(unittest.TestCase):
                     self.assertEqual(saved.size, (2, 2))
             finally:
                 os.chdir(previous)
+
+
+_unsafe_cache_calls = []
+
+
+def unsafe_cache_callback():
+    _unsafe_cache_calls.append("executed")
+    return "unexpected"
+
+
+class RemoteCacheSecurityTests(unittest.TestCase):
+    def test_remote_cache_rejects_executable_serialized_data(self):
+        remote = ControlledRemoteCache()
+        remote.values["poisoned"] = b"c" + __name__.encode() + b"\nunsafe_cache_callback\n)R."
+        with patch("utils.performance_utils.redis.Redis", return_value=remote):
+            manager = CacheManager(CacheBackend.REDIS)
+        _unsafe_cache_calls.clear()
+        self.assertIsNone(manager.get("poisoned"))
+        self.assertEqual(_unsafe_cache_calls, [])
+
+    def test_remote_cache_rejects_unserializable_objects_without_writing(self):
+        remote = ControlledRemoteCache()
+        with patch("utils.performance_utils.redis.Redis", return_value=remote):
+            manager = CacheManager(CacheBackend.REDIS)
+        self.assertFalse(manager.set("object", object()))
+        self.assertEqual(remote.values, {})

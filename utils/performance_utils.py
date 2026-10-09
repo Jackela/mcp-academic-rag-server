@@ -13,8 +13,8 @@ import functools
 import gc
 import hashlib
 import importlib
+import json
 import logging
-import pickle
 import threading
 import time
 from collections import OrderedDict
@@ -220,13 +220,13 @@ class CacheManager:
             value = self._cache.get(key)
             if isinstance(self._cache, (LRUCache, TTLCache)):
                 return value
-            return pickle.loads(value) if value is not None else None
+            return json.loads(value) if value is not None else None
         except Exception as error:
             logger.error(f"Cache get error: {error}")
             return None
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
-        """Keep memory values intact and serialize values at the remote boundary."""
+        """Keep memory objects intact; remote caches accept only JSON data, never executable payloads."""
         try:
             if isinstance(self._cache, TTLCache):
                 self._cache.set(key, value, ttl)
@@ -234,7 +234,7 @@ class CacheManager:
             if isinstance(self._cache, LRUCache):
                 self._cache.set(key, value)
                 return True
-            serialized = pickle.dumps(value)
+            serialized = json.dumps(value, allow_nan=False).encode("utf-8")
             if self.backend == CacheBackend.REDIS and ttl is not None:
                 return bool(self._cache.setex(key, ttl, serialized))
             if self.backend == CacheBackend.MEMCACHE and ttl is not None:
@@ -273,7 +273,7 @@ def cached(
                 key_parts = [func.__name__]
                 key_parts.extend(str(arg) for arg in args)
                 key_parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()))
-                cache_key = hashlib.md5(":".join(key_parts).encode()).hexdigest()
+                cache_key = hashlib.sha256(":".join(key_parts).encode()).hexdigest()
 
             # Try to get from cache
             cached_value = _cache.get(cache_key)
@@ -314,7 +314,7 @@ def async_cached(
                 key_parts = [func.__name__]
                 key_parts.extend(str(arg) for arg in args)
                 key_parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()))
-                cache_key = hashlib.md5(":".join(key_parts).encode()).hexdigest()
+                cache_key = hashlib.sha256(":".join(key_parts).encode()).hexdigest()
 
             # Try to get from cache
             cached_value = _cache.get(cache_key)
