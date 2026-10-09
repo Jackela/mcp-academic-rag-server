@@ -4,16 +4,18 @@
 """
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional, Sequence
 
 
-def run_command(command, description):
+def run_command(command: Sequence[str], description: str) -> Optional[str]:
     """运行命令并处理错误"""
     print(f"🔄 {description}...")
     try:
-        result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+        result = subprocess.run(list(command), check=True, capture_output=True, text=True)
         print(f"✅ {description}完成")
         return result.stdout
     except subprocess.CalledProcessError as e:
@@ -21,7 +23,7 @@ def run_command(command, description):
         return None
 
 
-def main():
+def main() -> bool:
     """主发布流程"""
     print("🚀 开始发布MCP Academic RAG Server到PyPI...")
 
@@ -31,16 +33,20 @@ def main():
     print(f"📁 当前目录: {project_root}")
 
     # 步骤1: 清理之前的构建
-    run_command("rm -rf dist/ build/ *.egg-info/", "清理构建目录")
+    for directory in [project_root / "dist", project_root / "build", *project_root.glob("*.egg-info")]:
+        if directory.is_dir() and not directory.is_symlink():
+            shutil.rmtree(directory)
 
     # 步骤2: 构建包
-    if not run_command("python -m build", "构建Python包"):
+    if run_command([sys.executable, "-m", "build"], "构建Python包") is None:
         print("❌ 构建失败，退出")
         return False
 
     # 步骤3: 检查包
-    if not run_command("python -m twine check dist/*", "检查构建包"):
-        print("⚠️ 包检查有问题，但继续进行")
+    artifacts = sorted(str(path) for path in (project_root / "dist").iterdir() if path.is_file())
+    if not artifacts or run_command([sys.executable, "-m", "twine", "check", *artifacts], "检查构建包") is None:
+        print("❌ 包检查失败，退出")
+        return False
 
     # 步骤4: 上传到PyPI
     print("\n📤 准备上传到PyPI...")
@@ -51,7 +57,7 @@ def main():
 
     confirm = input("\n✓ 确认上传到PyPI? (y/N): ")
     if confirm.lower() == "y":
-        if run_command("python -m twine upload dist/*", "上传到PyPI"):
+        if run_command([sys.executable, "-m", "twine", "upload", *artifacts], "上传到PyPI") is not None:
             print("\n🎉 发布成功！")
             print("\n📋 现在用户可以一键安装:")
             print("  uvx mcp-academic-rag-server")
@@ -70,7 +76,7 @@ def main():
             return True
     else:
         print("❌ 用户取消上传")
-        return False
+    return False
 
 
 if __name__ == "__main__":

@@ -45,7 +45,7 @@ class AnthropicConnector(BaseLLMConnector):
     def _get_provider_name(self) -> str:
         return "anthropic"
 
-    def _init_generator(self):
+    def _init_generator(self) -> None:
         """Initialize Anthropic client"""
         try:
             self.client = anthropic.Anthropic(api_key=self.api_key, timeout=self.timeout)
@@ -53,6 +53,19 @@ class AnthropicConnector(BaseLLMConnector):
         except Exception as e:
             logger.error(f"Failed to initialize Anthropic client: {e}")
             raise
+
+    @staticmethod
+    def _prepare_messages(messages: List[Dict[str, str]]) -> tuple[List[Dict[str, str]], Optional[str]]:
+        anthropic_messages = []
+        system_message = None
+        for message in messages:
+            if message["role"] == "system":
+                system_message = message["content"]
+            else:
+                anthropic_messages.append(
+                    {"role": "user" if message["role"] == "user" else "assistant", "content": message["content"]}
+                )
+        return anthropic_messages, system_message
 
     def generate(
         self, messages: List[Dict[str, str]], generation_kwargs: Optional[Dict[str, Any]] = None
@@ -62,17 +75,7 @@ class AnthropicConnector(BaseLLMConnector):
             # Normalize messages
             normalized_messages = self.normalize_messages(messages)
 
-            # Convert to Anthropic format
-            anthropic_messages = []
-            system_message = None
-
-            for msg in normalized_messages:
-                if msg["role"] == "system":
-                    system_message = msg["content"]
-                else:
-                    anthropic_messages.append(
-                        {"role": "user" if msg["role"] == "user" else "assistant", "content": msg["content"]}
-                    )
+            anthropic_messages, system_message = self._prepare_messages(normalized_messages)
 
             # Merge generation parameters
             params = self.parameters.copy()

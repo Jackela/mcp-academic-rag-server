@@ -8,15 +8,16 @@
 import logging
 import os
 import re
-import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from html.parser import HTMLParser
 from typing import Any, Dict, Optional, Tuple, Union, overload
 from xml.etree import ElementTree
 
 import markdown
-import pdfkit
 from markdown.blockprocessors import BlockProcessor
 from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
+from playwright.sync_api import Route, sync_playwright
 
 from models.document import Document
 from models.process_result import ProcessResult
@@ -187,7 +188,7 @@ class FormatConverterProcessor(BaseProcessor):
         """
         将Markdown转换为PDF。
 
-        使用pdfkit将Markdown文本转换为PDF文件。
+        使用正常Chromium将Markdown文本转换为PDF文件，禁用脚本与外部资源。
 
         Args:
             md_content: Markdown文本内容
@@ -269,23 +270,67 @@ class FormatConverterProcessor(BaseProcessor):
             </html>
             """
 
-            # 使用临时文件存储HTML
-            with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as temp_html:
-                temp_html_path = temp_html.name
-                temp_html.write(html_template)
-
-            try:
-                # 使用pdfkit将HTML转换为PDF
-                pdfkit.from_file(temp_html_path, output_path, options=self.pdf_options)
-                logger.info(f"成功生成PDF: {output_path}")
-            finally:
-                # 删除临时HTML文件
-                if os.path.exists(temp_html_path):
-                    os.unlink(temp_html_path)
+            options = self._pdf_render_options()
+            validator = _PDFResourceValidator()
+            validator.feed(html_template)
+            # The sync browser API runs outside any caller's active asyncio loop.
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                executor.submit(_render_pdf, html_template, output_path, options).result()
+            logger.info(f"成功生成PDF: {output_path}")
 
         except Exception as e:
             logger.error(f"Markdown转PDF失败: {str(e)}", exc_info=True)
             raise
+
+    def _pdf_render_options(self) -> Dict[str, Any]:
+        allowed = {"page-size", "margin-top", "margin-right", "margin-bottom", "margin-left", "encoding", "orientation"}
+        unknown = set(self.pdf_options) - allowed
+        if unknown:
+            raise ValueError(f"Unsupported PDF options: {sorted(unknown)}")
+        if self.pdf_options.get("encoding", "UTF-8").upper().replace("-", "") != "UTF8":
+            raise ValueError("PDF HTML supports UTF-8 encoding")
+        orientation = self.pdf_options.get("orientation", "Portrait")
+        if orientation not in {"Portrait", "Landscape"}:
+            raise ValueError("PDF orientation must be Portrait or Landscape")
+        return {
+            "format": self.pdf_options.get("page-size", "A4"),
+            "margin": {
+                side: self.pdf_options.get(f"margin-{side}", "20mm") for side in ("top", "right", "bottom", "left")
+            },
+            "landscape": orientation == "Landscape",
+        }
+
+
+class _PDFResourceValidator(HTMLParser):
+    """Reject local files and remote assets; self-contained data images remain usable."""
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
+        for name, value in attrs:
+            if name in {"src", "srcset", "data"} or (tag == "link" and name == "href"):
+                if not value or not (tag == "img" and name == "src" and value.startswith("data:image/")):
+                    raise ValueError(
+                        "PDF resources must be self-contained data images; local and external resources are disabled"
+                    )
+
+
+def _render_pdf(html: str, output_path: str, options: Dict[str, Any]) -> None:
+    blocked: list[str] = []
+
+    def reject_request(route: Route) -> None:
+        blocked.append("blocked")
+        route.abort()
+
+    with sync_playwright() as runtime:
+        browser = runtime.chromium.launch()
+        try:
+            page = browser.new_page(java_script_enabled=False)
+            page.route("**/*", reject_request)
+            page.set_content(html, wait_until="networkidle", timeout=15000)
+            if blocked:
+                raise ValueError("PDF rendering cannot fetch local or external resources")
+            page.pdf(path=output_path, **options)
+        finally:
+            browser.close()
 
 
 class MathExtension(Extension):

@@ -15,20 +15,17 @@ import time
 import uuid
 from typing import Any, Dict, List
 
-# Add project root to sys.path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from core.server_context import ServerContext
+from models.document import Document
 
 try:
     import mcp.types as types
     from mcp.server import NotificationOptions, Server
     from mcp.server.models import InitializationOptions
-    from mcp.types import EmbeddedResource, ImageContent, Resource, TextContent, Tool
+    from mcp.types import Tool
 except ImportError as e:
     print(f"MCP package not found. Please install with: pip install mcp\nError: {e}")
     sys.exit(1)
-
-from core.server_context import ServerContext
-from models.document import Document
 
 # Configure structured logging (MCP best practice: never write to stdout in STDIO mode)
 logging.basicConfig(
@@ -79,7 +76,6 @@ def initialize_system() -> None:
         raise
 
 
-@server.list_tools()
 async def handle_list_tools() -> List[Tool]:
     """
     List available tools for the MCP client.
@@ -136,7 +132,6 @@ async def handle_list_tools() -> List[Tool]:
     ]
 
 
-@server.call_tool()
 async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
     """
     Handle tool calls from the MCP client with enhanced error handling and resource management.
@@ -208,7 +203,7 @@ async def process_document(arguments: Dict[str, Any]) -> List[types.TextContent]
     file_path = arguments.get("file_path")
     file_name = arguments.get("file_name", os.path.basename(file_path) if file_path else "unknown")
 
-    logger.info(f"Starting document processing", extra={"file_path": file_path, "file_name": file_name})
+    logger.info("Starting document processing", extra={"file_path": file_path, "file_name": file_name})
 
     if not file_path:
         logger.error("No file path provided")
@@ -221,6 +216,7 @@ async def process_document(arguments: Dict[str, Any]) -> List[types.TextContent]
     try:
         # Create document object
         document = Document(file_path)
+        response: Dict[str, Any]
 
         # Process document through pipeline asynchronously
         if server_context.document_pipeline:
@@ -228,7 +224,7 @@ async def process_document(arguments: Dict[str, Any]) -> List[types.TextContent]
 
             if result.is_successful():
                 logger.info(
-                    f"Document processed successfully",
+                    "Document processed successfully",
                     extra={
                         "document_id": document.document_id,
                         "file_name": file_name,
@@ -373,7 +369,11 @@ async def list_sessions(arguments: Dict[str, Any]) -> List[types.TextContent]:
         return [types.TextContent(type="text", text=f"Error listing sessions: {str(e)}")]
 
 
-async def main():
+server.list_tools()(handle_list_tools)
+server.call_tool()(handle_call_tool)
+
+
+async def main() -> None:
     """Main function to run the MCP server."""
     try:
         # Initialize the system

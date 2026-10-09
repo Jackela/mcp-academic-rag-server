@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any, Dict, List
 
 # Configure logging to stderr (MCP requirement)
 logging.basicConfig(
@@ -29,7 +30,7 @@ def validate_api_key(api_key: str) -> bool:
     return True
 
 
-def validate_environment():
+def validate_environment() -> logging.Logger:
     """Validate required environment variables"""
     logger.info("Starting environment validation...")
 
@@ -47,7 +48,7 @@ def validate_environment():
     return logger
 
 
-async def minimal_mcp_main():
+async def minimal_mcp_main() -> None:
     """Minimal MCP server entry point"""
     try:
         # Validate environment
@@ -67,24 +68,25 @@ async def minimal_mcp_main():
         # Create minimal server
         server = Server("academic-rag-server-minimal")
 
-        @server.list_tools()
-        async def handle_list_tools():
+        async def handle_list_tools() -> List[types.Tool]:
             """List available tools"""
             return [
-                {
-                    "name": "test_connection",
-                    "description": "Test MCP server connection",
-                    "inputSchema": {"type": "object", "properties": {}, "required": []},
-                }
+                types.Tool(
+                    name="test_connection",
+                    description="Test MCP server connection",
+                    inputSchema={"type": "object", "properties": {}, "required": []},
+                )
             ]
 
-        @server.call_tool()
-        async def handle_call_tool(name: str, arguments: dict):
+        async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
             """Handle tool calls"""
             if name == "test_connection":
                 return [types.TextContent(type="text", text="✅ MCP Academic RAG Server connection successful!")]
             else:
-                return [types.TextContent(type="text", text=f"❌ Unknown tool: {name}")]
+                raise ValueError(f"Unknown tool: {name}")
+
+        server.list_tools()(handle_list_tools)
+        server.call_tool()(handle_call_tool)
 
         # Run MCP server
         async with stdio_server() as (read_stream, write_stream):
@@ -104,7 +106,7 @@ async def minimal_mcp_main():
         raise
 
 
-def main():
+def main() -> None:
     """Entry point"""
     if len(sys.argv) > 1 and sys.argv[1] == "--validate-only":
         try:

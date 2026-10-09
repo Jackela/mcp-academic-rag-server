@@ -90,12 +90,12 @@ class SimpleDocumentProcessor:
     def process_pdf(self, file_path: str) -> str:
         """处理PDF文件 - 尝试多种方法"""
         try:
-            # 方法1: 尝试使用PyPDF2 (如果可用)
+            # 方法1: 尝试使用pypdf (如果可用)
             try:
-                import PyPDF2
+                import pypdf
 
                 with open(file_path, "rb") as f:
-                    reader = PyPDF2.PdfReader(f)
+                    reader = pypdf.PdfReader(f)
                     text = ""
                     for page in reader.pages:
                         text += page.extract_text() + "\n"
@@ -147,7 +147,7 @@ class SimpleDocumentProcessor:
                     pass
 
             # 如果所有方法都失败，返回错误信息
-            raise Exception("PDF处理失败：需要安装 PyPDF2, pdfplumber 或 pdfminer3 之一")
+            raise Exception("PDF处理失败：需要安装 pypdf, pdfplumber 或 pdfminer3 之一")
 
         except Exception as e:
             raise Exception(f"PDF处理错误: {str(e)}")

@@ -45,16 +45,16 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Black
-        run: black --check --diff document_stores/ document_stores/migration/vector_migration.py tests/
+        run: black --check --diff document_stores/ tests/
 
       - name: Run isort
-        run: isort --check-only --diff document_stores/ document_stores/migration/vector_migration.py tests/
+        run: isort --check-only --diff document_stores/ tests/
 
       - name: Run Flake8
-        run: flake8 document_stores/ document_stores/migration/vector_migration.py tests/ --max-line-length=100
+        run: flake8 document_stores/ tests/ --max-line-length=100
 
       - name: Run MyPy
-        run: mypy document_stores/ document_stores/migration/vector_migration.py --ignore-missing-imports
+        run: mypy document_stores/ --ignore-missing-imports
 
   unit-tests:
     name: Unit Tests
@@ -241,28 +241,30 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install safety bandit semgrep
+          pip install -r requirements.txt
+          python -m venv .venv-security-tools
+          .venv-security-tools/bin/python -m pip install semgrep
 
-      - name: Run Safety check
-        run: safety check --json --output safety-report.json
+      - name: Audit installed project dependencies
+        run: python -m pip_audit --local --format json --output dependency-audit-report.json
 
       - name: Run Bandit security scan
         run: |
-          bandit -r document_stores/ document_stores/migration/vector_migration.py \
-            -f json -o bandit-report.json
+          python scripts/check_bandit.py document_stores/ --output bandit-report.json
 
       - name: Run Semgrep
         run: |
-          semgrep --config=auto --json --output=semgrep-report.json \
-            document_stores/ document_stores/migration/vector_migration.py
+           .venv-security-tools/bin/semgrep --config=auto --error --json --output=semgrep-report.json \
+            document_stores/
 
       - name: Upload security reports
         uses: actions/upload-artifact@v4
         with:
           name: security-reports
           path: |
-            safety-report.json
+            dependency-audit-report.json
             bandit-report.json
+            bandit-report-all.json
             semgrep-report.json
 
   docker-tests:

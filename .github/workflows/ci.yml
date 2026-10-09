@@ -85,8 +85,8 @@ jobs:
 
       - name: Run security checks
         run: |
-          python -m bandit -r . -f json -o bandit-report.json
-          python -m safety check --json --output safety-report.json
+          python scripts/check_bandit.py core processors connectors models rag utils servers document_stores retrievers cli scripts app.py webapp.py --output bandit-report.json
+          python -m pip_audit --local --format json --output dependency-audit-report.json
 
       - name: Run unit tests
         run: |
@@ -126,7 +126,8 @@ jobs:
           path: |
             coverage.xml
             bandit-report.json
-            safety-report.json
+            bandit-report-all.json
+            dependency-audit-report.json
 
   performance-test:
     name: Performance Tests

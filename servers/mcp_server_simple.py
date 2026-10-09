@@ -6,14 +6,47 @@
 import json
 import os
 import sys
+from typing import Any, Dict, Optional
 
 
-def validate_api_key(api_key: str) -> bool:
+def validate_api_key(api_key: Optional[str]) -> bool:
     """验证API密钥格式"""
-    return api_key and isinstance(api_key, str) and api_key.startswith("sk-") and len(api_key) >= 21
+    return isinstance(api_key, str) and bool(api_key) and api_key.startswith("sk-") and len(api_key) >= 21
 
 
-def main():
+def _dispatch(request: Dict[str, Any]) -> Dict[str, Any]:
+    method = request.get("method")
+    request_id = request.get("id")
+    if method == "tools/list":
+        return {
+            "jsonrpc": "2.0",
+            "result": {
+                "tools": [
+                    {
+                        "name": "test_connection",
+                        "description": "测试MCP连接",
+                        "inputSchema": {"type": "object", "properties": {}, "required": []},
+                    }
+                ]
+            },
+            "id": request_id,
+        }
+    elif method == "tools/call":
+        tool_name = request.get("params", {}).get("name")
+        return {
+            "jsonrpc": "2.0",
+            "result": {"content": [{"type": "text", "text": f"✅ 简化MCP服务器连接成功！工具: {tool_name}"}]},
+            "id": request_id,
+        }
+    else:
+        return {
+            "jsonrpc": "2.0",
+            "error": {"code": -32601, "message": f"Method not found: {method}"},
+            "id": request_id,
+        }
+
+
+def main() -> None:
     """简单的入口点"""
     if len(sys.argv) > 1 and sys.argv[1] == "--validate-only":
         api_key = os.environ.get("OPENAI_API_KEY")
@@ -38,38 +71,8 @@ def main():
 
             try:
                 request = json.loads(line)
-                method = request.get("method")
-                request_id = request.get("id")
 
-                if method == "tools/list":
-                    response = {
-                        "jsonrpc": "2.0",
-                        "result": {
-                            "tools": [
-                                {
-                                    "name": "test_connection",
-                                    "description": "测试MCP连接",
-                                    "inputSchema": {"type": "object", "properties": {}, "required": []},
-                                }
-                            ]
-                        },
-                        "id": request_id,
-                    }
-                elif method == "tools/call":
-                    tool_name = request.get("params", {}).get("name")
-                    response = {
-                        "jsonrpc": "2.0",
-                        "result": {
-                            "content": [{"type": "text", "text": f"✅ 简化MCP服务器连接成功！工具: {tool_name}"}]
-                        },
-                        "id": request_id,
-                    }
-                else:
-                    response = {
-                        "jsonrpc": "2.0",
-                        "error": {"code": -32601, "message": f"Method not found: {method}"},
-                        "id": request_id,
-                    }
+                response = _dispatch(request)
 
                 print(json.dumps(response))
                 sys.stdout.flush()

@@ -6,6 +6,7 @@ Follows MCP 2024 best practices - NO user interaction in STDIO mode
 
 import argparse
 import asyncio
+import logging
 import os
 import sys
 from pathlib import Path
@@ -14,10 +15,8 @@ from pathlib import Path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
-def setup_secure_logging():
+def setup_secure_logging() -> logging.Logger:
     """Setup logging that writes to stderr only (MCP best practice)"""
-    import logging
-
     # Configure logging to stderr only (never stdout for STDIO transport)
     logging.basicConfig(
         level=logging.INFO,
@@ -43,7 +42,7 @@ def validate_api_key(api_key: str) -> bool:
     return True
 
 
-def validate_environment():
+def validate_environment() -> logging.Logger:
     """Validate required environment variables (MCP best practice)"""
     logger = setup_secure_logging()
 
@@ -75,7 +74,7 @@ def validate_environment():
     return logger
 
 
-async def main():
+async def main() -> None:
     """Main entry point with MCP-compliant configuration"""
     parser = argparse.ArgumentParser(description="MCP Academic RAG Server")
     parser.add_argument("--data-path", help="Data storage path (overrides DATA_PATH env var)")
@@ -104,7 +103,8 @@ async def main():
         from mcp.server import NotificationOptions
         from mcp.server.models import InitializationOptions
         from mcp.server.stdio import stdio_server
-        from mcp_server import initialize_system, server
+
+        from servers.mcp_server import initialize_system, server
 
         logger.info("Starting MCP Academic RAG Server", extra={"mode": "stdio"})
 
@@ -132,31 +132,21 @@ async def main():
         sys.exit(1)
 
 
-async def mcp_main():
+async def mcp_main() -> None:
     """Pure MCP server entry point - no argparse, no stdout output"""
     try:
         # Validate environment (will raise if invalid)
         logger = validate_environment()
 
         # Import MCP server components
-        from mcp.server import NotificationOptions, Server
+        from mcp.server import NotificationOptions
         from mcp.server.models import InitializationOptions
         from mcp.server.stdio import stdio_server
 
-        # Initialize the system using server context (dependency injection)
-        from core.server_context import ServerContext
+        # Use the existing legacy server's registered handlers and context.
+        from servers.mcp_server import initialize_system, server
 
-        server_context = ServerContext()
-        server_context.initialize()
-
-        # Create and configure MCP server
-        server = Server("academic-rag-server")
-
-        # Import and register handlers
-        from mcp_server import handle_call_tool, handle_list_tools
-
-        server.list_tools = handle_list_tools
-        server.call_tool = handle_call_tool
+        initialize_system()
 
         # Run MCP server with STDIO transport
         async with stdio_server() as (read_stream, write_stream):
@@ -180,7 +170,7 @@ async def mcp_main():
         raise
 
 
-def cli_main():
+def cli_main() -> None:
     """Command line interface entry point for uvx installation"""
     import sys
 

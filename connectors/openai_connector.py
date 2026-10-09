@@ -45,7 +45,7 @@ class OpenAIConnector(BaseLLMConnector):
     def _get_provider_name(self) -> str:
         return "openai"
 
-    def _init_generator(self):
+    def _init_generator(self) -> None:
         """Initialize OpenAI generator"""
         try:
             self.generator = OpenAIChatGenerator(
@@ -67,7 +67,7 @@ class OpenAIConnector(BaseLLMConnector):
         content = message["content"]
 
         # Map roles to appropriate ChatMessage factory methods
-        role_mapping = {
+        role_mapping: Dict[str, Callable[[str], ChatMessage]] = {
             "user": ChatMessage.from_user,
             "assistant": ChatMessage.from_assistant,
             "system": ChatMessage.from_system,

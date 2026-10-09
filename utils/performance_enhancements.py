@@ -10,6 +10,8 @@ This module provides production-ready performance optimizations including:
 - Batch processing optimization
 """
 
+from __future__ import annotations
+
 import asyncio
 import gc
 import json
@@ -18,16 +20,27 @@ import os
 import threading
 import time
 import weakref
-from collections import OrderedDict, defaultdict, deque
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import OrderedDict, deque
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from functools import lru_cache, wraps
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Union
+from functools import wraps
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    ContextManager,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    ParamSpec,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
-import aiofiles
-import aiohttp
 import psutil
 
 try:
@@ -38,6 +51,8 @@ except ImportError:
     REDIS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 @dataclass
@@ -57,10 +72,10 @@ class PerformanceMetrics:
 class MemoryManager:
     """Advanced memory management and monitoring"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.memory_threshold = 80.0  # 80% of available memory
         self.gc_threshold = 85.0  # Force GC at 85%
-        self.metrics_history = deque(maxlen=1000)
+        self.metrics_history: deque[Dict[str, Any]] = deque(maxlen=1000)
         self._lock = threading.Lock()
 
     @staticmethod
@@ -93,11 +108,11 @@ class MemoryManager:
             "objects_freed": before_objects - after_objects,
         }
 
-    def monitor_memory(self, operation_name: str = "unknown"):
+    def monitor_memory(self, operation_name: str = "unknown") -> ContextManager[Dict[str, float]]:
         """Context manager for monitoring memory usage during operations"""
 
         @contextmanager
-        def memory_monitor():
+        def memory_monitor() -> Iterator[Dict[str, float]]:
             memory_before = self.get_memory_usage()
             start_time = time.time()
 
@@ -139,33 +154,34 @@ class ConnectionPool:
 
     def __init__(
         self,
-        factory: Callable,
+        factory: Callable[[], Any],
         max_size: int = 10,
         min_size: int = 2,
         timeout: float = 30.0,
         max_idle_time: float = 300.0,
-    ):
+    ) -> None:
         self.factory = factory
         self.max_size = max_size
         self.min_size = min_size
         self.timeout = timeout
         self.max_idle_time = max_idle_time
 
-        self._pool = deque()
-        self._in_use = set()
+        self._pool: deque[tuple[Any, float]] = deque()
+        self._in_use: set[Any] = set()
         self._lock = asyncio.Lock()
         self._created_count = 0
         self._last_cleanup = time.time()
 
         # Weak references to track connection lifecycle
-        self._connection_refs = weakref.WeakSet()
+        self._connection_refs: weakref.WeakSet[Any] = weakref.WeakSet()
 
-    async def _create_connection(self):
+    async def _create_connection(self) -> Any:
         """Create a new connection"""
         try:
-            connection = (
-                await asyncio.to_thread(self.factory) if asyncio.iscoroutinefunction(self.factory) else self.factory()
-            )
+            if asyncio.iscoroutinefunction(self.factory):
+                connection = await self.factory()
+            else:
+                connection = self.factory()
             self._created_count += 1
             self._connection_refs.add(connection)
             logger.debug(f"Created new connection (total: {self._created_count})")
@@ -174,7 +190,7 @@ class ConnectionPool:
             logger.error(f"Failed to create connection: {e}")
             raise
 
-    async def get_connection(self):
+    async def get_connection(self) -> Any:
         """Get a connection from the pool"""
         async with self._lock:
             # Try to get existing connection from pool
@@ -188,6 +204,7 @@ class ConnectionPool:
                 else:
                     # Connection is too old, discard it
                     logger.debug("Discarding old connection from pool")
+                    await self._close_connection(connection)
 
             # No available connections, create new one if under limit
             if len(self._in_use) < self.max_size:
@@ -198,7 +215,7 @@ class ConnectionPool:
             # Pool is full, wait or raise exception
             raise Exception(f"Connection pool exhausted (max_size: {self.max_size})")
 
-    async def return_connection(self, connection):
+    async def return_connection(self, connection: Any) -> None:
         """Return a connection to the pool"""
         async with self._lock:
             if connection in self._in_use:
@@ -211,7 +228,7 @@ class ConnectionPool:
                     # Pool is full, close the connection
                     await self._close_connection(connection)
 
-    async def _close_connection(self, connection):
+    async def _close_connection(self, connection: Any) -> None:
         """Close a connection"""
         try:
             if hasattr(connection, "close"):
@@ -222,7 +239,7 @@ class ConnectionPool:
         except Exception as e:
             logger.warning(f"Error closing connection: {e}")
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up old connections"""
         current_time = time.time()
         if current_time - self._last_cleanup < 60:  # Cleanup every minute
@@ -230,7 +247,7 @@ class ConnectionPool:
 
         async with self._lock:
             # Remove old connections from pool
-            active_connections = deque()
+            active_connections: deque[tuple[Any, float]] = deque()
             while self._pool:
                 connection, created_time = self._pool.popleft()
                 if current_time - created_time < self.max_idle_time:
@@ -242,7 +259,7 @@ class ConnectionPool:
             self._last_cleanup = current_time
 
     @asynccontextmanager
-    async def connection(self):
+    async def connection(self) -> AsyncIterator[Any]:
         """Context manager for getting and returning connections"""
         conn = await self.get_connection()
         try:
@@ -254,23 +271,21 @@ class ConnectionPool:
 class CacheManager:
     """Multi-level caching system with TTL support"""
 
-    def __init__(self, backend: str = "memory", max_size: int = 1000, use_ttl: bool = True, default_ttl: int = 3600):
+    def __init__(
+        self, backend: str = "memory", max_size: int = 1000, use_ttl: bool = True, default_ttl: int = 3600
+    ) -> None:
         self.backend = backend
         self.max_size = max_size
         self.use_ttl = use_ttl
         self.default_ttl = default_ttl
 
-        if backend == "redis" and REDIS_AVAILABLE:
-            self.redis_client = self._create_redis_client()
-        else:
-            self.redis_client = None
-            # Memory cache implementation
-            self._memory_cache = {}
-            self._access_times: OrderedDict[str, float] = OrderedDict()
-            self._ttl_cache = {}
-            self._lock = threading.Lock()
+        self._memory_cache: Dict[str, Any] = {}
+        self._access_times: OrderedDict[str, float] = OrderedDict()
+        self._ttl_cache: Dict[str, float] = {}
+        self._lock = threading.Lock()
+        self.redis_client = self._create_redis_client() if backend == "redis" and REDIS_AVAILABLE else None
 
-    def _create_redis_client(self):
+    def _create_redis_client(self) -> Optional[redis.Redis]:
         """Create Redis client"""
         try:
             redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
@@ -285,7 +300,7 @@ class CacheManager:
 
         # Create a string representation of arguments
         args_str = str(args) + str(sorted(kwargs.items()))
-        args_hash = hashlib.md5(args_str.encode()).hexdigest()
+        args_hash = hashlib.sha256(args_str.encode()).hexdigest()
 
         return f"{func_name}:{args_hash}"
 
@@ -339,7 +354,7 @@ class CacheManager:
                 if self.use_ttl:
                     self._ttl_cache[key] = time.time() + ttl
 
-    def _evict_lru(self):
+    def _evict_lru(self) -> None:
         """Evict least recently used entry"""
         if not self._access_times:
             return
@@ -377,47 +392,32 @@ class CacheManager:
                 self._ttl_cache.clear()
 
 
-def cached(cache_manager: CacheManager, ttl: Optional[int] = None):
-    """Decorator for caching function results"""
+def cached(cache_manager: CacheManager, ttl: Optional[int] = None) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Cache both synchronous values and awaited asynchronous results."""
 
-    def decorator(func):
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
-        def wrapper(*args, **kwargs):
-            # Generate cache key
-            cache_key = cache_manager._generate_key(func.__name__, args, kwargs)
-
-            # Try to get from cache
-            cached_result = cache_manager.get(cache_key)
-            if cached_result is not None:
-                logger.debug(f"Cache hit for {func.__name__}")
-                return cached_result
-
-            # Execute function
-            logger.debug(f"Cache miss for {func.__name__}, executing function")
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            key = cache_manager._generate_key(func.__name__, args, kwargs)
+            existing = cache_manager.get(key)
+            if existing is not None:
+                return cast(R, existing)
             result = func(*args, **kwargs)
-
-            # Store in cache
-            cache_manager.set(cache_key, result, ttl)
-
+            cache_manager.set(key, result, ttl)
             return result
 
-        # For async functions
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            cache_key = cache_manager._generate_key(func.__name__, args, kwargs)
-
-            cached_result = cache_manager.get(cache_key)
-            if cached_result is not None:
-                logger.debug(f"Cache hit for {func.__name__}")
-                return cached_result
-
-            logger.debug(f"Cache miss for {func.__name__}, executing function")
-            result = await func(*args, **kwargs)
-
-            cache_manager.set(cache_key, result, ttl)
+        async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+            key = cache_manager._generate_key(func.__name__, args, kwargs)
+            existing = cache_manager.get(key)
+            if existing is not None:
+                return existing
+            async_func = cast(Callable[P, Awaitable[Any]], func)
+            result = await async_func(*args, **kwargs)
+            cache_manager.set(key, result, ttl)
             return result
 
-        return async_wrapper if asyncio.iscoroutinefunction(func) else wrapper
+        return cast(Callable[P, R], async_wrapper) if asyncio.iscoroutinefunction(func) else wrapper
 
     return decorator
 
@@ -425,20 +425,26 @@ def cached(cache_manager: CacheManager, ttl: Optional[int] = None):
 class BatchProcessor:
     """Intelligent batch processing with dynamic optimization"""
 
-    def __init__(self, batch_size: int = 32, timeout: float = 5.0, process_func: Callable = None, max_retries: int = 3):
+    def __init__(
+        self,
+        batch_size: int = 32,
+        timeout: float = 5.0,
+        process_func: Optional[Callable[[List[Any]], Any]] = None,
+        max_retries: int = 3,
+    ) -> None:
         self.batch_size = batch_size
         self.timeout = timeout
         self.process_func = process_func
         self.max_retries = max_retries
 
-        self._batch = []
+        self._batch: List[Any] = []
         self._lock = asyncio.Lock()
         self._last_batch_time = time.time()
         self._processing = False
 
         # Performance metrics
-        self._batch_times = deque(maxlen=100)
-        self._optimal_batch_size = batch_size
+        self._batch_times: deque[float] = deque(maxlen=100)
+        self._optimal_batch_size = float(batch_size)
 
     async def add(self, item: Any) -> Optional[Any]:
         """Add item to batch for processing"""
@@ -450,16 +456,18 @@ class BatchProcessor:
 
             if should_process and not self._processing:
                 return await self._process_batch()
+        return None
 
     async def flush(self) -> Optional[Any]:
         """Force process current batch"""
         async with self._lock:
             if self._batch and not self._processing:
                 return await self._process_batch()
+        return None
 
     async def _process_batch(self) -> Optional[Any]:
         """Process current batch"""
-        if not self._batch or not self.process_func:
+        if not self._batch or self.process_func is None:
             return None
 
         self._processing = True
@@ -491,7 +499,7 @@ class BatchProcessor:
         finally:
             self._processing = False
 
-    def _optimize_batch_size(self):
+    def _optimize_batch_size(self) -> None:
         """Dynamically optimize batch size based on processing times"""
         if len(self._batch_times) < 10:
             return
@@ -510,90 +518,62 @@ class BatchProcessor:
         logger.debug(f"Optimized batch size to {self.batch_size}")
 
 
-def profile_performance(operation_name: str = "unknown"):
-    """Performance profiling decorator and context manager"""
+@contextmanager
+def _profile_call(operation: str) -> Iterator[None]:
+    manager = MemoryManager()
+    start = time.perf_counter()
+    before = manager.get_memory_usage()
+    success = False
+    try:
+        with manager.monitor_memory(operation):
+            yield
+        success = True
+    except Exception as exc:
+        logger.error("Performance profiled function %s failed: %s", operation, exc)
+        raise
+    finally:
+        after = manager.get_memory_usage()
+        logger.info(
+            "Performance: %s - Duration: %.3fs, Memory: %.2fGB, Success: %s",
+            operation,
+            time.perf_counter() - start,
+            after["used"] - before["used"],
+            success,
+        )
 
-    def decorator(func):
+
+@overload
+def profile_performance(operation_name: str = "unknown") -> Callable[[Callable[P, R]], Callable[P, R]]: ...
+
+
+@overload
+def profile_performance(operation_name: Callable[P, R]) -> Callable[P, R]: ...
+
+
+def profile_performance(operation_name: Union[str, Callable[P, R]] = "unknown") -> Any:
+    """Profile named decorators and the existing direct-decorator form."""
+    name = operation_name if isinstance(operation_name, str) else operation_name.__name__
+
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            memory_manager = MemoryManager()
-            start_time = time.time()
-            memory_before = memory_manager.get_memory_usage()
-            success = False
-            error_message = None
-
-            try:
-                with memory_manager.monitor_memory(f"{operation_name}-{func.__name__}"):
-                    result = await func(*args, **kwargs)
-                success = True
-                return result
-            except Exception as e:
-                error_message = str(e)
-                logger.error(f"Performance profiled function {func.__name__} failed: {e}")
-                raise
-            finally:
-                end_time = time.time()
-                memory_after = memory_manager.get_memory_usage()
-
-                metrics = PerformanceMetrics(
-                    operation_name=f"{operation_name}-{func.__name__}",
-                    start_time=start_time,
-                    end_time=end_time,
-                    duration=end_time - start_time,
-                    memory_before=memory_before["used"],
-                    memory_after=memory_after["used"],
-                    success=success,
-                    error_message=error_message,
-                )
-
-                # Log performance metrics
-                logger.info(
-                    f"Performance: {metrics.operation_name} - "
-                    f"Duration: {metrics.duration:.3f}s, "
-                    f"Memory: {metrics.memory_after - metrics.memory_before:.2f}GB, "
-                    f"Success: {success}"
-                )
+        async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+            with _profile_call(f"{name}-{func.__name__}"):
+                async_func = cast(Callable[P, Awaitable[Any]], func)
+                return await async_func(*args, **kwargs)
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            memory_manager = MemoryManager()
-            start_time = time.time()
-            memory_before = memory_manager.get_memory_usage()
-            success = False
-            error_message = None
+        def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            with _profile_call(f"{name}-{func.__name__}"):
+                return func(*args, **kwargs)
 
-            try:
-                with memory_manager.monitor_memory(f"{operation_name}-{func.__name__}"):
-                    result = func(*args, **kwargs)
-                success = True
-                return result
-            except Exception as e:
-                error_message = str(e)
-                logger.error(f"Performance profiled function {func.__name__} failed: {e}")
-                raise
-            finally:
-                end_time = time.time()
-                memory_after = memory_manager.get_memory_usage()
+        return cast(Callable[P, R], async_wrapper) if asyncio.iscoroutinefunction(func) else sync_wrapper
 
-                logger.info(
-                    f"Performance: {operation_name}-{func.__name__} - "
-                    f"Duration: {end_time - start_time:.3f}s, "
-                    f"Memory: {memory_after['used'] - memory_before['used']:.2f}GB, "
-                    f"Success: {success}"
-                )
-
-        return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
-
-    # Can be used as decorator or context manager
-    if callable(operation_name):
-        func = operation_name
-        operation_name = func.__name__
-        return decorator(func)
-
-    return decorator
+    return decorator(operation_name) if callable(operation_name) else decorator
 
 
-async def optimize_batch_size(items: List[Any], process_func: Callable, target_time: float = 2.0) -> int:
+async def optimize_batch_size(
+    items: List[Any], process_func: Callable[[List[Any]], Any], target_time: float = 2.0
+) -> int:
     """Determine optimal batch size for processing function"""
     test_sizes = [1, 5, 10, 20, 50, 100]
     times = []

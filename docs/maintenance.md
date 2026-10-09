@@ -89,9 +89,10 @@ partial batches and a failing embedding boundary without model or OCR requests.
 
 Math markup uses the current Python-Markdown InlineProcessor/BlockProcessor APIs
 and `xml.etree.ElementTree`; tests parse the actual rendered HTML and reject
-nontext OCR values. PDF rendering remains unverified. `typings/pdfkit.pyi` describes
-only the `from_file` call used here, based on the installed pdfkit 1.0.0 API; it does
-not replace runtime validation or claim a working external PDF renderer.
+nontext OCR values. Internal temporary PDF tests use normal Chromium with scripts disabled,
+verify actual text, tables and page dimensions, reject local/remote resources and dangerous
+legacy options, and prove a missing browser fails. They do not export a user deliverable or
+establish extraction quality. PDF creation requires `python -m playwright install chromium`.
 [Python-Markdown extension API](https://python-markdown.github.io/extensions/api/)
 explains these parser contracts.
 
@@ -132,3 +133,31 @@ so providers with client-only implementations do not need a nonexistent native `
 Per-call generation options reach that execution path; OpenAI native messages use `ChatMessage.text`.
 Controlled provider fixtures validate retrieval, options, native reply text and explicit provider errors;
 normal browser tests retain the production HTTP and JavaScript flow.
+
+## Security checks
+
+The old Safety command passed a filename to an output-format enum and failed before scanning.
+The current Safety CLI also requires account-backed service initialization. CI audits the actually
+installed project dependency environment with [PyPA pip-audit](https://github.com/pypa/pip-audit),
+which reports known vulnerabilities as JSON and preserves a nonzero failure status. No vulnerability
+is ignored. Semgrep runs in a separate tools environment to keep its own OpenTelemetry constraints
+from changing the project runtime; `--error` makes findings fail the gate. Bandit scans the declared
+source directories with the repository's existing `pyproject.toml` configuration, avoiding temporary
+virtualenv copies while retaining all configured source checks. Publishing validation runs argument
+lists without a shell and aborts on a failed artifact check; validation did not publish a package.
+
+PDF parsing uses maintained `pypdf`; the deprecated PyPDF2 vulnerability advisory
+[requires migration](https://github.com/pypa/advisory-database/blob/main/vulns/pypdf2/PYSEC-2026-1835.yaml).
+The unpatched [pdfkit advisory](https://github.com/pypa/advisory-database/blob/main/vulns/pdfkit/PYSEC-2026-2860.yaml)
+is addressed by removing that renderer and its dependency. Chromium preserves page size,
+orientation, UTF-8 and margins. Unsupported wkhtmltopdf-specific options fail explicitly.
+NLTK had no source consumer and was removed from the speculative enhanced declaration;
+its unpatched model-artifact advisory is not ignored. A fresh installation of declared
+`.[dev,monitoring]` was audited: 185 distributions, no known vulnerabilities.
+
+`scripts/check_bandit.py` validates and applies the existing medium severity and medium
+confidence configuration with `-ll/-ii`, preserving the existing B101/B601 skips. It also saves
+all severities/confidences to `bandit-report-all.json`; low findings remain visible. A malformed
+or incomplete scan fails. The former command did not apply configured thresholds and scanned
+temporary virtualenv copies. Actual clean, low-informational and high-failing fixture sources
+verify scanner statuses; no finding is converted to success with a shell fallback.

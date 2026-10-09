@@ -68,9 +68,12 @@ class LLMFactory:
 
             # Create connector
             if provider == "openai":
-                return factory_class.create(config, streaming_callback)
+                connector = factory_class.create(config, streaming_callback)
             else:
-                return factory_class.create(config)
+                connector = factory_class.create(config)
+            if not isinstance(connector, BaseLLMConnector):
+                raise TypeError(f"{provider} factory did not return a BaseLLMConnector")
+            return connector
 
         except ImportError as e:
             logger.error(f"Failed to import {provider} connector: {e}")
@@ -104,7 +107,10 @@ class LLMFactory:
             module = __import__(module_name, fromlist=[factory_class_name])
             factory_class = getattr(module, factory_class_name)
 
-            return factory_class.get_supported_models()
+            models = factory_class.get_supported_models()
+            if not isinstance(models, list) or any(not isinstance(model, str) for model in models):
+                raise TypeError("Provider model catalog must be a list of strings")
+            return models
 
         except Exception as e:
             logger.warning(f"Could not get models for {provider}: {e}")

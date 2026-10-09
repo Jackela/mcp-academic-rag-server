@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=45", "setuptools-scm[toml]>=6.2", "wheel"]
+requires = ["setuptools>=83", "setuptools-scm[toml]>=6.2", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -32,10 +32,10 @@ dependencies = [
     "mcp>=1.0.0,<2",
     
     # Basic document processing
-    "PyPDF2>=3.0.0",
+    "pypdf>=6.19,<7",
     "PyMuPDF>=1.23.0",
     "markdown>=3.5",
-    "pdfkit>=1.0.0",
+    "playwright>=1.63,<2",
     "Pillow>=10.0.0",
     "pytesseract>=0.3.10",
     
@@ -51,6 +51,7 @@ dependencies = [
     "aiofiles>=24.1.0",
     "python-dotenv>=1.0.0",
     "psutil>=6.0.0",
+    "watchdog>=3.0.0",
     
     # Simple vector storage
     "faiss-cpu>=1.7.0",
@@ -88,9 +89,9 @@ dev = [
     "pytest-mock>=3.10.0",
     "anthropic>=0.25.0",
     "arxiv>=2.1.0",
-    "watchdog>=3.0.0",
     "bandit>=1.7.0",
-    "safety>=2.3.0",
+    "pip-audit>=2.10,<3",
+    "tomli>=2; python_version < '3.11'",
 ]
 
 # Existing monitoring runtime; optional for installed MCP-only users.
@@ -111,7 +112,6 @@ monitoring = [
 # Enhanced processing (optional for advanced users)
 enhanced = [
     "spacy>=3.6.0",          # Only if user wants advanced NLP
-    "nltk>=3.8.0",           # Only if user wants additional text processing
 ]
 
 # Web interface (optional)
@@ -183,7 +183,6 @@ ensure_newline_before_comments = true
 skip_glob = [".venv*/**", ".wheel-smoke/**", "build/**", "dist/**"]
 
 [tool.mypy]
-mypy_path = "$MYPY_CONFIG_FILE_DIR/typings"
 python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true

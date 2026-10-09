@@ -57,6 +57,10 @@ file results and service errors do not count as successful extraction. Local
 verification uses controlled fixture text and vectors; no paper extraction,
 research finding or model answer quality is claimed from those fixtures.
 
+Markdown-to-PDF conversion requires local Chromium (`python -m playwright install chromium`).
+It disables scripts and local/remote resource fetching; self-contained data images are supported.
+Missing browsers and unsupported legacy PDF options are explicit errors.
+
 ## Develop and verify
 
 [AGENTS.md](AGENTS.md) defines maintenance boundaries. [docs/maintenance.md](docs/maintenance.md)
@@ -66,7 +70,7 @@ selection, and `.flake8` owns lint settings. Do not duplicate these configuratio
 in another file.
 
 ```bash
-.venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python -m pip install -e '.[dev,monitoring]'
 .venv/bin/python -m pytest
 ```
 

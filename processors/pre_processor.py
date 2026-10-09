@@ -149,7 +149,9 @@ class PreProcessor(BaseProcessor):
 
             # 将PDF转换为图像
             logger.info(f"将PDF转换为图像: {document.file_path}")
-            images = image_utils.pdf_to_images(document.file_path, dpi=300, output_format=self.config["output_format"])
+            images = image_utils.pdf_to_images(
+                str(document.file_path), dpi=300, output_format=self.config["output_format"]
+            )
 
             # 处理每一页图像
             processed_files = []
