@@ -220,6 +220,7 @@ latex_elements = {
   })
 }
 \defaultfontfeatures{RawFeature={fallback=docunicode}}
+\defaultjfontfeatures+{RawFeature={fallback=docunicode}}
 \setmainfont{XCharter}
 \setsansfont{Lato}
 \setmonofont{Inconsolatazi4}
