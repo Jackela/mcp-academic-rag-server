@@ -11,15 +11,18 @@ import json
 import logging
 import threading
 import time
-import weakref
 from collections import defaultdict, deque
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union
+from functools import wraps
+from typing import Any, Awaitable, Callable, Dict, Iterator, List, Optional, ParamSpec, TypeVar, Union, cast
 
 import psutil
+
+P = ParamSpec("P")
+T = TypeVar("T")
 
 
 class MetricType(Enum):
@@ -48,16 +51,20 @@ class PerformanceMetric:
     name: str
     value: Union[int, float]
     metric_type: MetricType
-    timestamp: datetime
-    tags: Dict[str, str] = None
+    timestamp: datetime | str
+    tags: Dict[str, str] | None = None
     unit: str = "count"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.tags is None:
             self.tags = {}
 
         if isinstance(self.timestamp, str):
             self.timestamp = datetime.fromisoformat(self.timestamp)
+
+    @property
+    def observed_at(self) -> datetime:
+        return datetime.fromisoformat(self.timestamp) if isinstance(self.timestamp, str) else self.timestamp
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
@@ -65,7 +72,7 @@ class PerformanceMetric:
             "name": self.name,
             "value": self.value,
             "type": self.metric_type.value,
-            "timestamp": self.timestamp.isoformat(),
+            "timestamp": self.observed_at.isoformat(),
             "tags": self.tags,
             "unit": self.unit,
         }
@@ -106,7 +113,7 @@ class AlertRule:
     enabled: bool = True
     description: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if isinstance(self.level, str):
             self.level = AlertLevel(self.level)
 
@@ -125,7 +132,7 @@ class Alert:
     def is_active(self) -> bool:
         return self.resolved_at is None
 
-    def resolve(self):
+    def resolve(self) -> None:
         """Mark alert as resolved"""
         self.resolved_at = datetime.now()
 
@@ -147,13 +154,13 @@ class MetricsCollector:
 
     def __init__(self, max_history: int = 10000):
         self.max_history = max_history
-        self.metrics_history: deque = deque(maxlen=max_history)
-        self.current_values: Dict[str, Any] = {}
+        self.metrics_history: deque[PerformanceMetric] = deque(maxlen=max_history)
+        self.current_values: Dict[str, Union[int, float]] = {}
         self.aggregated_metrics: Dict[str, Dict[str, float]] = defaultdict(dict)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self.logger = logging.getLogger("performance.collector")
 
-    def record_metric(self, metric: PerformanceMetric):
+    def record_metric(self, metric: PerformanceMetric) -> None:
         """Record a performance metric"""
         with self._lock:
             self.metrics_history.append(metric)
@@ -164,7 +171,7 @@ class MetricsCollector:
 
             self.logger.debug(f"Recorded metric: {metric.name}={metric.value}")
 
-    def _update_aggregations(self, metric: PerformanceMetric):
+    def _update_aggregations(self, metric: PerformanceMetric) -> None:
         """Update aggregated metric calculations"""
         metric_name = metric.name
 
@@ -173,7 +180,7 @@ class MetricsCollector:
             recent_values = [
                 m.value
                 for m in self.metrics_history
-                if m.name == metric_name and m.timestamp > datetime.now() - timedelta(minutes=5)
+                if m.name == metric_name and m.observed_at > datetime.now() - timedelta(minutes=5)
             ]
 
             if recent_values:
@@ -191,17 +198,23 @@ class MetricsCollector:
             recent_metrics = [
                 m
                 for m in self.metrics_history
-                if m.name == metric_name and m.timestamp > datetime.now() - timedelta(minutes=1)
+                if m.name == metric_name and m.observed_at > datetime.now() - timedelta(minutes=1)
             ]
 
             if len(recent_metrics) > 1:
-                time_diff = (recent_metrics[-1].timestamp - recent_metrics[0].timestamp).total_seconds()
+                time_diff = (recent_metrics[-1].observed_at - recent_metrics[0].observed_at).total_seconds()
                 value_diff = recent_metrics[-1].value - recent_metrics[0].value
                 rate = value_diff / time_diff if time_diff > 0 else 0
 
                 self.aggregated_metrics[metric_name]["rate"] = rate
 
-    def get_current_value(self, metric_name: str) -> Optional[Any]:
+    def increment_counter(self, name: str, tags: Dict[str, str] | None = None) -> None:
+        """Atomically record a cumulative counter without changing absolute counter inputs."""
+        with self._lock:
+            value = self.current_values.get(name, 0) + 1
+            self.record_metric(PerformanceMetric(name, value, MetricType.COUNTER, datetime.now(), tags))
+
+    def get_current_value(self, metric_name: str) -> Optional[Union[int, float]]:
         """Get current value of a metric"""
         with self._lock:
             return self.current_values.get(metric_name)
@@ -211,7 +224,9 @@ class MetricsCollector:
         with self._lock:
             return dict(self.aggregated_metrics)
 
-    def get_metrics_history(self, metric_name: str = None, since: datetime = None) -> List[PerformanceMetric]:
+    def get_metrics_history(
+        self, metric_name: str | None = None, since: datetime | None = None
+    ) -> List[PerformanceMetric]:
         """Get metrics history with optional filtering"""
         with self._lock:
             metrics = list(self.metrics_history)
@@ -220,7 +235,7 @@ class MetricsCollector:
             metrics = [m for m in metrics if m.name == metric_name]
 
         if since:
-            metrics = [m for m in metrics if m.timestamp >= since]
+            metrics = [m for m in metrics if m.observed_at >= since]
 
         return metrics
 
@@ -238,7 +253,7 @@ class SystemMonitor:
         # Initialize psutil process for consistent monitoring
         self.process = psutil.Process()
 
-    def start(self, metrics_collector: MetricsCollector):
+    def start(self, metrics_collector: MetricsCollector) -> None:
         """Start system monitoring"""
         if self.is_running:
             self.logger.warning("System monitor already running")
@@ -252,7 +267,7 @@ class SystemMonitor:
 
         self.logger.info(f"System monitor started with {self.collection_interval}s interval")
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop system monitoring"""
         if not self.is_running:
             return
@@ -264,7 +279,7 @@ class SystemMonitor:
 
         self.logger.info("System monitor stopped")
 
-    def _monitor_loop(self):
+    def _monitor_loop(self) -> None:
         """Main monitoring loop"""
         while self.is_running:
             try:
@@ -294,7 +309,9 @@ class SystemMonitor:
                         unit=unit,
                         tags={"component": "system"},
                     )
-                    self.metrics_collector.record_metric(metric)
+                    collector = self.metrics_collector
+                    if collector is not None:
+                        collector.record_metric(metric)
 
                 time.sleep(self.collection_interval)
 
@@ -349,7 +366,7 @@ class SystemMonitor:
 class AlertManager:
     """Alert management and notification system"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.alert_rules: Dict[str, AlertRule] = {}
         self.active_alerts: Dict[str, Alert] = {}
         self.alert_history: List[Alert] = []
@@ -357,24 +374,24 @@ class AlertManager:
         self._lock = threading.Lock()
         self.logger = logging.getLogger("performance.alerts")
 
-    def add_alert_rule(self, rule: AlertRule):
+    def add_alert_rule(self, rule: AlertRule) -> None:
         """Add an alert rule"""
         with self._lock:
             self.alert_rules[rule.metric_name] = rule
             self.logger.info(f"Added alert rule for {rule.metric_name}: {rule.condition} {rule.threshold}")
 
-    def remove_alert_rule(self, metric_name: str):
+    def remove_alert_rule(self, metric_name: str) -> None:
         """Remove an alert rule"""
         with self._lock:
             if metric_name in self.alert_rules:
                 del self.alert_rules[metric_name]
                 self.logger.info(f"Removed alert rule for {metric_name}")
 
-    def add_alert_callback(self, callback: Callable[[Alert], None]):
+    def add_alert_callback(self, callback: Callable[[Alert], None]) -> None:
         """Add alert notification callback"""
         self.alert_callbacks.append(callback)
 
-    def check_metrics(self, metrics_collector: MetricsCollector):
+    def check_metrics(self, metrics_collector: MetricsCollector) -> None:
         """Check metrics against alert rules"""
         with self._lock:
             for rule_name, rule in self.alert_rules.items():
@@ -444,7 +461,7 @@ class AlertManager:
 class PerformanceMonitor:
     """Main performance monitoring system"""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any] | None = None):
         self.config = config or {}
         self.metrics_collector = MetricsCollector(max_history=self.config.get("max_metrics_history", 10000))
         self.system_monitor = SystemMonitor(collection_interval=self.config.get("system_monitor_interval", 1.0))
@@ -457,7 +474,7 @@ class PerformanceMonitor:
         # Setup default alert rules
         self._setup_default_alerts()
 
-    def _setup_default_alerts(self):
+    def _setup_default_alerts(self) -> None:
         """Setup default alert rules"""
         default_rules = [
             AlertRule(
@@ -486,7 +503,7 @@ class PerformanceMonitor:
         for rule in default_rules:
             self.alert_manager.add_alert_rule(rule)
 
-    def start(self):
+    def start(self) -> None:
         """Start performance monitoring"""
         if self.is_running:
             self.logger.warning("Performance monitor already running")
@@ -503,7 +520,7 @@ class PerformanceMonitor:
 
         self.logger.info("Performance monitoring started")
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop performance monitoring"""
         if not self.is_running:
             return
@@ -519,7 +536,7 @@ class PerformanceMonitor:
 
         self.logger.info("Performance monitoring stopped")
 
-    def _alert_check_loop(self):
+    def _alert_check_loop(self) -> None:
         """Alert checking loop"""
         check_interval = self.config.get("alert_check_interval", 5.0)
 
@@ -536,9 +553,9 @@ class PerformanceMonitor:
         name: str,
         value: Union[int, float],
         metric_type: MetricType = MetricType.GAUGE,
-        tags: Dict[str, str] = None,
+        tags: Dict[str, str] | None = None,
         unit: str = "count",
-    ):
+    ) -> None:
         """Record a custom metric"""
         metric = PerformanceMetric(
             name=name, value=value, metric_type=metric_type, timestamp=datetime.now(), tags=tags or {}, unit=unit
@@ -546,7 +563,7 @@ class PerformanceMonitor:
         self.metrics_collector.record_metric(metric)
 
     @contextmanager
-    def timer(self, name: str, tags: Dict[str, str] = None):
+    def timer(self, name: str, tags: Dict[str, str] | None = None) -> Iterator[None]:
         """Context manager for timing operations"""
         start_time = time.perf_counter()
         try:
@@ -590,7 +607,7 @@ class PerformanceMonitor:
 _performance_monitor: Optional[PerformanceMonitor] = None
 
 
-def get_performance_monitor(config: Dict[str, Any] = None) -> PerformanceMonitor:
+def get_performance_monitor(config: Dict[str, Any] | None = None) -> PerformanceMonitor:
     """Get global performance monitor instance"""
     global _performance_monitor
 
@@ -600,7 +617,7 @@ def get_performance_monitor(config: Dict[str, Any] = None) -> PerformanceMonitor
     return _performance_monitor
 
 
-def initialize_monitoring(config: Dict[str, Any] = None) -> PerformanceMonitor:
+def initialize_monitoring(config: Dict[str, Any] | None = None) -> PerformanceMonitor:
     """Initialize and start performance monitoring"""
     monitor = get_performance_monitor(config)
     monitor.start()
@@ -608,45 +625,45 @@ def initialize_monitoring(config: Dict[str, Any] = None) -> PerformanceMonitor:
 
 
 # Convenient decorators for performance tracking
-def track_performance(metric_name: str = None, tags: Dict[str, str] = None):
-    """Decorator to track function performance"""
+def track_performance(
+    metric_name: str | None = None, tags: Dict[str, str] | None = None
+) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    """Track each decorated function independently while retaining its signature."""
 
-    def decorator(func):
-        nonlocal metric_name
-        if metric_name is None:
-            metric_name = f"function.{func.__module__}.{func.__name__}.duration"
-
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
+        name = metric_name or f"function.{func.__module__}.{func.__name__}.duration"
         if asyncio.iscoroutinefunction(func):
+            async_func = cast(Callable[P, Awaitable[object]], func)
 
-            async def async_wrapper(*args, **kwargs):
-                monitor = get_performance_monitor()
-                with monitor.timer(metric_name, tags):
-                    return await func(*args, **kwargs)
+            @wraps(func)
+            async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> object:
+                with get_performance_monitor().timer(name, tags):
+                    return await async_func(*args, **kwargs)
 
-            return async_wrapper
-        else:
+            # iscoroutinefunction establishes the awaitable return contract at runtime.
+            return cast(Callable[P, T], async_wrapper)
 
-            def sync_wrapper(*args, **kwargs):
-                monitor = get_performance_monitor()
-                with monitor.timer(metric_name, tags):
-                    return func(*args, **kwargs)
+        @wraps(func)
+        def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            with get_performance_monitor().timer(name, tags):
+                return func(*args, **kwargs)
 
-            return sync_wrapper
+        return sync_wrapper
 
     return decorator
 
 
-def count_calls(metric_name: str = None, tags: Dict[str, str] = None):
-    """Decorator to count function calls"""
+def count_calls(
+    metric_name: str | None = None, tags: Dict[str, str] | None = None
+) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    """Count invocations with atomic cumulative values and independent default names."""
 
-    def decorator(func):
-        nonlocal metric_name
-        if metric_name is None:
-            metric_name = f"function.{func.__module__}.{func.__name__}.calls"
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
+        name = metric_name or f"function.{func.__module__}.{func.__name__}.calls"
 
-        def wrapper(*args, **kwargs):
-            monitor = get_performance_monitor()
-            monitor.record_metric(metric_name, 1, MetricType.COUNTER, tags)
+        @wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            get_performance_monitor().metrics_collector.increment_counter(name, tags)
             return func(*args, **kwargs)
 
         return wrapper

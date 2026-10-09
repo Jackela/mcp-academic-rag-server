@@ -20,7 +20,7 @@ from .workflow_models import (
 class EffortCalculator:
     """独立的工作量计算器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger("EffortCalculator")
 
         # 基于复杂度的工作量映射表
@@ -65,7 +65,7 @@ class EffortCalculator:
             # 1. 计算需求核心工作量
             core_effort = 0
             for req in requirements:
-                if req.estimated_effort:
+                if req.estimated_effort is not None:
                     core_effort += req.estimated_effort
                 else:
                     # 基于复杂度估算
@@ -157,7 +157,7 @@ class EffortCalculator:
         requirement_categories: Optional[RequirementCategories] = None,
     ) -> Dict[PersonaType, int]:
         """计算专家人格工作量分配"""
-        breakdown = {}
+        breakdown: Dict[PersonaType, int] = {}
 
         try:
             if requirement_categories:
@@ -268,7 +268,7 @@ class EffortCalculator:
 class PhaseEffortDistributor:
     """阶段工作量分配器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger("PhaseEffortDistributor")
 
         # 不同策略的阶段分配模板

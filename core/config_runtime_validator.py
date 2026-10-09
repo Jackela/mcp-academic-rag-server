@@ -7,13 +7,10 @@
 
 import json
 import logging
-import os
 import re
-import time
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +70,9 @@ class ConfigConstraint:
 class RangeConstraint(ConfigConstraint):
     """数值范围约束"""
 
-    def __init__(self, name: str, min_val: Union[int, float], max_val: Union[int, float], description: str = None):
+    def __init__(
+        self, name: str, min_val: Union[int, float], max_val: Union[int, float], description: Optional[str] = None
+    ):
         super().__init__(name, description or f"值必须在 {min_val} 到 {max_val} 之间")
         self.min_val = min_val
         self.max_val = max_val
@@ -116,7 +115,7 @@ class RangeConstraint(ConfigConstraint):
 class PatternConstraint(ConfigConstraint):
     """正则表达式模式约束"""
 
-    def __init__(self, name: str, pattern: str, description: str = None):
+    def __init__(self, name: str, pattern: str, description: Optional[str] = None):
         super().__init__(name, description or f"必须匹配模式: {pattern}")
         self.pattern = re.compile(pattern)
         self.pattern_str = pattern
@@ -159,7 +158,7 @@ class PatternConstraint(ConfigConstraint):
 class DependencyConstraint(ConfigConstraint):
     """依赖关系约束"""
 
-    def __init__(self, name: str, depends_on: List[str], description: str = None):
+    def __init__(self, name: str, depends_on: List[str], description: Optional[str] = None):
         super().__init__(name, description or f"依赖于: {', '.join(depends_on)}")
         self.depends_on = depends_on
 
@@ -205,12 +204,12 @@ class RuntimeConfigValidator:
     def __init__(self, validation_level: ValidationLevel = ValidationLevel.STANDARD):
         self.validation_level = validation_level
         self.constraints: Dict[str, List[ConfigConstraint]] = {}
-        self.custom_validators: Dict[str, Callable] = {}
+        self.custom_validators: Dict[str, Callable[[Any, str, Dict[str, Any]], List[ValidationResult]]] = {}
 
         # 注册默认约束
         self._register_default_constraints()
 
-    def _register_default_constraints(self):
+    def _register_default_constraints(self) -> None:
         """注册默认配置约束"""
         # 存储路径约束
         self.add_constraint(
@@ -243,13 +242,15 @@ class RuntimeConfigValidator:
             DependencyConstraint("embedding_dependency", ["llm.settings.api_key"], "嵌入处理器需要LLM API密钥"),
         )
 
-    def add_constraint(self, path: str, constraint: ConfigConstraint):
+    def add_constraint(self, path: str, constraint: ConfigConstraint) -> None:
         """添加配置约束"""
         if path not in self.constraints:
             self.constraints[path] = []
         self.constraints[path].append(constraint)
 
-    def add_custom_validator(self, path: str, validator: Callable[[Any, str, Dict[str, Any]], List[ValidationResult]]):
+    def add_custom_validator(
+        self, path: str, validator: Callable[[Any, str, Dict[str, Any]], List[ValidationResult]]
+    ) -> None:
         """添加自定义验证器"""
         self.custom_validators[path] = validator
 
@@ -402,7 +403,7 @@ class RuntimeConfigValidator:
         """查找匹配通配符模式的路径"""
         paths = []
 
-        def traverse(current: Dict[str, Any], current_path: str = ""):
+        def traverse(current: Dict[str, Any], current_path: str = "") -> None:
             for key, value in current.items():
                 new_path = f"{current_path}.{key}" if current_path else key
 
@@ -441,7 +442,7 @@ class RuntimeConfigValidator:
             return "✅ 配置验证通过，未发现问题。"
 
         # 按严重程度分组
-        by_severity = {}
+        by_severity: Dict[str, List[ValidationResult]] = {}
         for result in results:
             severity = result.severity.value
             if severity not in by_severity:
@@ -451,8 +452,7 @@ class RuntimeConfigValidator:
         report_lines = ["# 配置验证报告\n"]
 
         # 总览
-        total = len(results)
-        errors = len(by_severity.get("error", []))
+        errors = len(by_severity.get("error", [])) + len(by_severity.get("critical", []))
         warnings = len(by_severity.get("warning", []))
 
         if errors > 0:
@@ -469,31 +469,25 @@ class RuntimeConfigValidator:
             if severity in by_severity:
                 severity_results = by_severity[severity]
 
-                if severity == "critical":
-                    icon = "🚨"
-                elif severity == "error":
-                    icon = "❌"
-                elif severity == "warning":
-                    icon = "⚠️"
-                else:
-                    icon = "ℹ️"
+                icon = {"critical": "🚨", "error": "❌", "warning": "⚠️", "info": "ℹ️"}[severity]
 
                 report_lines.append(f"## {icon} {severity.upper()} ({len(severity_results)})")
                 report_lines.append("")
 
-                for result in severity_results:
-                    report_lines.append(f"**路径**: `{result.path}`")
-                    report_lines.append(f"**问题**: {result.message}")
-
-                    if result.suggestion:
-                        report_lines.append(f"**建议**: {result.suggestion}")
-
-                    if result.impact:
-                        report_lines.append(f"**影响**: {result.impact}")
-
-                    report_lines.append("")
+                self._append_result_details(report_lines, severity_results)
 
         return "\n".join(report_lines)
+
+    @staticmethod
+    def _append_result_details(report_lines: List[str], results: List[ValidationResult]) -> None:
+        for result in results:
+            report_lines.append(f"**路径**: `{result.path}`")
+            report_lines.append(f"**问题**: {result.message}")
+            if result.suggestion:
+                report_lines.append(f"**建议**: {result.suggestion}")
+            if result.impact:
+                report_lines.append(f"**影响**: {result.impact}")
+            report_lines.append("")
 
 
 # 便捷函数
@@ -519,7 +513,7 @@ def validate_config_file(
         return False, f"验证过程中发生错误: {str(e)}"
 
 
-def create_constraint_example():
+def create_constraint_example() -> Callable[[Any, str, Dict[str, Any]], List[ValidationResult]]:
     """创建约束示例"""
 
     # 自定义验证器示例
